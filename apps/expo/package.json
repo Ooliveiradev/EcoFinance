@@ -1,0 +1,29 @@
+{
+  "name": "@ecofinance/expo",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "expo-location": "~18.0.0",
+    "expo-status-bar": "~2.0.0",
+    "react": "^19.0.0",
+    "react-native": "0.76.0",
+    "react-native-android-notification-listener": "^4.0.0",
+    "@ecofinance/shared": "workspace:*",
+    "expo-linking": "~7.0.0",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/native-stack": "^7.0.0",
+    "react-native-screens": "~4.4.0",
+    "react-native-safe-area-context": "~5.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.8.0"
+  }
+}
