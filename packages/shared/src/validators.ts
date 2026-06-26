@@ -53,23 +53,6 @@ export const notificationTransactionSchema = z.object({
 
 export type NotificationTransactionInput = z.infer<typeof notificationTransactionSchema>;
 
-/**
- * Generates a SHA-256 deduplication hash from the key fields of a notification.
- * Used to prevent duplicate transactions from repeated notifications.
- */
-export async function generateDeduplicationHash(
-  amount: number,
-  bankName: string,
-  timestamp: string,
-): Promise<string> {
-  const data = `${amount}|${bankName.toLowerCase().trim()}|${timestamp}`;
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-  return hashHex;
-}
-
 // ---------------------------------------------------------------------------
 // Pluggy Sync
 // ---------------------------------------------------------------------------

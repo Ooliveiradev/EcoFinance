@@ -1,91 +1,107 @@
+import * as TaskManager from 'expo-task-manager';
+import * as Notifications from 'expo-notifications';
 import { getCurrentLocation } from './location-service';
 import { sendTransaction } from './api-client';
-import { 
-  parseAmountFromText, 
-  categorizeTransaction, 
-  generateDeduplicationHash 
-} from '@ecofinance/shared';
+import { parseAmountFromText } from '@ecofinance/shared';
 
-interface NotificationData {
-  app: string;
-  title: string;
-  text: string;
-  subText: string;
-  groupedMessages: string[];
-  time: string;
-}
+export const NOTIFICATION_HANDLER_TASK = 'ECOFINANCE_NOTIFICATION_HANDLER';
 
-// Bank app package names for filtering
-const BANK_PACKAGES: Record<string, string> = {
-  'com.nu.production': 'Nubank',
-  'com.itau': 'Itaú',
-  'com.bradesco': 'Bradesco',
-  'br.com.intermedium': 'Inter',
-  'com.c6bank.app': 'C6 Bank',
-  'com.santander.app': 'Santander',
-  'br.com.bb.android': 'Banco do Brasil',
-  'com.mercadopago.wallet': 'Mercado Pago',
-  'br.com.itau.empresas': 'Itaú PJ',
+// Bank sender names to match in push notifications
+const BANK_SENDER_MAP: Record<string, string> = {
+  nubank: 'Nubank',
+  'nu pagamentos': 'Nubank',
+  itaú: 'Itaú',
+  itau: 'Itaú',
+  bradesco: 'Bradesco',
+  'banco inter': 'Inter',
+  inter: 'Inter',
+  c6: 'C6 Bank',
+  santander: 'Santander',
+  'banco do brasil': 'Banco do Brasil',
+  'mercado pago': 'Mercado Pago',
 };
 
-// Purchase-related keywords to filter relevant notifications
-const PURCHASE_KEYWORDS = ['compra', 'pagamento', 'débito', 'pix', 'transferência', 'saque', 'aprovad'];
+// Keywords to identify purchase notifications
+const PURCHASE_KEYWORDS = [
+  'compra', 'pagamento', 'débito', 'debito',
+  'pix enviado', 'transferência', 'transferencia',
+  'saque', 'aprovad', 'utilizado',
+];
 
-export async function headlessNotificationListener(data: NotificationData): Promise<void> {
-  try {
-    const bankName = BANK_PACKAGES[data.app];
-    if (!bankName) {
-      console.log(`Notification from unknown app ignored: ${data.app}`);
-      return; // Not a known bank app
-    }
+function detectBankFromNotification(title: string, body: string): string | null {
+  const combined = `${title} ${body}`.toLowerCase();
+  for (const [key, bankName] of Object.entries(BANK_SENDER_MAP)) {
+    if (combined.includes(key)) return bankName;
+  }
+  return null;
+}
 
-    const notificationText = `${data.title} ${data.text} ${data.subText || ''}`.toLowerCase();
-    
-    const isPurchase = PURCHASE_KEYWORDS.some(keyword => notificationText.includes(keyword));
-    if (!isPurchase) {
-      console.log(`Notification without purchase keywords ignored from ${bankName}.`);
-      return; 
-    }
+function isPurchaseNotification(title: string, body: string): boolean {
+  const combined = `${title} ${body}`.toLowerCase();
+  return PURCHASE_KEYWORDS.some(k => combined.includes(k));
+}
 
-    const amount = parseAmountFromText(data.text) || parseAmountFromText(data.title);
-    if (!amount) {
-      console.log(`Could not parse amount from notification text: ${data.text}`);
+// This task runs when a notification is received in the background/foreground
+try {
+  TaskManager.defineTask(NOTIFICATION_HANDLER_TASK, async ({ data, error }: any) => {
+    if (error) {
+      console.error('NOTIFICATION_HANDLER_TASK error:', error);
       return;
     }
 
-    // Attempt to extract description (usually follows the word "em" or is the title)
-    // Basic heuristic:
-    let description = data.text;
-    const emMatch = notificationText.match(/em (.*?)( no valor|$)/);
-    if (emMatch && emMatch[1]) {
+    const notification = data?.notification as Notifications.Notification | undefined;
+    if (!notification) return;
+
+    const title = notification.request.content.title || '';
+    const body = notification.request.content.body || '';
+
+    if (!isPurchaseNotification(title, body)) {
+      console.log('Notification is not a purchase, ignoring.');
+      return;
+    }
+
+    const bankName = detectBankFromNotification(title, body);
+    if (!bankName) {
+      console.log('Could not identify bank from notification, ignoring.');
+      return;
+    }
+
+    // Try to parse the amount
+    const amount = parseAmountFromText(body) || parseAmountFromText(title);
+    if (!amount) {
+      console.log('Could not parse amount from notification.');
+      return;
+    }
+
+    let description = body;
+    // Try to extract merchant name using "em" pattern common in Brazilian banks
+    const emMatch = body.toLowerCase().match(/em (.*?)( no valor| r\$|$)/);
+    if (emMatch?.[1]) {
       description = emMatch[1].trim();
     }
 
-    console.log(`Detected valid transaction: ${bankName} - ${amount} - ${description}`);
+    console.log(`Detected transaction: ${bankName} - R$${amount} - ${description}`);
 
-    // Get current GPS location (will timeout if unable)
     const location = await getCurrentLocation();
+    const timestamp = new Date(notification.date).toISOString();
 
-    const timestamp = data.time ? new Date(parseInt(data.time)).toISOString() : new Date().toISOString();
-
-    const payload = {
+    await sendTransaction({
       description,
-      amount: -Math.abs(amount), // Purchases are negative
+      amount: -Math.abs(amount),
       bankName,
-      latitude: location?.latitude || null,
-      longitude: location?.longitude || null,
+      latitude: location?.latitude ?? null,
+      longitude: location?.longitude ?? null,
       timestamp,
-    };
+    });
+  });
+} catch (e) {
+  console.warn('Failed to defineTask:', e);
+}
 
-    const response = await sendTransaction(payload);
-    
-    if (response.success) {
-      console.log('Transaction sent successfully to backend.', response.duplicate ? '(Duplicate detected and handled)' : '');
-    } else {
-      console.error('Failed to send transaction to backend.');
-    }
-
-  } catch (error) {
-    console.error('Error in headlessNotificationListener:', error);
+export async function registerNotificationHandlerTask(): Promise<void> {
+  const isRegistered = await TaskManager.isTaskRegisteredAsync(NOTIFICATION_HANDLER_TASK);
+  if (!isRegistered) {
+    await Notifications.registerTaskAsync(NOTIFICATION_HANDLER_TASK);
+    console.log(`Task "${NOTIFICATION_HANDLER_TASK}" registered.`);
   }
 }

@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@ecofinance/db';
-import { accounts, transactions, uberTripsMetadata } from '@ecofinance/db/src/schema';
+import { accounts, transactions, uberTripsMetadata } from '@ecofinance/db';
 import { uberWebhookPayloadSchema } from '@ecofinance/shared';
 import { eq, and, gte, lte, between, sql } from 'drizzle-orm';
 

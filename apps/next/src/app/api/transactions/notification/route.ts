@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@ecofinance/db';
-import { accounts, transactions } from '@ecofinance/db/src/schema';
+import { accounts, transactions } from '@ecofinance/db';
 import {
   notificationTransactionSchema,
   generateDeduplicationHash,

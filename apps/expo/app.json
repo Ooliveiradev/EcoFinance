@@ -4,35 +4,40 @@
     "slug": "ecofinance",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#020617"
-    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#020617"
-      },
       "package": "com.ecofinance.app",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "BIND_NOTIFICATION_LISTENER_SERVICE"
+        "ACCESS_BACKGROUND_LOCATION"
       ]
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-location",
-      "./plugins/withNotificationListener.js"
-    ]
+      [
+        "expo-notifications",
+        {
+          "icon": null,
+          "color": "#10b981"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ff1a449a-6cbc-4306-849a-b9595846d85e"
+      }
+    }
   }
 }

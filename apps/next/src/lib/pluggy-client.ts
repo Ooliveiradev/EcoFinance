@@ -288,7 +288,7 @@ export class PluggyClient {
   async createConnectToken(): Promise<string> {
     const response = await this.request<{ accessToken: string }>(
       'POST',
-      '/connect_tokens'
+      '/connect_token'
     );
     return response.accessToken;
   }
