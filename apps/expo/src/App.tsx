@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HomeScreen } from './screens/home';
 import { AccountsScreen } from './screens/accounts';
 import { SettingsScreen } from './screens/settings';
+import { AIScreen } from './screens/ai';
 import { OnboardingScreen, ONBOARDING_KEY } from './screens/onboarding';
 import { registerNotificationHandlerTask } from './services/notification-handler';
 
@@ -109,6 +110,14 @@ export default function App() {
           options={{
             title: 'Contas',
             tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="bank" color={color} size={size} />,
+          }}
+        />
+        <Tab.Screen
+          name="AI"
+          component={AIScreen}
+          options={{
+            title: 'Assistente',
+            tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="robot-outline" color={color} size={size} />,
           }}
         />
         <Tab.Screen
