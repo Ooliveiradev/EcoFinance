@@ -35,7 +35,7 @@ function parseOfxDate(raw: string): string {
   // Extract timezone offset if present: [-03:BRT] or [+00:UTC]
   let tzOffset = 'Z';
   const tzMatch = cleaned.match(/\[([+-]?\d{1,2})(?::.*?)?\]/);
-  if (tzMatch) {
+  if (tzMatch?.[1]) {
     const offsetHours = parseInt(tzMatch[1], 10);
     const sign = offsetHours >= 0 ? '+' : '-';
     const absHours = Math.abs(offsetHours).toString().padStart(2, '0');
@@ -69,14 +69,14 @@ function extractTagValue(content: string, tagName: string): string {
   // Try XML style first: <TAG>value</TAG>
   const xmlRegex = new RegExp(`<${tagName}>([^<]*)</${tagName}>`, 'i');
   const xmlMatch = content.match(xmlRegex);
-  if (xmlMatch) {
+  if (xmlMatch?.[1] !== undefined) {
     return xmlMatch[1].trim();
   }
 
   // Fall back to SGML style: <TAG>value\n
   const sgmlRegex = new RegExp(`<${tagName}>([^\\r\\n<]+)`, 'i');
   const sgmlMatch = content.match(sgmlRegex);
-  if (sgmlMatch) {
+  if (sgmlMatch?.[1] !== undefined) {
     return sgmlMatch[1].trim();
   }
 
@@ -95,7 +95,7 @@ function extractBlocks(content: string, tagName: string): string[] {
   let match: RegExpExecArray | null;
   match = xmlRegex.exec(content);
   while (match !== null) {
-    blocks.push(match[1]);
+    blocks.push(match[1] ?? '');
     match = xmlRegex.exec(content);
   }
 
@@ -122,13 +122,13 @@ function extractBlocks(content: string, tagName: string): string[] {
   }
 
   for (let i = 0; i < openPositions.length; i++) {
-    const start = openPositions[i];
+    const start = openPositions[i] ?? 0;
     let end: number;
 
     if (i < closePositions.length) {
-      end = closePositions[i];
+      end = closePositions[i] ?? content.length;
     } else if (i + 1 < openPositions.length) {
-      end = openPositions[i + 1];
+      end = openPositions[i + 1] ?? content.length;
     } else {
       end = content.length;
     }
@@ -157,7 +157,7 @@ export function parseOfxContent(rawContent: string): ParsedOfxResult {
   let balanceDate: string | null = null;
 
   const ledgerBalBlocks = extractBlocks(content, 'LEDGERBAL');
-  if (ledgerBalBlocks.length > 0) {
+  if (ledgerBalBlocks.length > 0 && ledgerBalBlocks[0]) {
     const balAmtStr = extractTagValue(ledgerBalBlocks[0], 'BALAMT');
     const balDateStr = extractTagValue(ledgerBalBlocks[0], 'DTASOF');
     if (balAmtStr) {
@@ -171,7 +171,7 @@ export function parseOfxContent(rawContent: string): ParsedOfxResult {
   // Also try AVAILBAL if LEDGERBAL not found
   if (balanceAmount === null) {
     const availBalBlocks = extractBlocks(content, 'AVAILBAL');
-    if (availBalBlocks.length > 0) {
+    if (availBalBlocks.length > 0 && availBalBlocks[0]) {
       const balAmtStr = extractTagValue(availBalBlocks[0], 'BALAMT');
       const balDateStr = extractTagValue(availBalBlocks[0], 'DTASOF');
       if (balAmtStr) {

@@ -3,13 +3,11 @@
 // from the Android app with GPS deduplication
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@ecofinance/db';
-import { accounts, transactions } from '@ecofinance/db';
+import { db, accounts, transactions, eq, and, gte, sql } from '@ecofinance/db';
 import {
   notificationTransactionSchema,
   generateDeduplicationHash,
 } from '@ecofinance/shared';
-import { eq, and, gte, sql } from 'drizzle-orm';
 
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
@@ -59,18 +57,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .from(transactions)
       .where(
         and(
-          eq(transactions.externalId, dedupHash),
+          sql`${transactions.externalId} = ${dedupHash}`,
           gte(transactions.createdAt, fiveMinutesAgo),
         ),
       )
       .limit(1);
 
     if (existingDuplicates.length > 0) {
+      const dup = existingDuplicates[0];
       return NextResponse.json(
         {
           status: 'duplicate',
           message: 'Transaction already recorded within the last 5 minutes',
-          transactionId: existingDuplicates[0].id,
+          transactionId: dup?.id,
         },
         { status: 200 },
       );
@@ -86,9 +85,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .limit(1);
 
     if (existingAccounts.length > 0) {
-      accountId = existingAccounts[0].id;
+      accountId = existingAccounts[0]?.id ?? '';
     } else {
-      const [newAccount] = await db
+      const newAccountResult = await db
         .insert(accounts)
         .values({
           name: bankName,
@@ -97,24 +96,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         })
         .returning({ id: accounts.id });
 
+      const newAccount = newAccountResult[0];
+      if (!newAccount) {
+        throw new Error(`Failed to create account for bank: ${bankName}`);
+      }
       accountId = newAccount.id;
     }
 
     // ── 6. Insert transaction with GPS coordinates ────────────────────────
-    const [created] = await db
+    const createdResult = await db
       .insert(transactions)
       .values({
         accountId,
         description,
-        amount: String(amount),
+        amount: String(-Math.abs(amount)),
         date: new Date(timestamp),
         category: 'desconhecido',
         source: 'notification',
-        externalId: dedupHash,
         latitude: latitude ?? null,
         longitude: longitude ?? null,
       })
       .returning();
+
+    const created = createdResult[0];
+    if (!created) {
+      throw new Error('Failed to insert transaction');
+    }
 
     // ── 7. Auto-populate geom column via trigger (if lat/lng present) ─────
     // The DB trigger handles setting geom from lat/lng automatically.

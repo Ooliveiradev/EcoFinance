@@ -2,10 +2,18 @@
 // POST /api/transactions/uber-webhook — Receive parsed Uber trip data from GAS
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@ecofinance/db';
-import { accounts, transactions, uberTripsMetadata } from '@ecofinance/db';
+import {
+  db,
+  accounts,
+  transactions,
+  uberTripsMetadata,
+  eq,
+  and,
+  gte,
+  lte,
+  sql,
+} from '@ecofinance/db';
 import { uberWebhookPayloadSchema } from '@ecofinance/shared';
-import { eq, and, gte, lte, between, sql } from 'drizzle-orm';
 
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
@@ -41,11 +49,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const { valor, data_hora, endereco_partida, endereco_destino, nome_motorista, duracao_segundos } =
-      parseResult.data;
+    const {
+      valor,
+      data_hora,
+      endereco_partida,
+      endereco_destino,
+      nome_motorista,
+      duracao_segundos,
+    } = parseResult.data;
 
     // ── 3. Create uber_trips_metadata record ──────────────────────────────
-    const [metadata] = await db
+    const metadataResult = await db
       .insert(uberTripsMetadata)
       .values({
         originAddress: endereco_partida,
@@ -54,6 +68,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         durationSeconds: duracao_segundos ?? null,
       })
       .returning();
+
+    const metadata = metadataResult[0];
+    if (!metadata) {
+      throw new Error('Failed to insert Uber metadata');
+    }
 
     // ── 4. Search for matching transaction ────────────────────────────────
     // Match criteria: same date ±2 hours, similar amount ±R$2.00
@@ -79,6 +98,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (matchingTransactions.length > 0) {
       // ── 5a. Found match — link metadata and update category ─────────────
       const matchedTxn = matchingTransactions[0];
+      if (!matchedTxn) throw new Error('Unexpected empty match');
 
       await db
         .update(transactions)
@@ -110,9 +130,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .limit(1);
 
       if (uberAccounts.length > 0) {
-        accountId = uberAccounts[0].id;
+        accountId = uberAccounts[0]?.id ?? '';
       } else {
-        const [newAccount] = await db
+        const newAccResult = await db
           .insert(accounts)
           .values({
             name: 'Uber',
@@ -121,12 +141,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           })
           .returning({ id: accounts.id });
 
+        const newAccount = newAccResult[0];
+        if (!newAccount) throw new Error('Failed to create Uber account');
         accountId = newAccount.id;
       }
 
       const externalId = `uber_${tripDate.getTime()}_${Math.round(valor * 100)}`;
 
-      const [newTxn] = await db
+      const newTxnResult = await db
         .insert(transactions)
         .values({
           accountId,
@@ -139,6 +161,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           uberMetadataId: metadata.id,
         })
         .returning();
+
+      const newTxn = newTxnResult[0];
+      if (!newTxn) throw new Error('Failed to insert Uber transaction');
 
       return NextResponse.json(
         {

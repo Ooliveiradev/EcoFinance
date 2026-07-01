@@ -2,11 +2,9 @@
 // POST /api/pluggy/sync — Synchronize transactions from Pluggy Open Finance
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@ecofinance/db';
-import { accounts, transactions } from '@ecofinance/db';
+import { db, accounts, transactions, eq } from '@ecofinance/db';
 import { pluggySyncRequestSchema, categorizeTransaction } from '@ecofinance/shared';
 import { PluggyClient, PluggyApiError } from '@/lib/pluggy-client';
-import { eq, sql } from 'drizzle-orm';
 
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
@@ -87,7 +85,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         let localAccountId: string;
 
         if (existingAccounts.length > 0) {
-          localAccountId = existingAccounts[0].id;
+          localAccountId = existingAccounts[0]?.id ?? '';
 
           // Update balance
           await db
@@ -99,7 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .where(eq(accounts.id, localAccountId));
         } else {
           // Create new account
-          const [newAccount] = await db
+          const result = await db
             .insert(accounts)
             .values({
               name: pluggyAccount.name || pluggyAccount.marketingName || 'Conta Pluggy',
@@ -110,6 +108,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             })
             .returning({ id: accounts.id });
 
+          const newAccount = result[0];
+          if (!newAccount) {
+            throw new Error(`Failed to insert account for pluggyAccountId=${pluggyAccount.id}`);
+          }
           localAccountId = newAccount.id;
         }
 

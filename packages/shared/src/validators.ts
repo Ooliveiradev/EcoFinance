@@ -72,9 +72,12 @@ export const uberWebhookPayloadSchema = z.object({
   data_hora: z.string().datetime({ message: 'data_hora deve estar no formato ISO 8601' }),
   endereco_partida: z.string().min(1, { message: 'Endereço de partida é obrigatório' }),
   endereco_destino: z.string().min(1, { message: 'Endereço de destino é obrigatório' }),
+  nome_motorista: z.string().optional(),
+  duracao_segundos: z.number().int().positive().optional(),
 });
 
 export type UberWebhookPayloadInput = z.infer<typeof uberWebhookPayloadSchema>;
+
 
 // ---------------------------------------------------------------------------
 // Nearby Search

@@ -2,11 +2,9 @@
 // POST /api/transactions/import-ofx — Import transactions from OFX/QFX file
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@ecofinance/db';
-import { accounts, transactions } from '@ecofinance/db';
+import { db, accounts, transactions, eq } from '@ecofinance/db';
 import { categorizeTransaction } from '@ecofinance/shared';
 import { parseOfxContent } from '@/lib/ofx-parser';
-import { eq } from 'drizzle-orm';
 
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
@@ -88,7 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .limit(1);
 
     if (existingAccounts.length > 0) {
-      accountId = existingAccounts[0].id;
+      accountId = existingAccounts[0]?.id ?? '';
 
       // Update balance if available
       if (parsed.balanceAmount !== null) {
@@ -101,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           .where(eq(accounts.id, accountId));
       }
     } else {
-      const [newAccount] = await db
+      const result = await db
         .insert(accounts)
         .values({
           name: resolvedAccountName,
@@ -110,6 +108,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         })
         .returning({ id: accounts.id });
 
+      const newAccount = result[0];
+      if (!newAccount) throw new Error('Failed to create account');
       accountId = newAccount.id;
     }
 

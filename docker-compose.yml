@@ -1,0 +1,34 @@
+# =============================================================================
+# EcoFinance — Local Development Database
+# =============================================================================
+# Provides a PostgreSQL 16 + PostGIS database for local development,
+# so you don't need a Supabase account to run the project.
+#
+# Usage:
+#   docker compose up -d          # Start database in background
+#   docker compose down           # Stop database
+#   docker compose down -v        # Stop and delete all data
+# =============================================================================
+
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: ecofinance_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecofinance
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ecofinance_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ecofinance"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ecofinance_pgdata:
+    driver: local

@@ -3,9 +3,8 @@
 // Uses the PostGIS RPC function buscar_lancamentos_proximos
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@ecofinance/db';
+import { db, sql } from '@ecofinance/db';
 import { nearbySearchParamsSchema } from '@ecofinance/shared';
-import { sql } from 'drizzle-orm';
 
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
@@ -59,12 +58,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { latitude, longitude, radiusMeters } = parseResult.data;
 
     // ── 4. Call PostGIS RPC via raw SQL through Drizzle ────────────────────
-    const result = await db.execute<NearbyTransactionRow>(
+    // db.execute returns a RowList from postgres.js — iterate directly
+    const result = await db.execute(
       sql`SELECT * FROM buscar_lancamentos_proximos(${latitude}, ${longitude}, ${radiusMeters})`,
     );
 
     // ── 5. Map results to response format ─────────────────────────────────
-    const nearbyTransactions = result.rows.map((row) => ({
+    const nearbyTransactions = (result as unknown as NearbyTransactionRow[]).map((row) => ({
       id: row.id,
       accountId: row.account_id,
       description: row.description,

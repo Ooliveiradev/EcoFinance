@@ -108,6 +108,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   const data = payload[0];
+  if (!data) return null;
   return (
     <div className="bg-slate-800/90 backdrop-blur-lg border border-slate-700/50 rounded-xl px-4 py-3 shadow-xl">
       <p className="text-xs text-slate-400 mb-1">{data.name}</p>

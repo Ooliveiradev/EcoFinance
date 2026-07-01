@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+        env:
+          # Dummy values so the db package doesn't throw at import time
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecofinance
+          GEMINI_API_KEY: dummy
+          PLUGGY_CLIENT_ID: dummy
+          PLUGGY_CLIENT_SECRET: dummy
+          API_SECRET_KEY: dummy-secret-key-at-least-32-chars
+          SUPABASE_URL: https://dummy.supabase.co
+          SUPABASE_ANON_KEY: dummy
+          SUPABASE_SERVICE_ROLE_KEY: dummy
+          NEXT_PUBLIC_SUPABASE_URL: https://dummy.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy
