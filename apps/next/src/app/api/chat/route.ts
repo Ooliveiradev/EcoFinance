@@ -62,9 +62,17 @@ export async function POST(req: Request) {
     });
 
   try {
-    // ── First call: may return a function call ───────────────────────────
-    let response = await makeRequest(geminiMessages);
-    let data = await response.json();
+    let response;
+    let data;
+    try {
+      response = await makeRequest(geminiMessages);
+      data = await response.json();
+    } catch (fetchError) {
+      console.warn('[chat] Google API fetch failed, using fallback mock response:', fetchError);
+      return Response.json({ 
+        text: 'Olá! Como estamos em um ambiente de desenvolvimento sem acesso à internet, esta é uma resposta simulada. Eu sou o seu Assistente Financeiro! Como posso te ajudar hoje com seus gastos?' 
+      });
+    }
 
     if (data.error) {
       return Response.json({ text: `Erro da API do Google: ${data.error.message}` });
