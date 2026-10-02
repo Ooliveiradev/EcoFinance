@@ -28,4 +28,15 @@ describe('OFX parsing with synthetic financial data', () => {
   it('keeps missing and empty balance fields unset', () => {
     expect(parseOfxContent('<LEDGERBAL></LEDGERBAL><AVAILBAL></AVAILBAL>')).toMatchObject({ transactions: [], balanceAmount: null, balanceDate: null });
   });
+  it('reads hour-only timestamps and a balance without a date', () => {
+    const result = parseOfxContent('<STMTTRN><DTPOSTED>2026100212</DTPOSTED><TRNAMT>1</TRNAMT><FITID>hour-only</FITID></STMTTRN><LEDGERBAL><BALAMT>1</BALAMT></LEDGERBAL>');
+    expect(result.transactions[0]?.datePosted).toBe('2026-10-02T12:00:00Z');
+    expect(result.balanceDate).toBeNull();
+  });
+  it('reads minute timestamps and SGML balances', () => {
+    expect(parseOfxContent('<AVAILBAL>\n<BALAMT>2.5\n<DTASOF>202610021230\n').balanceDate).toBe('2026-10-02T12:30:00Z');
+  });
+  it('rejects a truncated source date rather than inventing the current date', () => {
+    expect(() => parseOfxContent('<STMTTRN><DTPOSTED>2026</DTPOSTED><TRNAMT>1</TRNAMT><FITID>truncated-date</FITID></STMTTRN>')).toThrow('Invalid OFX date');
+  });
 });

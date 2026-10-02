@@ -77,3 +77,6 @@ apps/expo/ios/
 
 playwright-report/
 test-results/
+
+# Local CI diagnosis reports and extracted tools
+.ci-diagnostics/

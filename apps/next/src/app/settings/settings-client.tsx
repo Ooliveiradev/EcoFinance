@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bell, MapPin, Server, CheckCircle2, XCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export function SettingsClient() {
-  const [notificationStatus, setNotificationStatus] = useState<'granted' | 'pending'>('granted');
+  const [notificationStatus] = useState<'granted' | 'pending'>('granted');
   const [locationStatus, setLocationStatus] = useState<'granted' | 'pending'>('pending');
   const [apiUrl, setApiUrl] = useState('https://sua-api.com');
   const [apiSecret, setApiSecret] = useState('*******************');
@@ -33,7 +32,7 @@ export function SettingsClient() {
           <h2 className="text-lg font-semibold text-slate-200 mb-4 px-1">Permissões (Navegador)</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Notificações */}
-            <Card className="hover:shadow-xl transition-all duration-300">
+            <Card className="hover:shadow-xl transition-colors duration-300">
               <CardContent className="p-5">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
@@ -62,7 +61,7 @@ export function SettingsClient() {
             </Card>
 
             {/* Localização */}
-            <Card className="hover:shadow-xl transition-all duration-300">
+            <Card className="hover:shadow-xl transition-colors duration-300">
               <CardContent className="p-5">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center shrink-0">
@@ -98,7 +97,7 @@ export function SettingsClient() {
         {/* Integrações / API Section */}
         <div>
           <h2 className="text-lg font-semibold text-slate-200 mb-4 px-1">Configuração da API</h2>
-          <Card className="hover:shadow-xl transition-all duration-300">
+          <Card className="hover:shadow-xl transition-colors duration-300">
             <CardHeader className="pb-3 border-b border-slate-800/50">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -109,9 +108,9 @@ export function SettingsClient() {
             </CardHeader>
             <CardContent className="pt-5 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-400">URL da API</label>
+                <label htmlFor="api-url" className="text-xs font-medium text-slate-400">URL da API</label>
                 <input
-                  type="text"
+                  type="text" id="api-url"
                   value={apiUrl}
                   onChange={(e) => setApiUrl(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-shadow"
@@ -119,9 +118,9 @@ export function SettingsClient() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-400">Chave Secreta</label>
+                <label htmlFor="api-credential" className="text-xs font-medium text-slate-400">Chave Secreta</label>
                 <input
-                  type="password"
+                  type="password" id="api-credential"
                   value={apiSecret}
                   onChange={(e) => setApiSecret(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-shadow"

@@ -124,7 +124,7 @@ const CATEGORY_PATTERNS: CategoryPattern[] = [
       /nintendo/i,
       /livraria/i,
       /livro/i,
-      /amazon\.com/i,
+      /\bamazon(?:\.com)?\b/i,
       /shopee/i,
       /mercado\s*livre/i,
       /aliexpress/i,

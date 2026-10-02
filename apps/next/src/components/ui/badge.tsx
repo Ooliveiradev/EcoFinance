@@ -8,6 +8,7 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: 'bg-slate-800 text-slate-300 border-slate-700/50',
+        outline: 'bg-transparent text-slate-300 border-slate-700/50',
         comida: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
         transporte: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
         assinaturas: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
@@ -40,4 +41,4 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   );
 }
 
-export { Badge, badgeVariants };
+export { Badge };

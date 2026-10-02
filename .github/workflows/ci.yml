@@ -165,9 +165,9 @@ jobs:
           retention-days: 7
 
   mobile:
-    name: Expo compatibility and Android/iOS bundle privacy
+    name: Expo compatibility, Android native and Android/iOS privacy
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci
     steps:
@@ -181,8 +181,18 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm mobile:check
-      # Validates JS bundles, not native compilation/device behavior.
       - run: node scripts/security/build-with-canaries.mjs mobile
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Generate local debug signing key
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 365
+      - name: Compile and lint the native Android application
+        working-directory: apps/expo/android
+        run: ./gradlew :app:assembleDebug :app:lintDebug --no-daemon -PreactNativeArchitectures=x86_64
 
   dependencies:
     name: Dependency vulnerability audit
@@ -199,7 +209,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Includes development dependencies; registry errors also fail the job.
-      - run: pnpm audit --audit-level=high
+      - run: pnpm security:audit
 
   secrets:
     name: Git history, working tree and source privacy

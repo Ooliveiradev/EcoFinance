@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { PluggyConnect } from 'react-native-pluggy-connect';
 
 // Endereço base da API do backend Next.js. No emulador Android, 10.0.2.2 aponta para o localhost da máquina.
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
+import { backendFetch } from '../services/backend-config';
 
 export function AccountsScreen() {
   const [connectToken, setConnectToken] = useState<string | null>(null);
@@ -14,7 +14,7 @@ export function AccountsScreen() {
   const handleConnectBank = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/pluggy/token`, {
+      const response = await backendFetch('/api/pluggy/token', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -40,7 +40,7 @@ export function AccountsScreen() {
   };
 
   // 2. Lida com o Sucesso do Widget do Pluggy
-  const handlePluggySuccess = async (itemData: any) => {
+  const handlePluggySuccess = async (itemData: { item: { id: string } }) => {
     setConnectToken(null); // Fecha o widget
     setIsSyncing(true);
 
@@ -53,11 +53,10 @@ export function AccountsScreen() {
       }
 
       // Chama nossa API para sincronizar as contas usando esse itemId
-      const response = await fetch(`${API_URL}/api/pluggy/sync`, {
+      const response = await backendFetch('/api/pluggy/sync', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-secret-key': process.env.EXPO_PUBLIC_API_SECRET || ''
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ itemId }),
       });
@@ -85,7 +84,7 @@ export function AccountsScreen() {
           connectToken={connectToken}
           includeSandbox={true}
           onSuccess={handlePluggySuccess}
-          onError={(error: any) => {
+          onError={(error) => {
             console.error('Pluggy Connect Error:', error);
             Alert.alert('Erro de Conexão', 'Houve um problema ao conectar com seu banco.');
             setConnectToken(null);

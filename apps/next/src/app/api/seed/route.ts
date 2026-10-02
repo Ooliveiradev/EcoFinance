@@ -8,7 +8,6 @@
 // =============================================================================
 
 import { db, accounts, transactions } from '@ecofinance/db';
-import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -140,8 +139,8 @@ export async function POST() {
         date: tx.date,
         category: tx.category,
         source: tx.source,
-        latitude: 'latitude' in tx ? (tx as any).latitude : null,
-        longitude: 'longitude' in tx ? (tx as any).longitude : null,
+        latitude: 'latitude' in tx ? tx.latitude : null,
+        longitude: 'longitude' in tx ? tx.longitude : null,
       })),
     );
 
@@ -154,7 +153,7 @@ export async function POST() {
   } catch (error) {
     console.error('[seed] Error:', error);
     return Response.json(
-      { error: 'Failed to seed database.', details: String(error) },
+      { error: 'Failed to seed database.' },
       { status: 500 },
     );
   }

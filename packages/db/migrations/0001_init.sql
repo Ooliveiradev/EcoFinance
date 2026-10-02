@@ -8,6 +8,7 @@
 -- ---------------------------------------------------------------------------
 -- 1. Enable PostGIS extension (Supabase exposes it under the 'extensions' schema)
 -- ---------------------------------------------------------------------------
+CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE EXTENSION IF NOT EXISTS postgis SCHEMA extensions;
 
 -- ---------------------------------------------------------------------------
@@ -82,11 +83,37 @@ CREATE TABLE IF NOT EXISTS transactions (
 -- ---------------------------------------------------------------------------
 -- 6. Indexes
 -- ---------------------------------------------------------------------------
+-- Databases initialized by db:push have the financial columns but no geom.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS geom geography(POINT, 4326);
+
+-- IF NOT EXISTS alone cannot prove compatibility with an existing database.
+-- Refuse to adopt monetary/date columns that differ from the legacy contract.
+DO $$ BEGIN
+  IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+    AND table_name='transactions' AND column_name='amount' AND data_type='numeric'
+    AND numeric_precision=15 AND numeric_scale=2 AND is_nullable='NO')
+    OR NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+    AND table_name='accounts' AND column_name='balance' AND data_type='numeric'
+    AND numeric_precision=15 AND numeric_scale=2 AND is_nullable='NO')
+    OR NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+    AND table_name='transactions' AND column_name='date' AND data_type='timestamp with time zone'
+    AND is_nullable='NO') THEN
+    RAISE EXCEPTION 'Incompatible legacy financial schema';
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_transactions_account_id   ON transactions (account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_date         ON transactions (date);
 CREATE INDEX IF NOT EXISTS idx_transactions_external_id  ON transactions (external_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_category     ON transactions (category);
 CREATE INDEX IF NOT EXISTS idx_transactions_geom         ON transactions USING GIST (geom);
+
+-- Existing custom triggers must not change financial data during spatial adoption.
+LOCK TABLE accounts, transactions, uber_trips_metadata IN ACCESS EXCLUSIVE MODE;
+CREATE TEMP TABLE ef01_before ON COMMIT DROP AS
+ SELECT 'transactions'::text AS entity, to_jsonb(t) - 'geom' AS record FROM transactions t
+ UNION ALL SELECT 'accounts', to_jsonb(a) FROM accounts a
+ UNION ALL SELECT 'metadata', to_jsonb(u) FROM uber_trips_metadata u;
 
 -- ---------------------------------------------------------------------------
 -- 7. Geolocation search function (KNN with PostGIS)
@@ -122,19 +149,19 @@ BEGIN
     t.longitude,
     ST_Distance(
       t.geom,
-      ST_SetSRID(ST_MakePoint(lng, lat)::geography, 4326)
+      ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography
     ) AS distance_meters
   FROM transactions t
   WHERE t.geom IS NOT NULL
     AND ST_DWithin(
       t.geom,
-      ST_SetSRID(ST_MakePoint(lng, lat)::geography, 4326),
+      ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
       limite_metros
     )
-  ORDER BY t.geom <-> ST_SetSRID(ST_MakePoint(lng, lat)::geography, 4326)
+  ORDER BY t.geom <-> ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography
   LIMIT 50;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE SET search_path = public, extensions;
 
 -- ---------------------------------------------------------------------------
 -- 8. Trigger: auto-populate geom from latitude/longitude on INSERT/UPDATE
@@ -143,13 +170,13 @@ CREATE OR REPLACE FUNCTION update_geom_from_lat_lng()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.latitude IS NOT NULL AND NEW.longitude IS NOT NULL THEN
-    NEW.geom := ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude)::geography, 4326);
+    NEW.geom := ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude), 4326)::geography;
   ELSE
     NEW.geom := NULL;
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, extensions;
 
 DROP TRIGGER IF EXISTS trg_update_geom ON transactions;
 
@@ -158,3 +185,22 @@ CREATE TRIGGER trg_update_geom
   ON transactions
   FOR EACH ROW
   EXECUTE FUNCTION update_geom_from_lat_lng();
+
+-- Preserve and populate spatial data in databases adopted from db:push.
+UPDATE transactions SET latitude = latitude
+WHERE geom IS NULL AND latitude IS NOT NULL AND longitude IS NOT NULL;
+
+DO $$ BEGIN
+ IF EXISTS (
+  (SELECT * FROM ef01_before EXCEPT ALL
+   (SELECT 'transactions'::text,to_jsonb(t)-'geom' FROM transactions t
+    UNION ALL SELECT 'accounts',to_jsonb(a) FROM accounts a
+    UNION ALL SELECT 'metadata',to_jsonb(u) FROM uber_trips_metadata u))
+  UNION ALL
+  ((SELECT 'transactions'::text,to_jsonb(t)-'geom' FROM transactions t
+    UNION ALL SELECT 'accounts',to_jsonb(a) FROM accounts a
+    UNION ALL SELECT 'metadata',to_jsonb(u) FROM uber_trips_metadata u)
+   EXCEPT ALL SELECT * FROM ef01_before)
+ ) THEN RAISE EXCEPTION 'EF02: Financial preservation failed during spatial adoption; all changes rolled back.';
+ END IF;
+END $$;

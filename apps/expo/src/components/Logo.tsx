@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated } from 'react-native';
 import Svg, {
   Defs,
@@ -17,7 +17,7 @@ interface LogoProps {
 }
 
 export function Logo({ size = 120, animate = false }: LogoProps) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useState(() => new Animated.Value(1))[0];
 
   useEffect(() => {
     if (!animate) return;

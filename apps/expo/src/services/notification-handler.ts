@@ -43,7 +43,7 @@ function isPurchaseNotification(title: string, body: string): boolean {
 
 // This task runs when a notification is received in the background/foreground
 try {
-  TaskManager.defineTask(NOTIFICATION_HANDLER_TASK, async ({ data, error }: any) => {
+  TaskManager.defineTask(NOTIFICATION_HANDLER_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<{ notification?: Notifications.Notification }>) => {
     if (error) {
       console.error('NOTIFICATION_HANDLER_TASK error:', error);
       return;
@@ -80,7 +80,7 @@ try {
       description = emMatch[1].trim();
     }
 
-    console.log(`Detected transaction: ${bankName} - R$${amount} - ${description}`);
+    console.log('Purchase notification detected.');
 
     const location = await getCurrentLocation();
     const timestamp = new Date(notification.date).toISOString();

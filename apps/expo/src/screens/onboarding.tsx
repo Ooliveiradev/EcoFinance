@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,16 +17,16 @@ import { PluggyConnect } from 'react-native-pluggy-connect';
 import { Logo } from '../components/Logo';
 
 // expo-intent-launcher — carregado dinamicamente para não quebrar se o módulo nativo não estiver linkado
-let IntentLauncher: any = null;
+let IntentLauncher: typeof import("expo-intent-launcher") | null = null;
 try {
-  IntentLauncher = require('expo-intent-launcher');
+  import('expo-intent-launcher').then(module => { IntentLauncher = module; }).catch(() => { IntentLauncher = null; });
 } catch {
   // módulo não disponível, usará Linking como fallback
 }
 
 
-const { width, height } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
+const { width } = Dimensions.get('window');
+import { backendFetch } from '../services/backend-config';
 
 export const ONBOARDING_KEY = '@ecofinance_onboarded';
 
@@ -36,7 +36,7 @@ interface OnboardingProps {
 
 // ─── Slide 2: Animated Map Pin ───────────────────────────────────────────────
 function AnimatedMapPin() {
-  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -57,10 +57,10 @@ function AnimatedMapPin() {
       {/* Fake dark map grid */}
       <View style={mapStyles.map}>
         {[...Array(5)].map((_, i) => (
-          <View key={`h${i}`} style={[mapStyles.gridLine, mapStyles.hLine, { top: `${20 * (i + 1)}%` as any }]} />
+          <View key={`h${i}`} style={[mapStyles.gridLine, mapStyles.hLine, { top: `${20 * (i + 1)}%` as `${number}%` }]} />
         ))}
         {[...Array(5)].map((_, i) => (
-          <View key={`v${i}`} style={[mapStyles.gridLine, mapStyles.vLine, { left: `${20 * (i + 1)}%` as any }]} />
+          <View key={`v${i}`} style={[mapStyles.gridLine, mapStyles.vLine, { left: `${20 * (i + 1)}%` as `${number}%` }]} />
         ))}
         {/* Pulse ring */}
         <View style={mapStyles.pinContainer}>
@@ -107,9 +107,9 @@ const mapStyles = StyleSheet.create({
 
 // ─── Slide 3: Notification simulation ────────────────────────────────────────
 function NotificationSimulation() {
-  const slideAnim = useRef(new Animated.Value(-60)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-  const transformAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useState(() => new Animated.Value(-60))[0];
+  const opacityAnim = useState(() => new Animated.Value(0))[0];
+  const transformAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
     const seq = Animated.loop(
@@ -211,7 +211,7 @@ const notifStyles = StyleSheet.create({
 
 // ─── Slide 4: Shield Visual ───────────────────────────────────────────────────
 function ShieldVisual() {
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
     const glow = Animated.loop(
@@ -277,7 +277,7 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
   const [locationLoading, setLocationLoading] = useState(false);
   const [connectToken, setConnectToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useState(() => new Animated.Value(1))[0];
 
   const goToSlide = (next: number) => {
     Animated.sequence([
@@ -315,13 +315,13 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
     if (Platform.OS === 'android') {
       const opened = (() => {
         try {
-          if (IntentLauncher?.startActivityAsync && IntentLauncher?.ActivityAction?.NOTIFICATION_LISTENER_SETTINGS) {
+          if (IntentLauncher) {
             IntentLauncher.startActivityAsync(
               IntentLauncher.ActivityAction.NOTIFICATION_LISTENER_SETTINGS,
             );
             return true;
           }
-        } catch {}
+        } catch { /* Fall back to system settings when the activity is unavailable. */ }
         return false;
       })();
       if (!opened) {
@@ -338,12 +338,12 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
   const handleConnectBank = async () => {
     setTokenLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/pluggy/token`);
+      const res = await backendFetch('/api/pluggy/token');
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
       if (!data.accessToken) throw new Error('Token ausente');
       setConnectToken(data.accessToken);
-    } catch (e) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível iniciar a conexão. Verifique se o backend está rodando.');
     } finally {
       setTokenLoading(false);
@@ -351,14 +351,14 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
   };
 
   // Slide 4: Pluggy success → unlock app
-  const handlePluggySuccess = async (itemData: any) => {
+  const handlePluggySuccess = async (itemData: { item: { id: string } }) => {
     setConnectToken(null);
     const itemId = itemData?.item?.id;
     if (itemId) {
       // Fire-and-forget sync in background
-      fetch(`${API_URL}/api/pluggy/sync`, {
+      backendFetch('/api/pluggy/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-secret-key': process.env.EXPO_PUBLIC_API_SECRET || '' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId }),
       }).catch(() => {});
     }
@@ -374,7 +374,7 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
           connectToken={connectToken}
           includeSandbox
           onSuccess={handlePluggySuccess}
-          onError={(err: any) => {
+          onError={(err) => {
             console.error('Pluggy error:', err);
             setConnectToken(null);
             Alert.alert('Erro de Conexão', err?.message || 'Falha ao conectar ao banco.');

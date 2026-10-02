@@ -7,11 +7,9 @@ import {
   Plus,
   Upload,
   CheckCircle2,
-  AlertCircle,
-  Clock,
   Landmark,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn, formatBRL, formatDate } from '@/lib/utils';
 import dynamic from 'next/dynamic';
@@ -67,6 +65,7 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: D
     setIsTokenLoading(true);
     try {
       const res = await fetch('/api/pluggy/token');
+      if (!res.ok) throw new Error('Falha ao iniciar conexão bancária');
       const data = await res.json();
       if (data.accessToken) {
         setConnectToken(data.accessToken);
@@ -87,7 +86,7 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: D
         <PluggyConnect
           connectToken={connectToken}
           includeSandbox={true}
-          onSuccess={async (itemData: any) => {
+          onSuccess={async (itemData) => {
             setConnectToken(null);
             // Sincronizar dados imediatamente
             await handleSync(itemData.item.id);

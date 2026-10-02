@@ -28,7 +28,7 @@ export interface DBTransaction {
   id: string;
   date: string; // ISO string
   description: string;
-  category: string;
+  category: import("@ecofinance/shared").TransactionCategory;
   amount: string; // numeric in DB
   source: string;
   latitude: number | null;
@@ -151,17 +151,18 @@ export default function TransactionsClient({ initialData }: { initialData: DBTra
           <div className="flex flex-col sm:flex-row gap-3 items-end">
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <Input
+              <label htmlFor="transaction-search" className="text-sm text-slate-300">Buscar transações</label>
+            <Input id="transaction-search"
                 placeholder="Buscar transação..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="pl-9"
               />
             </div>
-            <select
+            <select aria-label="Categoria"
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-              className="h-10 rounded-xl border border-slate-700/30 bg-slate-900/60 px-3 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all duration-200 backdrop-blur-sm cursor-pointer appearance-none w-full sm:w-48"
+              className="h-10 rounded-xl border border-slate-700/30 bg-slate-900/60 px-3 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-colors duration-200 backdrop-blur-sm cursor-pointer appearance-none w-full sm:w-48"
             >
               {categories.map((c) => (
                 <option key={c.value} value={c.value} className="bg-slate-900 text-slate-300">
@@ -169,14 +170,16 @@ export default function TransactionsClient({ initialData }: { initialData: DBTra
                 </option>
               ))}
             </select>
-            <Input
+            <label htmlFor="date-from" className="text-sm text-slate-300">Data início</label>
+            <Input id="date-from"
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
               className="w-full sm:w-40 text-slate-300"
               placeholder="Data início"
             />
-            <Input
+            <label htmlFor="date-to" className="text-sm text-slate-300">Data fim</label>
+            <Input id="date-to"
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
@@ -242,7 +245,7 @@ export default function TransactionsClient({ initialData }: { initialData: DBTra
                       {tx.description}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={tx.category as any}>
+                      <Badge variant={tx.category}>
                         {categoryLabels[tx.category] ?? tx.category}
                       </Badge>
                     </TableCell>

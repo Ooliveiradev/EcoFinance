@@ -1,10 +1,17 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { TEST_API_KEY } from './credentials';
+
+async function authenticate(page: Page) {
+ const response = await page.request.post('/api/session', { data: { credential: TEST_API_KEY } });
+ expect(response.status()).toBe(200);
+}
+
 
 for (const path of ['/', '/accounts', '/transactions', '/settings', '/ai']) {
   test(`renders ${path} without unhandled browser errors`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
+    await authenticate(page);
     const response = await page.goto(path);
     expect(response?.status()).toBe(200);
     await expect(page.getByRole('main')).toBeVisible();
@@ -14,6 +21,7 @@ for (const path of ['/', '/accounts', '/transactions', '/settings', '/ai']) {
 }
 
 test('reads the synthetic database fixture, not a swallowed DB error', async ({ page }) => {
+  await authenticate(page);
   await page.goto('/accounts');
   await expect(page.getByText('Backup sintético', { exact: true })).toBeVisible();
   await page.goto('/transactions');
@@ -21,6 +29,7 @@ test('reads the synthetic database fixture, not a swallowed DB error', async ({ 
 });
 
 test('navigates between the existing account and settings screens', async ({ page }) => {
+  await authenticate(page);
   await page.goto('/');
   await page.getByRole('link', { name: 'Contas', exact: true }).filter({ visible: true }).click();
   await expect(page).toHaveURL(/\/accounts$/);
@@ -51,3 +60,23 @@ test('rejects invalid financial notification payload after authentication', asyn
   });
   expect(response.status()).toBe(400);
 });
+
+ test('blocks anonymous financial pages and chat without exposing fixture data', async ({ page, request }) => {
+  await page.goto('/accounts');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByText('Backup sintético', { exact:true })).toHaveCount(0);
+  expect((await request.post('/api/chat', { data: { message:'synthetic' } })).status()).toBe(401);
+  expect((await request.get('/api/pluggy/token')).status()).toBe(401);
+ });
+ test('login rejects invalid credentials and cross-origin requests', async ({ request }) => {
+  expect((await request.post('/api/session', { data:{ credential:'wrong' } })).status()).toBe(401);
+  expect((await request.post('/api/session', { headers: { origin:'https://untrusted.invalid' }, data:{credential:TEST_API_KEY} })).status()).toBe(403);
+ });
+ test('session uses HttpOnly SameSite cookie and never returns the API credential', async ({ request }) => {
+  const response = await request.post('/api/session', { data: { credential: TEST_API_KEY } });
+  expect(response.status()).toBe(200);
+  expect(response.headers()['set-cookie']).toContain('HttpOnly');
+  expect(response.headers()['set-cookie']).toContain('SameSite=strict');
+  expect(JSON.stringify(response.headers()) + await response.text()).not.toContain(TEST_API_KEY);
+  expect((await request.post('/api/pluggy/sync', {headers:{origin:'https://untrusted.invalid'},data:{}})).status()).toBe(403);
+ });

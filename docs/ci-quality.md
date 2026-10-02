@@ -1,67 +1,44 @@
-# Qualidade e segurança de cada PR
+# Qualidade e privacidade em cada PR
 
-A rotina toma os workflows do Quantia como referência e acrescenta o escopo do EcoFinance: monorepo pnpm, Next.js, Expo Android/iOS, contratos financeiros e PostgreSQL/PostGIS. Executa em **todo PR, inclusive draft e qualquer branch de destino**, push em main, merge queue, execução manual e segunda-feira às 06h de São Paulo. Não há filtro de caminhos, job opcional nem `continue-on-error`.
+O workflow roda em todos os PRs, inclusive rascunhos/forks, pushes na main, merge queue, execução manual e revisão semanal. Não recebe segredos de produção, não usa pull_request_target e tem permissões de leitura. Actions usam SHAs fixos.
 
-## Barreiras
-
-| Check | Critério bloqueante |
+| Grupo | Critério obrigatório |
 | --- | --- |
-| Types and zero-warning lint | Tipos das quatro workspaces e ferramentas de teste; ESLint na raiz sem erros nem avisos. |
-| Unit tests and coverage | Vitest e testes dos scanners. Por arquivo: 90% de linhas/statements/funções e 85% de branches nos módulos compartilhados executáveis e parser OFX. Arquivos sem teste entram no denominador. |
-| PostgreSQL migration and recovery | Suíte real em banco descartável, incluindo histórico/checksum, concorrência, rollback, compatibilidade legado; cobertura do runner de migração e repetição idempotente. pg_dump/pg_restore com assertivas sobre dados sintéticos. |
-| Production web, bundle privacy and E2E | Build Next de produção com credenciais sintéticas, auditoria dos arquivos públicos, Playwright Chromium/WebKit e viewport mobile. Páginas, navegação, leitura efetiva das fixtures, autenticação das três rotas legadas protegidas, rejeição de payload inválido e seed desabilitado em produção. |
-| Expo compatibility and Android/iOS bundle privacy | Compatibilidade das dependências com Expo e export das duas plataformas; scanner de todos os arquivos distribuídos. |
-| Dependency vulnerability audit | `pnpm audit --audit-level=high`, incluindo dependências de desenvolvimento. Falha de rede/registro também bloqueia. |
-| Git history, working tree and source privacy | Gitleaks no histórico alcançável e árvore, saída redigida. Política para arquivos de ambiente, material criptográfico, dumps/extratos e credenciais públicas/leituras privadas em módulos cliente. |
-| Blocking CodeQL security and quality | JavaScript/TypeScript com security-extended e security-and-quality. Leitura local do SARIF: qualquer achado, inclusive suprimido, ou relatório incompleto bloqueia. O sucesso do analyzer não significa ausência de achados. |
-| React Doctor | Varredura completa de cada app, bloqueando erros e avisos. Também exige zero achados fora de PR, pois a Action upstream é consultiva nesses eventos. |
-| GitHub Actions validation | actionlint com validação de estrutura, expressões e ShellCheck no runner Linux. |
-| **PR quality gate** | Só passa se **todos os dez grupos** acima forem `success`. Falha, cancelamento e job pulado bloqueiam. |
+| Tipos e lint | TypeScript nos workspaces e ferramentas; ESLint sem erros nem avisos. |
+| Unitários | Por arquivo: 90% de linhas/statements/funções, 85% de branches. Validação, OFX, migrações, sessão e transporte mobile; controles negativos dos scanners. |
+| Banco | PostgreSQL/PostGIS descartável: concorrência, legado, preservação financeira, repetição, rollback, checksum, deduplicação, dump/restore e objetos espaciais. |
+| Web | Produção, canários e scan dos arquivos públicos; Playwright Chromium/WebKit/mobile com dados sintéticos. Sessão, acesso anônimo, CSRF, páginas, navegação, fixtures e APIs. |
+| Mobile | Compatibilidade Expo, exportação Android/iOS com cache limpo e canários, compilação e lint nativos Android. Sem credenciais de produção ou assinatura release. |
+| Dependências | Produção e desenvolvimento: todos os advisories sem correção bloqueiam, inclusive moderados/baixos. Registro indisponível/relatório incompleto também bloqueia. |
+| Segredos | Gitleaks no histórico alcançável e árvore limpa antes de instalar dependências, saída redigida; arquivos sensíveis e fronteira cliente/servidor. |
+| CodeQL | security-extended e security-and-quality; qualquer resultado SARIF, inclusive suprimido, ou relatório incompleto bloqueia. |
+| React Doctor | Varredura completa dos dois apps, zero erros/avisos; resultado completo também fora de PR. |
+| Workflows | actionlint e ShellCheck no Linux. |
+| **PR quality gate** | Os dez grupos devem ser success. Falhas, cancelamentos e jobs pulados bloqueiam. |
 
-## Segurança da própria CI
+Artifacts de cobertura, Playwright e SARIF duram sete dias. Bancos, dumps e bundles não são publicados. Dependabot propõe atualizações semanais, sem merge automático.
 
-Actions fixadas em SHA completo, checkout sem persistir credenciais, token apenas com `contents: read`, runners hospedados e timeouts, seguindo a [referência de segurança do GitHub](https://docs.github.com/en/actions/reference/security/secure-use). PRs de forks rodam sem chaves externas nem permissões de escrita. Não se usa `pull_request_target`. Instalação frozen-lockfile; canários aleatórios substituem chaves de servidor durante builds, e o scanner procura valores diretos, codificados, padrões de chaves privadas e JWT service_role. O export Expo limpa o cache Metro para recompilar os valores atuais; o build de segurança desativa dotenv do Expo. A Action React Doctor e sua CLI têm versões fixas; o gate adicional cobre o comportamento consultivo em push documentado pelo [React Doctor](https://www.react.doctor/docs/ci-and-prs/github-actions-setup). Gitleaks tem versão e SHA256 fixos; actionlint tem versão fixa verificada pelo Go checksum database.
+## Correções auditáveis
 
-Artefatos publicados são cobertura, relatório Playwright de testes sintéticos e SARIF, com retenção de sete dias. Dumps do banco e bundles não são publicados. Os scripts não carregam `.env` nem imprimem valores encontrados. Não usar dados financeiros reais nos testes.
+Atualizações corrigem Next, Drizzle, Expo e dependências transitivas. Overrides ficam no package.json/lockfile. Expo passou de SDK 52 para SDK 57; arquivos Android foram adaptados em separado, preservando recursos nativos. Releases precisam de assinatura própria.
 
-Dependabot propõe atualizações semanais para dependências npm e Actions; atualizações continuam sujeitas às mesmas barreiras. Não existe merge automático.
+node-forge@1.4.0 não publicou correção para [CVE-2026-85393](https://github.com/digitalbazaar/forge/issues/1149). O patch versionado exige um ou dois elementos no DigestAlgorithm ASN.1, eliminando a folga usada pela assinatura malformada. O teste reproduz a aceitação na versão original, rejeita na versão corrigida e aceita uma assinatura normal. O CI verifica SHA-256 do arquivo instalado e das cópias resolvíveis, além do teste público RSA. Somente GHSA-86w9-cpqp-85rv nessa versão e com esses bytes comprovados é reconhecido como corrigido localmente. Qualquer outro advisory ou patch ausente bloqueia. Uma release upstream exige revisar/remover o patch e a reconciliação, mantendo a regressão.
 
-## Tornar obrigatório no GitHub
+.gitleaksignore contém quatro fingerprints históricos imutáveis: uma chave fictícia de CI e três exemplos de JWT com header e literal `...`, sem payload/assinatura. Exemplos atuais foram esvaziados. Nenhum arquivo inteiro, nova ocorrência ou credencial real foi liberado. O debug.keystore versionado foi removido; chaves de desenvolvimento são geradas localmente.
 
-O arquivo de workflow cria checks; **isso não impede merge sozinho**. Após publicar esta alteração e o primeiro run registrar o check, configurar um ruleset ativo em main:
+## Operação e compatibilidade
 
-1. Exigir PR e pelo menos uma aprovação humana.
-2. Exigir o check **PR quality gate**, com a integração GitHub Actions como origem.
-3. Exigir branch atualizada antes de merge, ou usar merge queue (evento `merge_group` já coberto).
-4. Exigir resolução de conversas e descartar aprovações após novos commits.
-5. Bloquear force-push/deleção e evitar bypass inclusive administrativo.
-6. Exigir revisão de alterações em `.github/`, scanners, configs de testes/lint e lockfile. Definir CODEOWNERS com revisores reais quando o time estiver estabelecido.
+Use Node 22.13+ e pnpm 9.15. Configure API_SECRET_KEY somente no servidor com pelo menos 32 caracteres aleatórios. O navegador solicita a credencial e recebe sessão assinada de seis horas, HttpOnly/SameSite strict. Páginas financeiras, chat e APIs rejeitam visitantes anônimos; mutações com sessão exigem Origin correto. Integrações usam credencial em header com comparação constante.
 
-Não alterar nem remover o próprio gate para contornar uma falha. Correções devem tratar a causa. Supressões, quando realmente justificadas, precisam ser específicas e revisadas; não há baseline de segredos nem exclusão ampla neste trabalho.
+No mobile, informe URL HTTPS e credencial em Opções; SecureStore mantém a credencial no aparelho. Nunca coloque segredos em EXPO_PUBLIC_* ou no bundle. HTTP só é permitido em loopback/emulador; redirecionamentos com credenciais são rejeitados. Webhooks Pluggy devem usar x-api-secret-key em custom headers; segredo na URL não é mais aceito. Atualizar de SDK 52 exige recompilar o app nativo.
 
-## Publicação e proteção
+A migration 0001 cria extensions, adota geom, configura search_path, preenche geolocalização legada e verifica a preservação dos dados financeiros. 0002_external_id cria a unicidade necessária para imports/upserts; duplicatas existentes causam rollback e exigem reconciliação manual, sem apagar dados. O runner recusa alteração de migrations já registradas por checksum. Não execute testes em produção: eles criam/removem exclusivamente bancos descartáveis.
 
-[PR rascunho #20](https://github.com/Ooliveiradev/EcoFinance/pull/20). O [ruleset ativo 24392292](https://github.com/Ooliveiradev/EcoFinance/rules/24392292) exige PR quality gate originado do GitHub Actions (app 15368), branch atualizada, PR e resolução de conversas. Sem bypass, force-push ou deleção. A configuração exige os checks automaticamente; aprovação humana adicional pode ser definida quando houver revisores do projeto.
+## Proteção e validação
 
-O primeiro [run remoto](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37067163440) aprovou unitários/cobertura e bloqueou o gate pelos achados. CodeQL terminou a análise e encontrou dez resultados, demonstrando o bloqueio pelo SARIF. Qualidade, banco, web, Expo, dependências, fonte/histórico e React Doctor também ficaram vermelhos; consultar logs/artefatos para triagem. A falha de ShellCheck SC2016 no código JavaScript literal do próprio gate foi corrigida usando concatenação de strings; a correção não remove o ShellCheck nem reduz as regras.
-## Validação da branch isolada em 02/10/2026
+O [ruleset ativo da main](https://github.com/Ooliveiradev/EcoFinance/rules/24392292) exige PR quality gate do GitHub Actions, branch atualizada, PR e resolução das conversas; bloqueia force-push/deleção, sem bypass. Revisores adicionais podem ser configurados quando houver um time. Um workflow sozinho não protege a branch.
 
-O PR de CI parte da main publicada. A refatoração de ownership/modelo financeiro, correções de interfaces e ajustes de dependências presentes no checkout original ficaram fora desta branch. Não altera migrations SQL existentes nem migra banco real. Acrescenta runner transacional/checksum para executar o SQL existente nos testes, fixtures legadas e os checks.
-
-- Instalação frozen-lockfile passou em Node 24.16.0/Windows; CI usa Node 22/Ubuntu 24.04.
-- 19 testes unitários passaram: helpers, validação, OFX e histórico de migrações. Cobertura unitária de linhas/statements: 98,90%; funções: 100%; branches: 89,41%. Não é cobertura de toda a interface/API.
-- Cinco testes de políticas/CLI de segurança passaram; incluem controles negativos, rejeição de artefatos ausentes e SARIF bloqueante.
-- Workflow passou no actionlint Windows. ShellCheck será executado no runner Linux.
-- A main apresenta três erros de tipagem em Badge outline, 17 erros e 15 avisos de lint. Os checks detectam essas falhas sem escondê-las.
-- Os testes de PostgreSQL executados em bancos descartáveis encontraram a falta do schema extensions na migration inicial publicada. Correções de migrations que existem no checkout original ficaram fora do PR. Os testes de adoção/validação de legado também exigem tratar seus achados antes da aprovação.
-- A checagem Expo, auditoria de dependências, Gitleaks, CodeQL, React Doctor, builds e E2E completos serão julgados pelo run remoto da branch; resultados da preparação no checkout com refatoração não são apresentados como aprovação desta branch.
-- Na preparação inicial, a auditoria confirmou que EXPO_PUBLIC_API_SECRET era incorporada em ambos os bundles Hermes. O cache Metro é limpo para impedir que artefatos antigos escondam os canários atuais. A política de fonte detecta a mesma exposição na main.
-- O Gitleaks marcou exemplos no histórico; seus valores não são publicados. Exigir triagem e supressões estritamente específicas quando forem comprovadamente exemplos públicos, sem excluir .env.example inteiro ou liberar credenciais.
-- O debug.keystore versionado é rejeitado pela política conservadora. Confirmar se é apenas a chave padrão pública de desenvolvimento antes de tratar como vazamento de produção.
-- A CI não comprova isolamento multiusuário nem execução nativa. Revisão humana e testes dessas propriedades continuam necessários antes de release.
-
-Publicação em PR e configuração do check obrigatório são registradas na conversa de entrega. Um PR vermelho não será mesclado para contornar as barreiras.
-## Comandos
+Local em 02/10/2026: tipos e lint passaram; 28 unitários, cobertura de linhas 98,17%, funções 100%, branches 89,74%; nove testes de migração/planner e seis controles de segurança passaram. React Doctor sem achados nos dois apps. Builds Next/Android/iOS e scans de bundles passaram. O run remoto do PR é a evidência final de Linux, CodeQL, E2E e Android nativo.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -69,17 +46,16 @@ pnpm typecheck
 pnpm lint
 pnpm test:coverage
 pnpm security:selftest
+pnpm security:audit
 pnpm security:source
-pnpm audit --audit-level=high
 pnpm mobile:check
 node scripts/security/build-with-canaries.mjs web
 node scripts/security/build-with-canaries.mjs mobile
-
-# Apenas banco de testes descartável com PostGIS e permissão de criar bancos:
+# Banco descartável PostGIS com CREATE DATABASE:
 TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci pnpm test:integration --coverage
-# E2E exige DATABASE_URL de testes, migração e recovery.sql previamente carregadas:
+# E2E exige DATABASE_URL de teste, db:migrate e recovery.sql:
 pnpm exec playwright install chromium webkit
 pnpm test:e2e
 ```
 
-Não há garantia de código perfeito. Cobertura não prova correção, SAST/segredos podem ter falsos negativos e a exportação Expo não compila APK/IPA nem testa dispositivo. Completar testes nativos, acessibilidade, isolamento de dados, jornadas novas, segurança de runtime e revisão humana conforme o produto evoluir.
+Checks não garantem código perfeito. O projeto usa um acesso compartilhado de instalação, sem isolamento multiusuário. iOS nativo, aparelhos, integrações reais e novas jornadas precisam de validação específica antes de release. A refatoração não commitada do checkout original foi preservada em separado.

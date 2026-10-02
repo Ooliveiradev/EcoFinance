@@ -56,7 +56,7 @@ describe('versioned PostgreSQL migrations', () => {
     const sql = await isolatedDatabase();
     await sql.unsafe(await readFile(new URL('./fixtures/legacy.sql', import.meta.url), 'utf8'));
     const before = await sql`SELECT id, account_id, amount, date, source, external_id FROM transactions ORDER BY id`;
-    await migrate(sql, migrations, { id: '10000000-0000-4000-8000-000000000001', name: 'Fixture', timezone: 'America/Sao_Paulo' });
+    await migrate(sql, migrations);
     expect(await sql`SELECT id, account_id, amount, date, source, external_id FROM transactions ORDER BY id`).toEqual(before);
     const [total] = await sql`SELECT count(*)::int AS count, sum(amount)::text AS sum FROM transactions`;
     expect(total).toEqual({ count: 2, sum: '-32.90' });
@@ -65,15 +65,17 @@ describe('versioned PostgreSQL migrations', () => {
     expect(nearby.map(row => row.id)).toContain('00000000-0000-4000-8000-000000000002');
   });
 
-  it('reproduces the existing OFX conflict bug rather than hiding insert failures', async () => {
+  it('deduplicates external transaction IDs without losing the first transaction', async () => {
     const sql = await isolatedDatabase();
-    await migrate(sql, migrations.slice(0, 1));
+    await migrate(sql, migrations);
     const [account] = await sql`INSERT INTO accounts(name) VALUES ('Conta sintética') RETURNING id`;
-    await expect(sql`INSERT INTO transactions(account_id,description,amount,date,external_id)
+    await sql`INSERT INTO transactions(account_id,description,amount,date,external_id)
       VALUES (${account!.id}, 'Compra sintética', '-42.90', '2026-10-02', 'fixture-1')
-      ON CONFLICT (external_id) DO NOTHING`).rejects.toMatchObject({ code: '42P10' });
+      ON CONFLICT (external_id) DO NOTHING`;
+    await sql`INSERT INTO transactions(account_id,description,amount,date,external_id)
+      VALUES (${account!.id}, 'Duplicata', '-42.90', '2026-10-02', 'fixture-1') ON CONFLICT (external_id) DO NOTHING`;
     const [result] = await sql`SELECT count(*)::int AS count FROM transactions`;
-    expect(result!.count).toBe(0);
+    expect(result!.count).toBe(1);
   });
 
   it('rolls back DDL and history when a pending migration fails', async () => {

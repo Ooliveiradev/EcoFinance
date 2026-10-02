@@ -5,16 +5,20 @@ import {
 import * as Notifications from 'expo-notifications';
 import { checkLocationPermission, requestLocationPermission } from '../services/location-service';
 import { testConnection } from '../services/api-client';
+import { loadBackendConfig, saveBackendConfig } from '../services/backend-config';
 
 export function SettingsScreen() {
   const [notificationStatus, setNotificationStatus] = useState<string>('unknown');
   const [locationStatus, setLocationStatus] = useState<string>('unknown');
   const [apiUrl, setApiUrl] = useState(process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000');
-  const [apiSecret, setApiSecret] = useState(process.env.EXPO_PUBLIC_API_SECRET || '');
+  const [apiSecret, setApiSecret] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
   useEffect(() => {
     checkPermissions();
+    loadBackendConfig().then(config => {
+      if (config) { setApiUrl(config.url); setApiSecret(config.credential); }
+    }).catch(() => { Alert.alert('Configuração', 'Não foi possível ler a conexão segura.'); });
   }, []);
 
   const checkPermissions = async () => {
@@ -40,8 +44,12 @@ export function SettingsScreen() {
 
   const handleTestConnection = async () => {
     setConnectionStatus('testing');
-    const success = await testConnection(apiUrl, apiSecret);
-    setConnectionStatus(success ? 'success' : 'error');
+    let success = false;
+    try {
+      success = await testConnection(apiUrl, apiSecret);
+      if (success) await saveBackendConfig({ url: apiUrl, credential: apiSecret });
+    } catch { success = false; }
+    finally { setConnectionStatus(success ? 'success' : 'error'); }
     if (success) {
       Alert.alert('Sucesso', 'Conexão com o backend estabelecida com sucesso!');
     } else {
@@ -124,7 +132,7 @@ export function SettingsScreen() {
             disabled={connectionStatus === 'testing'}
           >
             <Text style={styles.buttonText}>
-              {connectionStatus === 'testing' ? 'Testando...' : 'Testar Conexão'}
+              {connectionStatus === 'testing' ? 'Testando...' : 'Testar e Salvar Conexão'}
             </Text>
           </TouchableOpacity>
 
@@ -142,7 +150,7 @@ export function SettingsScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>EcoFinance App v1.0.0 — SDK 52</Text>
+        <Text style={styles.footerText}>EcoFinance App v1.0.0 — SDK 57</Text>
       </View>
     </ScrollView>
   );
