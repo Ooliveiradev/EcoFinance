@@ -39,6 +39,11 @@ O arquivo de workflow cria checks; **isso não impede merge sozinho**. Após pub
 
 Não alterar nem remover o próprio gate para contornar uma falha. Correções devem tratar a causa. Supressões, quando realmente justificadas, precisam ser específicas e revisadas; não há baseline de segredos nem exclusão ampla neste trabalho.
 
+## Publicação e proteção
+
+[PR rascunho #20](https://github.com/Ooliveiradev/EcoFinance/pull/20). O [ruleset ativo 24392292](https://github.com/Ooliveiradev/EcoFinance/rules/24392292) exige PR quality gate originado do GitHub Actions (app 15368), branch atualizada, PR e resolução de conversas. Sem bypass, force-push ou deleção. A configuração exige os checks automaticamente; aprovação humana adicional pode ser definida quando houver revisores do projeto.
+
+O primeiro [run remoto](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37067163440) aprovou unitários/cobertura e bloqueou o gate pelos achados. CodeQL terminou a análise e encontrou dez resultados, demonstrando o bloqueio pelo SARIF. Qualidade, banco, web, Expo, dependências, fonte/histórico e React Doctor também ficaram vermelhos; consultar logs/artefatos para triagem. A falha de ShellCheck SC2016 no código JavaScript literal do próprio gate foi corrigida usando concatenação de strings; a correção não remove o ShellCheck nem reduz as regras.
 ## Validação da branch isolada em 02/10/2026
 
 O PR de CI parte da main publicada. A refatoração de ownership/modelo financeiro, correções de interfaces e ajustes de dependências presentes no checkout original ficaram fora desta branch. Não altera migrations SQL existentes nem migra banco real. Acrescenta runner transacional/checksum para executar o SQL existente nos testes, fixtures legadas e os checks.

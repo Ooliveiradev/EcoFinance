@@ -313,6 +313,6 @@ jobs:
         run: |
           node --input-type=module -e '
             const checks = Object.entries(JSON.parse(process.env.RESULTS));
-            for (const [name, check] of checks) console.log(`${name}: ${check.result}`);
+            for (const [name, check] of checks) console.log(name + ": " + check.result);
             if (checks.length !== 10 || checks.some(([, check]) => check.result !== "success")) process.exit(1);
           '
