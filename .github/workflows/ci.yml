@@ -1,45 +1,318 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  merge_group:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CI: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+  EXPO_NO_TELEMETRY: '1'
 
 jobs:
-  typecheck:
-    name: Typecheck
-    runs-on: ubuntu-latest
-
+  quality:
+    name: Types and zero-warning lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          version: 9.15.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: '22'
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+  unit:
+    name: Unit tests and coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:selftest
+      - run: pnpm test:coverage
+      - name: coverage evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: error
 
-      - name: Typecheck
-        run: pnpm typecheck
+  database:
+    name: PostgreSQL migration and recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
         env:
-          # Dummy values so the db package doesn't throw at import time
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecofinance
-          GEMINI_API_KEY: dummy
-          PLUGGY_CLIENT_ID: dummy
-          PLUGGY_CLIENT_SECRET: dummy
-          API_SECRET_KEY: dummy-secret-key-at-least-32-chars
-          SUPABASE_URL: https://dummy.supabase.co
-          SUPABASE_ANON_KEY: dummy
-          SUPABASE_SERVICE_ROLE_KEY: dummy
-          NEXT_PUBLIC_SUPABASE_URL: https://dummy.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy
+          POSTGRES_DB: ecofinance_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ecofinance_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration --coverage
+      - run: pnpm db:migrate
+      - name: Repeat migration without changes
+        run: pnpm db:migrate
+      - name: Backup, restore and compare synthetic financial data
+        env:
+          CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$CONTAINER_ID" psql -U postgres -d ecofinance_ci -v ON_ERROR_STOP=1 < packages/db/tests/fixtures/recovery.sql
+          docker exec "$CONTAINER_ID" pg_dump -U postgres -d ecofinance_ci --format=custom > "$RUNNER_TEMP/ecofinance.dump"
+          docker exec "$CONTAINER_ID" createdb -U postgres ecofinance_restore
+          docker exec -i "$CONTAINER_ID" pg_restore -U postgres -d ecofinance_restore --exit-on-error < "$RUNNER_TEMP/ecofinance.dump"
+          docker exec -i "$CONTAINER_ID" psql -U postgres -d ecofinance_restore -v ON_ERROR_STOP=1 < packages/db/tests/fixtures/assert-recovery.sql
+      - name: Database coverage evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: database-coverage
+          path: coverage/integration/
+          retention-days: 7
+          if-no-files-found: error
+
+  web:
+    name: Production web, bundle privacy and E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_DB: ecofinance_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ecofinance_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - name: Load synthetic E2E fixture
+        env:
+          CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: docker exec -i "$CONTAINER_ID" psql -U postgres -d ecofinance_ci -v ON_ERROR_STOP=1 < packages/db/tests/fixtures/recovery.sql
+      - name: Build with synthetic canaries and scan client artifacts
+        run: node scripts/security/build-with-canaries.mjs web
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test:e2e
+      - name: playwright evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  mobile:
+    name: Expo compatibility and Android/iOS bundle privacy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm mobile:check
+      # Validates JS bundles, not native compilation/device behavior.
+      - run: node scripts/security/build-with-canaries.mjs mobile
+
+  dependencies:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Includes development dependencies; registry errors also fail the job.
+      - run: pnpm audit --audit-level=high
+
+  secrets:
+    name: Git history, working tree and source privacy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GITLEAKS_VERSION: 8.24.3
+      GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install checksum-verified Gitleaks
+        run: |
+          curl --fail --silent --show-error --location --retry 3 -o "$RUNNER_TEMP/gitleaks.tar.gz" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan all reachable history with redacted output
+        run: '"$RUNNER_TEMP/gitleaks" git . --log-opts="--all" --redact --no-banner'
+      - name: Scan working tree before dependency installation
+        if: success() || failure()
+        run: '"$RUNNER_TEMP/gitleaks" dir . --redact --no-banner'
+      - name: Enforce source privacy policy
+        if: success() || failure()
+        run: node scripts/security/check-source.mjs
+
+  codeql:
+    name: Blocking CodeQL security and quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: +security-extended,security-and-quality
+      - uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          upload: never
+          output: codeql-results
+      - name: Fail on findings, suppressed findings or incomplete report
+        run: node scripts/security/check-sarif.mjs codeql-results
+      - name: codeql evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codeql
+          path: codeql-results/*.sarif
+          retention-days: 7
+          if-no-files-found: error
+
+  react:
+    name: React Doctor (${{ matrix.directory }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [apps/next, apps/expo]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: millionco/react-doctor@013f7373f91a3b9e68bd1dc7d4d354f4b041b117 # v2
+        id: doctor
+        with:
+          directory: ${{ matrix.directory }}
+          scope: full
+          blocking: warning
+          version: '0.9.14'
+          comment: 'false'
+          review-comments: 'false'
+          commit-status: 'false'
+      # Upstream is advisory on push/merge_group; enforce zero findings on all events.
+      - name: Enforce complete zero-finding scan for every event
+        env:
+          FINDINGS: ${{ steps.doctor.outputs.total-issues }}
+        run: |
+          node --input-type=module -e 'const n = process.env.FINDINGS; if (!/^0$/.test(n ?? "")) { console.error("React Doctor findings or incomplete scan:", n); process.exit(1); }'
+
+  workflows:
+    name: GitHub Actions validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install fixed actionlint release
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - run: '"$(go env GOPATH)/bin/actionlint" -color'
+
+  gate:
+    name: PR quality gate
+    if: always()
+    needs: [quality, unit, database, web, mobile, dependencies, secrets, codeql, react, workflows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every check to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module -e '
+            const checks = Object.entries(JSON.parse(process.env.RESULTS));
+            for (const [name, check] of checks) console.log(`${name}: ${check.result}`);
+            if (checks.length !== 10 || checks.some(([, check]) => check.result !== "success")) process.exit(1);
+          '

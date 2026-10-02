@@ -74,3 +74,6 @@ apps/expo/ios/
 *.pem
 .vercel
 
+
+playwright-report/
+test-results/

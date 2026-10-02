@@ -311,3 +311,7 @@ Distribuído sob a licença MIT. Veja [LICENSE](./LICENSE) para mais informaçõ
 <div align="center">
   <p>Feito com ❤️ no Brasil 🇧🇷</p>
 </div>
+
+## Qualidade de PRs
+
+Veja [rotina de testes e segurança](docs/ci-quality.md). O check agregado PR quality gate exige sucesso de todos os jobs.
