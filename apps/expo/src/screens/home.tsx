@@ -15,7 +15,7 @@ interface CapturedTransaction {
   hasGPS: boolean;
 }
 
-export function HomeScreen({ navigation }: any) {
+export function HomeScreen() {
   const [taskActive, setTaskActive] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentTransactions] = useState<CapturedTransaction[]>([]);

@@ -1,32 +1,46 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".env"],
+  "globalDependencies": [
+    ".env",
+    "tsconfig.base.json",
+    "eslint.config.mjs"
+  ],
   "globalEnv": [
     "DATABASE_URL",
-    "SUPABASE_URL",
-    "SUPABASE_ANON_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
+    "NEXT_TELEMETRY_DISABLED",
+    "EXPO_NO_TELEMETRY",
+    "EXPO_OFFLINE",
+    "EXPO_PUBLIC_API_URL",
+    "EXPO_PUBLIC_API_SECRET",
+    "API_SECRET_KEY",
     "PLUGGY_CLIENT_ID",
     "PLUGGY_CLIENT_SECRET",
-    "GEMINI_API_KEY",
-    "API_SECRET_KEY",
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    "GEMINI_API_KEY"
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "db:generate": {
       "cache": false
@@ -35,6 +49,9 @@
       "cache": false
     },
     "clean": {
+      "cache": false
+    },
+    "check": {
       "cache": false
     }
   }

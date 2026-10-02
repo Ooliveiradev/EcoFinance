@@ -8,11 +8,27 @@
     "typecheck": "turbo typecheck",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "mobile:check": "turbo check --filter=@ecofinance/expo",
+    "db:migrate": "pnpm --filter @ecofinance/db db:migrate",
+    "db:verify-recovery": "tsx packages/db/scripts/verify-recovery.ts"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "eslint": "^9.39.0",
+    "vitest": "^3.2.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "tsx": "^4.20.0",
+    "@next/eslint-plugin-next": "15.5.19",
+    "@types/node": "^22.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "globals": "^16.0.0",
+    "typescript-eslint": "^8.46.0",
+    "@eslint/js": "^9.39.0"
   },
   "packageManager": "pnpm@9.15.0",
   "engines": {

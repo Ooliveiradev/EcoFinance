@@ -12,20 +12,12 @@ import {
   Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
+import * as IntentLauncher from 'expo-intent-launcher';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PluggyConnect } from 'react-native-pluggy-connect';
 import { Logo } from '../components/Logo';
 
-// expo-intent-launcher — carregado dinamicamente para não quebrar se o módulo nativo não estiver linkado
-let IntentLauncher: any = null;
-try {
-  IntentLauncher = require('expo-intent-launcher');
-} catch {
-  // módulo não disponível, usará Linking como fallback
-}
-
-
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
 
 export const ONBOARDING_KEY = '@ecofinance_onboarded';
@@ -315,13 +307,13 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
     if (Platform.OS === 'android') {
       const opened = (() => {
         try {
-          if (IntentLauncher?.startActivityAsync && IntentLauncher?.ActivityAction?.NOTIFICATION_LISTENER_SETTINGS) {
-            IntentLauncher.startActivityAsync(
-              IntentLauncher.ActivityAction.NOTIFICATION_LISTENER_SETTINGS,
-            );
-            return true;
-          }
-        } catch {}
+          IntentLauncher.startActivityAsync(
+            IntentLauncher.ActivityAction.NOTIFICATION_LISTENER_SETTINGS,
+          ).catch(() => Linking.openSettings());
+          return true;
+        } catch {
+          // Fall back to the general settings screen below.
+        }
         return false;
       })();
       if (!opened) {
@@ -343,7 +335,7 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
       const data = await res.json();
       if (!data.accessToken) throw new Error('Token ausente');
       setConnectToken(data.accessToken);
-    } catch (e) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível iniciar a conexão. Verifique se o backend está rodando.');
     } finally {
       setTokenLoading(false);

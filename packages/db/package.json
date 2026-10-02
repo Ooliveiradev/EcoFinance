@@ -7,12 +7,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "db:migrate": "tsx scripts/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "drizzle-orm": "^0.39.0",
+    "drizzle-orm": "^0.44.0",
     "postgres": "^3.4.0",
     "dotenv": "^16.4.0"
   },

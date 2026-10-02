@@ -1,45 +1,64 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
+permissions:
+  contents: read
 jobs:
-  typecheck:
-    name: Typecheck
+  verify:
     runs-on: ubuntu-latest
-
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecofinance
+      NEXT_TELEMETRY_DISABLED: '1'
+      EXPO_NO_TELEMETRY: '1'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 9.15.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm mobile:check
+      - run: pnpm build
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
         env:
-          # Dummy values so the db package doesn't throw at import time
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecofinance
-          GEMINI_API_KEY: dummy
-          PLUGGY_CLIENT_ID: dummy
-          PLUGGY_CLIENT_SECRET: dummy
-          API_SECRET_KEY: dummy-secret-key-at-least-32-chars
-          SUPABASE_URL: https://dummy.supabase.co
-          SUPABASE_ANON_KEY: dummy
-          SUPABASE_SERVICE_ROLE_KEY: dummy
-          NEXT_PUBLIC_SUPABASE_URL: https://dummy.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy
+          POSTGRES_DB: ecofinance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ecofinance"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecofinance
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecofinance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+      - run: pnpm db:migrate
+      - run: pnpm db:migrate
+      - name: Install PostgreSQL recovery client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - run: pnpm db:verify-recovery

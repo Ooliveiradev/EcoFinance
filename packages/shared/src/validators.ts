@@ -16,7 +16,7 @@ export const transactionCategorySchema = z.enum([
 ]);
 
 export const transactionSourceSchema = z.enum([
-  'notification', 'pluggy', 'ofx', 'manual', 'uber',
+  'notification', 'pluggy', 'ofx', 'manual', 'uber', 'csv', 'spreadsheet', 'document', 'email',
 ]);
 
 // ---------------------------------------------------------------------------

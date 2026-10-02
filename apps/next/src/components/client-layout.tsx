@@ -8,8 +8,6 @@ import {
   ArrowLeftRight,
   Wallet,
   MapPin,
-  Menu,
-  X,
   Bot,
   Settings,
 } from 'lucide-react';

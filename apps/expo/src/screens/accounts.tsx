@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { PluggyConnect } from 'react-native-pluggy-connect';
 
 // Endereço base da API do backend Next.js. No emulador Android, 10.0.2.2 aponta para o localhost da máquina.

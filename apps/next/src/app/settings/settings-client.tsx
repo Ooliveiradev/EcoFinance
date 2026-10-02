@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bell, MapPin, Server, CheckCircle2, XCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export function SettingsClient() {
-  const [notificationStatus, setNotificationStatus] = useState<'granted' | 'pending'>('granted');
+  const [notificationStatus] = useState<'granted' | 'pending'>('granted');
   const [locationStatus, setLocationStatus] = useState<'granted' | 'pending'>('pending');
   const [apiUrl, setApiUrl] = useState('https://sua-api.com');
   const [apiSecret, setApiSecret] = useState('*******************');

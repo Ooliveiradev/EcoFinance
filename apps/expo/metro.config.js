@@ -18,6 +18,20 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+// Web tools use React 19 at the workspace root; Expo SDK 52 requires React 18.
+// Resolve every native React import from the app so the renderer and components
+// share one instance, including imports originating in hoisted dependencies.
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'react' || moduleName.startsWith('react/')) {
+    return context.resolveRequest(
+      { ...context, originModulePath: path.join(projectRoot, 'package.json') },
+      moduleName,
+      platform,
+    );
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 // Note: disableHierarchicalLookup is NOT set — Expo defaults to false and we keep it that way.
 
 module.exports = config;

@@ -8,7 +8,6 @@
 // =============================================================================
 
 import { db, accounts, transactions } from '@ecofinance/db';
-import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 

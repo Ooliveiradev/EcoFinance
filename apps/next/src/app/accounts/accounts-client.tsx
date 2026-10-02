@@ -7,11 +7,9 @@ import {
   Plus,
   Upload,
   CheckCircle2,
-  AlertCircle,
-  Clock,
   Landmark,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn, formatBRL, formatDate } from '@/lib/utils';
 import dynamic from 'next/dynamic';

@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './src/env';
 import { defineConfig } from 'drizzle-kit';
 
 if (!process.env.DATABASE_URL) {
@@ -8,7 +8,8 @@ if (!process.env.DATABASE_URL) {
 export default defineConfig({
   dialect: 'postgresql',
   schema: './src/schema.ts',
-  out: './migrations',
+  // Generated SQL is a draft. Only reviewed, numbered files in migrations/ run.
+  out: './migration-drafts',
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },

@@ -26,7 +26,6 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { cn, formatBRL, formatDate } from '@/lib/utils';
-import type { LucideIcon } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
