@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, timestamp, pgEnum, doublePrecision, integer, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, numeric, timestamp, pgEnum, doublePrecision, integer, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
 // =============================================================================
 // Enums
@@ -64,6 +64,6 @@ export const transactions = pgTable('transactions', {
 }, (table) => ({
   accountIdIdx: index('idx_transactions_account_id').on(table.accountId),
   dateIdx: index('idx_transactions_date').on(table.date),
-  externalIdIdx: index('idx_transactions_external_id').on(table.externalId),
+  externalIdIdx: uniqueIndex('idx_transactions_external_id').on(table.externalId),
   categoryIdx: index('idx_transactions_category').on(table.category),
 }));

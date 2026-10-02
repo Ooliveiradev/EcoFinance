@@ -77,7 +77,7 @@ export default function MapPage() {
                 <Navigation className="h-12 w-12 text-slate-500 mx-auto opacity-50" />
                 <h3 className="text-xl font-medium text-slate-300">Integração do Mapa</h3>
                 <p className="text-slate-400 text-sm">
-                  Em produção, este espaço conterá o Leaflet.js para renderização do mapa interativo. 
+                  Em produção, este espaço conterá o Leaflet.js para renderização do mapa interativo.
                   Para este preview, listamos as coordenadas no painel lateral.
                 </p>
                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm flex items-start gap-3 text-left">
@@ -86,7 +86,7 @@ export default function MapPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Mock map pins overlaid on a grid background */}
             <div className="absolute inset-0 pointer-events-none" style={{
               backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
@@ -104,16 +104,16 @@ export default function MapPage() {
             <CardContent className="space-y-6">
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-slate-300">Raio de Busca</label>
+                  <label htmlFor="search-radius" className="text-sm font-medium text-slate-300">Raio de Busca</label>
                   <span className="text-sm text-emerald-400 font-medium">{distance} km</span>
                 </div>
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="20" 
-                  value={distance} 
+                <input
+                  type="range" id="search-radius"
+                  min="1"
+                  max="20"
+                  value={distance}
                   onChange={(e) => setDistance(parseInt(e.target.value))}
-                  className="w-full accent-emerald-500" 
+                  className="w-full accent-emerald-500"
                 />
               </div>
             </CardContent>

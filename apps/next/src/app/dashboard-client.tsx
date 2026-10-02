@@ -8,13 +8,6 @@ import {
   ArrowDownRight,
   Activity,
 } from 'lucide-react';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-} from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -26,7 +19,10 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { cn, formatBRL, formatDate } from '@/lib/utils';
-import type { LucideIcon } from 'lucide-react';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+const CategoryChart = dynamic(() => import('./category-chart'), { ssr: false, loading: () => <div className="h-[240px]">Carregando gráfico…</div> });
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -47,7 +43,7 @@ interface Transaction {
   id: string;
   date: string;
   description: string;
-  category: string;
+  category: import("@ecofinance/shared").TransactionCategory;
   amount: string; // numeric
   source: string;
 }
@@ -98,24 +94,6 @@ const sourceColors: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 /*  Custom Recharts Tooltip                                            */
 /* ------------------------------------------------------------------ */
-
-function CustomTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; payload: { color: string } }>;
-}) {
-  if (!active || !payload?.length) return null;
-  const data = payload[0];
-  if (!data) return null;
-  return (
-    <div className="bg-slate-800/90 backdrop-blur-lg border border-slate-700/50 rounded-xl px-4 py-3 shadow-xl">
-      <p className="text-xs text-slate-400 mb-1">{data.name}</p>
-      <p className="text-sm font-semibold text-slate-50">{formatBRL(data.value)}</p>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -234,25 +212,7 @@ export default function DashboardClient({
             ) : (
               <>
                 <div className="h-[240px] relative">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        dataKey="value"
-                        stroke="none"
-                      >
-                        {categoryData.map((entry, idx) => (
-                          <Cell key={idx} fill={CATEGORY_COLORS[entry.name] || CATEGORY_COLORS['desconhecido']} className="transition-opacity hover:opacity-80" />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <CategoryChart data={categoryData} colors={CATEGORY_COLORS} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-xs text-slate-400">Total</span>
                     <span className="text-lg font-bold text-slate-50">{formatBRL(totalExpenses)}</span>
@@ -281,9 +241,9 @@ export default function DashboardClient({
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Transações Recentes</CardTitle>
-              <a href="/transactions" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
+              <Link href="/transactions" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
                 Ver todas →
-              </a>
+              </Link>
             </div>
           </CardHeader>
           <CardContent>
@@ -312,7 +272,7 @@ export default function DashboardClient({
                         {tx.description}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={tx.category as any} className="text-[10px]">
+                        <Badge variant={tx.category} className="text-[10px]">
                           {categoryLabels[tx.category] ?? tx.category}
                         </Badge>
                       </TableCell>

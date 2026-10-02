@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 // ---------------------------------------------------------------------------
 // POST /api/transactions/import-ofx — Import transactions from OFX/QFX file
 // ---------------------------------------------------------------------------
@@ -9,8 +10,10 @@ import { parseOfxContent } from '@/lib/ofx-parser';
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
   const expected = process.env.API_SECRET_KEY;
-  if (!expected) return false;
-  return apiKey === expected;
+  if (!expected || !apiKey || expected.length < 32) return false;
+  const received = Buffer.from(apiKey);
+  const configured = Buffer.from(expected);
+  return received.length === configured.length && timingSafeEqual(received, configured);
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -114,41 +117,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // ── 5. Bulk insert transactions ───────────────────────────────────────
-    let imported = 0;
-    let skipped = 0;
-
-    for (const txn of parsed.transactions) {
-      const externalId = `ofx_${parsed.accountId || 'unknown'}_${txn.fitId}`;
-      const category = categorizeTransaction(txn.name || txn.memo || '');
-
-      try {
-        const result = await db
-          .insert(transactions)
-          .values({
-            accountId,
-            description: txn.name || txn.memo || 'Transação OFX',
-            amount: String(txn.amount),
-            date: new Date(txn.datePosted),
-            category,
-            source: 'ofx',
-            externalId,
-          })
-          .onConflictDoNothing({
-            target: transactions.externalId,
-          })
-          .returning({ id: transactions.id });
-
-        if (result.length > 0) {
-          imported++;
-        } else {
-          skipped++;
-        }
-      } catch (insertError) {
-        // If an individual insert fails (e.g. constraint), skip it
-        console.warn(`[import-ofx] Skipping transaction ${txn.fitId}:`, insertError);
-        skipped++;
-      }
-    }
+    const values = parsed.transactions.map(txn => ({
+      accountId, description: txn.name || txn.memo || 'Transação OFX',
+      amount: String(txn.amount), date: new Date(txn.datePosted),
+      category: categorizeTransaction(txn.name || txn.memo || ''), source: 'ofx' as const,
+      externalId: `ofx_${parsed.accountId || 'unknown'}_${txn.fitId}`,
+    }));
+    const inserted = values.length ? await db.transaction(tx => tx.insert(transactions)
+      .values(values).onConflictDoNothing({ target: transactions.externalId })
+      .returning({ id: transactions.id })) : [];
+    const imported = inserted.length;
+    const skipped = values.length - imported;
 
     return NextResponse.json(
       {
@@ -161,10 +140,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 200 },
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[/api/transactions/import-ofx] Error:', error);
     return NextResponse.json(
-      { error: `Internal server error: ${message}` },
+      { error: 'Falha ao importar transações.' },
       { status: 500 },
     );
   }

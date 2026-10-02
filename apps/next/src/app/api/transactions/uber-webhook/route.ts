@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 // ---------------------------------------------------------------------------
 // POST /api/transactions/uber-webhook — Receive parsed Uber trip data from GAS
 // ---------------------------------------------------------------------------
@@ -18,8 +19,10 @@ import { uberWebhookPayloadSchema } from '@ecofinance/shared';
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
   const expected = process.env.API_SECRET_KEY;
-  if (!expected) return false;
-  return apiKey === expected;
+  if (!expected || !apiKey || expected.length < 32) return false;
+  const received = Buffer.from(apiKey);
+  const configured = Buffer.from(expected);
+  return received.length === configured.length && timingSafeEqual(received, configured);
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

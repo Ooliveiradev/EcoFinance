@@ -11,7 +11,7 @@ const EMPTY_STATE = {
   expenses: { value: 0, trend: 0 },
   transactionsCount: { value: 0, trend: 0 },
   categoryData: [] as { name: string; value: number; color: string }[],
-  recentTransactions: [] as { id: string; date: string; description: string; category: string; amount: string; source: string }[],
+  recentTransactions: [] as { id: string; date: string; description: string; category: import("@ecofinance/shared").TransactionCategory; amount: string; source: string }[],
 };
 
 export default async function DashboardPage() {

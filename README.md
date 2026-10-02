@@ -104,7 +104,7 @@ Banco do usuário
 
 | Ferramenta | Versão mínima | Instalação |
 |---|---|---|
-| Node.js | 20+ | [nodejs.org](https://nodejs.org) |
+| Node.js | 22.13+ | [nodejs.org](https://nodejs.org) |
 | pnpm | 9+ | `npm install -g pnpm@9` |
 | Docker | qualquer | [docker.com](https://www.docker.com) |
 
@@ -207,7 +207,7 @@ pnpm install
 # Apontar para o servidor local
 # No arquivo apps/expo/.env (ou nas configurações do app):
 EXPO_PUBLIC_API_URL=http://SEU_IP_LOCAL:3000
-EXPO_PUBLIC_API_SECRET=sua-chave-secreta
+# Configure a credencial em Opções no aparelho; não publique segredos no bundle.
 
 # Rodar no emulador Android
 cd apps/expo
@@ -311,3 +311,15 @@ Distribuído sob a licença MIT. Veja [LICENSE](./LICENSE) para mais informaçõ
 <div align="center">
   <p>Feito com ❤️ no Brasil 🇧🇷</p>
 </div>
+
+## Qualidade de PRs
+
+Veja [rotina de testes e segurança](docs/ci-quality.md). O check agregado PR quality gate exige sucesso de todos os jobs.
+
+### Acesso protegido e CI
+
+Configure `API_SECRET_KEY` apenas no servidor, com pelo menos 32 caracteres aleatórios. No navegador, informe essa credencial na tela de entrada; a sessão dura seis horas e usa cookie HttpOnly/SameSite. No mobile, configure URL HTTPS e credencial em Opções: o app salva a credencial no SecureStore do aparelho. HTTP é aceito apenas em localhost/127.0.0.1/10.0.2.2 para desenvolvimento. Não use `EXPO_PUBLIC_API_SECRET`. Configure webhooks Pluggy com o header `x-api-secret-key`, em vez de segredo na URL.
+
+O aplicativo usa Expo SDK 57 e exige uma nova compilação nativa ao atualizar de SDK 52. A pasta Android foi atualizada preservando os arquivos nativos. Gere a chave debug localmente em `~/.android/debug.keystore`; releases precisam de assinatura própria via EAS ou configuração segura do Gradle.
+
+Veja [os checks obrigatórios e a correção auditável de dependência](docs/ci-quality.md).

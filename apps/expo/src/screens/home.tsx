@@ -15,7 +15,22 @@ interface CapturedTransaction {
   hasGPS: boolean;
 }
 
-export function HomeScreen({ navigation }: any) {
+function renderTransaction({ item }: { item: CapturedTransaction }) { return (
+            <View style={styles.transactionCard}>
+              <View style={styles.row}>
+                <Text style={styles.bankName}>{item.bank}</Text>
+                <Text style={[styles.amount, item.amount < 0 ? styles.expense : styles.income]}>
+                  R$ {Math.abs(item.amount).toFixed(2)}
+                </Text>
+              </View>
+              <Text style={styles.description}>{item.description}</Text>
+              <View style={styles.rowFooter}>
+                <Text style={styles.time}>{new Date(item.time).toLocaleTimeString('pt-BR')}</Text>
+                {item.hasGPS && <Text style={styles.gpsBadge}>📍 GPS</Text>}
+              </View>
+            </View>); }
+
+export function HomeScreen() {
   const [taskActive, setTaskActive] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentTransactions] = useState<CapturedTransaction[]>([]);
@@ -31,8 +46,7 @@ export function HomeScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await checkTaskStatus();
-    setRefreshing(false);
+    try { await checkTaskStatus(); } finally { setRefreshing(false); }
   };
 
   const handleRequestPermission = async () => {
@@ -95,21 +109,7 @@ export function HomeScreen({ navigation }: any) {
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10b981" />}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.transactionCard}>
-              <View style={styles.row}>
-                <Text style={styles.bankName}>{item.bank}</Text>
-                <Text style={[styles.amount, { color: item.amount < 0 ? '#f43f5e' : '#10b981' }]}>
-                  R$ {Math.abs(item.amount).toFixed(2)}
-                </Text>
-              </View>
-              <Text style={styles.description}>{item.description}</Text>
-              <View style={styles.rowFooter}>
-                <Text style={styles.time}>{new Date(item.time).toLocaleTimeString('pt-BR')}</Text>
-                {item.hasGPS && <Text style={styles.gpsBadge}>📍 GPS</Text>}
-              </View>
-            </View>
-          )}
+          renderItem={renderTransaction}
         />
       )}
     </View>
@@ -172,6 +172,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   bankName: { color: '#94a3b8', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  expense: { color: '#f43f5e' },
+  income: { color: '#10b981' },
   amount: { fontSize: 16, fontWeight: 'bold' },
   description: { color: '#f1f5f9', fontSize: 14 },
   time: { color: '#64748b', fontSize: 12 },

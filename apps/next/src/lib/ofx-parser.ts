@@ -46,7 +46,7 @@ function parseOfxDate(raw: string): string {
   const dateStr = cleaned.replace(/\[.*?\]/, '').replace(/\..*$/, '').trim();
 
   if (dateStr.length < 8) {
-    return new Date().toISOString();
+    throw new Error('Invalid OFX date: an explicit source date is required');
   }
 
   const year = dateStr.substring(0, 4);

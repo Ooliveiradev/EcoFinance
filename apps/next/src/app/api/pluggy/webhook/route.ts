@@ -1,51 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
+import { z } from 'zod';
+import { POST as sync } from '../sync/route';
+
+const eventSchema = z.object({ event: z.string().max(100), itemId: z.string().uuid().optional() });
 
 export async function POST(request: NextRequest) {
+  const secret = process.env.API_SECRET_KEY;
+  const token = request.headers.get('x-api-secret-key');
+  if (!secret || secret.length < 32 || !token || Buffer.byteLength(token) !== Buffer.byteLength(secret) ||
+      !timingSafeEqual(Buffer.from(token), Buffer.from(secret))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
-    // A Pluggy envia o POST para a nossa URL.
-    // Usamos um token na URL (?token=...) para validar que é realmente a Pluggy
-    const url = new URL(request.url);
-    const token = url.searchParams.get('token');
-    
-    if (token !== process.env.API_SECRET_KEY) {
-      console.warn('[Pluggy Webhook] Tentativa de acesso não autorizada');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    console.log('[Pluggy Webhook] Evento recebido:', body);
-
-    const { event, itemId } = body;
-
-    // Se o banco terminou de atualizar novas transações
-    if (event === 'item/updated' && itemId) {
-      console.log(`[Pluggy Webhook] Iniciando sincronização automática para o itemId: ${itemId}...`);
-      
-      const baseUrl = request.nextUrl.origin;
-      
-      // Chamamos nossa própria rota de sincronização
-      const syncResponse = await fetch(`${baseUrl}/api/pluggy/sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-secret-key': process.env.API_SECRET_KEY || ''
-        },
-        body: JSON.stringify({ itemId })
-      });
-
-      if (!syncResponse.ok) {
-        console.error('[Pluggy Webhook] Erro ao sincronizar:', await syncResponse.text());
-        return NextResponse.json({ error: 'Sync failed' }, { status: 500 });
-      }
-
-      console.log('[Pluggy Webhook] Sincronização automática concluída com sucesso!');
+    const parsed = eventSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid event' }, { status: 400 });
+    if (parsed.data.event === 'item/updated' && parsed.data.itemId) {
+      // Call the server handler directly; never forward credentials to a Host-derived URL.
+      const response = await sync(new NextRequest('https://localhost/api/pluggy/sync', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-secret-key': secret },
+        body: JSON.stringify({ itemId: parsed.data.itemId }),
+      }));
+      if (!response.ok) return NextResponse.json({ error: 'Sync failed' }, { status: 502 });
       return NextResponse.json({ received: true, synced: true });
     }
-    
-    // Para outros eventos (item/waiting_user_input, item/error, etc), nós apenas registramos
     return NextResponse.json({ received: true });
-  } catch (error) {
-    console.error('[Pluggy Webhook] Erro:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
