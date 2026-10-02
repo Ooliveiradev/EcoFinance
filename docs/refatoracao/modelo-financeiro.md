@@ -14,7 +14,7 @@ Os contratos antigos permanecem para a transição da interface. A nova estrutur
 
 ## Expansão e backfill
 
-`0001_init.sql` adota o legado e instala PostGIS. `0002_owned_finance.sql` trava as tabelas durante expansão e validação, cria as novas entidades e preserva os campos antigos. Nenhum lançamento/conta é eliminado ou recebe novo ID.
+`0001_init.sql` adota o legado e instala PostGIS. A migração publicada `0002_external_id.sql` é mantida byte a byte; em bases que ainda não a aplicaram, qualquer ID externo repetido exige conciliação operacional antes de avançar, mesmo entre fontes/contas distintas. Não apagar ou reescrever registros para contornar o bloqueio. A migração 0003 elimina a restrição global e aplica o novo escopo por proprietário/conta/fonte. `0003_owned_finance.sql` trava as tabelas durante expansão e validação, cria as novas entidades e preserva os campos antigos. Nenhum lançamento/conta é eliminado ou recebe novo ID.
 
 Para uma base com dados, fornecer as três opções juntas, usando um UUID escolhido para o proprietário real:
 
@@ -43,6 +43,8 @@ node node_modules/tsx/dist/cli.mjs packages/db/scripts/verify-recovery.ts
 pnpm test:integration
 ```
 
-Validação local em PostgreSQL 16.15 + PostGIS 3.6, portátil e isolado em localhost: 14 cenários de integração e 3 testes do runner aprovados; recuperação completa aprovada. Foram exercitados proprietário/fuso ausentes, passagem de mês no fuso civil, valor negativo/estorno, duplicado existente, alteração por trigger durante backfill, vínculos cruzados, gravação anônima, arquivamento/exclusão, escopo de identidades, ocorrência mensal/idempotência e faixa/sinal/datas de liquidação. Nenhum banco real foi acessado.
+Validação local em PostgreSQL 16.15 + PostGIS 3.6, portátil e isolado em localhost: 16 cenários de integração e 3 testes do runner aprovados; recuperação completa aprovada. Foram exercitados proprietário/fuso ausentes, passagem de mês no fuso civil, valor negativo/estorno, duplicado existente, alteração por trigger durante backfill, vínculos cruzados, gravação anônima, arquivamento/exclusão, escopo de identidades, ocorrência mensal/idempotência e faixa/sinal/datas de liquidação. Nenhum banco real foi acessado.
 
-Os testes unitários dos novos contratos passaram. Typecheck passou nas quatro workspaces. Lint dos arquivos desta entrega foi verificado separadamente; a política global estrita da thread de CI ainda detecta 13 `any` no aplicativo legado. CI remota e execução nativa ficam registradas como pendentes, sem serem confundidas com integridade SQL ou export de bundles.
+Os contratos financeiros foram revalidados após integrar a main atual. O lint global estrito e os tipos passaram sem avisos. A CI, as correções de segurança e os runtimes recebidos por main foram preservados. Evidências de builds anteriores descrevem o baseline original; builds sobre a base integrada precisam da revalidação correspondente. Nenhum banco real foi acessado.
+
+Revalidação após integrar main 0dc02e2: 37 testes unitários, 16 cenários PostgreSQL mais 3 testes do runner, recuperação completa, lint sem avisos e tipos aprovados. Builds Next 15.5.27 e bundles Expo Android/iOS também aprovados nos runtimes preservados de main. As barreiras de cobertura passaram: contratos financeiros com 100% linhas/96% branches; runner com 100% linhas/90% branches. Gitleaks não encontrou segredos na resolução de conflitos. CI remota permanece pendente de confirmação.

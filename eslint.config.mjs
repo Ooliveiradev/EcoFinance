@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const nextRoot = fileURLToPath(new URL('./apps/next', import.meta.url));
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/.next/**', '**/dist/**', '**/.expo/**', '**/android/**', '**/ios/**', 'gas/**', '.local-postgres/**', 'packages/db/migration-drafts/**', '**/next-env.d.ts', '**/coverage/**', '**/playwright-report/**', '**/test-results/**'] },
+  { ignores: ['.ci-diagnostics/**', '**/node_modules/**', '**/.next/**', '**/dist/**', '**/.expo/**', '**/android/**', '**/ios/**', 'gas/**', '.local-postgres/**', 'packages/db/migration-drafts/**', '**/next-env.d.ts', '**/coverage/**', '**/playwright-report/**', '**/test-results/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

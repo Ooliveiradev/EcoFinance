@@ -437,9 +437,13 @@ BEGIN
  END IF;
  IF legacy_owner IS NOT NULL THEN
   INSERT INTO financial_migration_audits(owner_id,version,timezone,before_snapshot,after_snapshot)
-   VALUES(legacy_owner,'0002',current_setting('ecofinance.legacy_timezone'),before_totals,after_totals);
+   VALUES(legacy_owner,'0003',current_setting('ecofinance.legacy_timezone'),before_totals,after_totals);
  END IF;
 END $$;
+
+-- Retire the predecessor's global identity; the owned/account/source unique constraint replaces it.
+DROP INDEX IF EXISTS public.idx_transactions_external_id;
+CREATE INDEX idx_transactions_external_id ON transactions(external_id);
 
 -- Existing sources are untouched; new values become usable only after this transaction commits.
 ALTER TYPE transaction_source ADD VALUE IF NOT EXISTS 'csv';

@@ -1,0 +1,7 @@
+# Immutable historical synthetic CI key, never a deployed credential.
+12c1ca5a877e507506f1cd6d312ce2bebad8a40b:.github/workflows/ci.yml:generic-api-key:40
+# These three example values are a JWT header followed by literal "...".
+# They contain neither payload nor signature and cannot authenticate.
+1ca677a5d0c76490f541bf78a30da375c630ca3f:.env.example:generic-api-key:18
+1ca677a5d0c76490f541bf78a30da375c630ca3f:.env.example:generic-api-key:21
+1ca677a5d0c76490f541bf78a30da375c630ca3f:.env.example:generic-api-key:39

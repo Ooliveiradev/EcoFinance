@@ -33,7 +33,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-slate-950">
       {/* Mobile overlay for sidebar (if needed) */}
       {sidebarOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Fechar menu"
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
           onClick={() => setSidebarOpen(false)}
         />
@@ -72,7 +74,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 group',
                       isActive
                         ? 'bg-emerald-500/10 text-emerald-400 shadow-sm shadow-emerald-500/5'
                         : 'text-slate-400 hover:text-slate-50 hover:bg-slate-800/50',
@@ -108,7 +110,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 group',
                       isActive
                         ? 'bg-slate-800 text-slate-200'
                         : 'text-slate-400 hover:text-slate-50 hover:bg-slate-800/50',

@@ -148,7 +148,9 @@ export default function AIClient() {
           className="flex items-end gap-3 max-w-4xl mx-auto"
         >
           <div className="relative flex-1">
+            <label htmlFor="chat-message" className="block text-sm text-slate-300 mb-2">Sua pergunta</label>
             <textarea
+              id="chat-message"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -164,8 +166,9 @@ export default function AIClient() {
           </div>
           <button
             type="submit"
+            aria-label="Enviar mensagem"
             disabled={!input.trim() || isLoading}
-            className="h-[52px] w-[52px] rounded-xl bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/25 shrink-0"
+            className="h-[52px] w-[52px] rounded-xl bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-500/25 shrink-0"
           >
             {isLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />

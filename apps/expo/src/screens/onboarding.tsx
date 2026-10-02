@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,21 @@ import {
   Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
-import * as IntentLauncher from 'expo-intent-launcher';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PluggyConnect } from 'react-native-pluggy-connect';
 import { Logo } from '../components/Logo';
 
+// expo-intent-launcher — carregado dinamicamente para não quebrar se o módulo nativo não estiver linkado
+let IntentLauncher: typeof import("expo-intent-launcher") | null = null;
+try {
+  import('expo-intent-launcher').then(module => { IntentLauncher = module; }).catch(() => { IntentLauncher = null; });
+} catch {
+  // módulo não disponível, usará Linking como fallback
+}
+
+
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
+import { backendFetch } from '../services/backend-config';
 
 export const ONBOARDING_KEY = '@ecofinance_onboarded';
 
@@ -28,7 +36,7 @@ interface OnboardingProps {
 
 // ─── Slide 2: Animated Map Pin ───────────────────────────────────────────────
 function AnimatedMapPin() {
-  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -49,10 +57,10 @@ function AnimatedMapPin() {
       {/* Fake dark map grid */}
       <View style={mapStyles.map}>
         {[...Array(5)].map((_, i) => (
-          <View key={`h${i}`} style={[mapStyles.gridLine, mapStyles.hLine, { top: `${20 * (i + 1)}%` as any }]} />
+          <View key={`h${i}`} style={[mapStyles.gridLine, mapStyles.hLine, { top: `${20 * (i + 1)}%` as `${number}%` }]} />
         ))}
         {[...Array(5)].map((_, i) => (
-          <View key={`v${i}`} style={[mapStyles.gridLine, mapStyles.vLine, { left: `${20 * (i + 1)}%` as any }]} />
+          <View key={`v${i}`} style={[mapStyles.gridLine, mapStyles.vLine, { left: `${20 * (i + 1)}%` as `${number}%` }]} />
         ))}
         {/* Pulse ring */}
         <View style={mapStyles.pinContainer}>
@@ -99,9 +107,9 @@ const mapStyles = StyleSheet.create({
 
 // ─── Slide 3: Notification simulation ────────────────────────────────────────
 function NotificationSimulation() {
-  const slideAnim = useRef(new Animated.Value(-60)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-  const transformAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useState(() => new Animated.Value(-60))[0];
+  const opacityAnim = useState(() => new Animated.Value(0))[0];
+  const transformAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
     const seq = Animated.loop(
@@ -203,36 +211,49 @@ const notifStyles = StyleSheet.create({
 
 // ─── Slide 4: Shield Visual ───────────────────────────────────────────────────
 function ShieldVisual() {
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
     const glow = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: false }),
-        Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: false }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
       ]),
     );
     glow.start();
     return () => glow.stop();
   }, [glowAnim]);
 
-  const shadowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
+  const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
 
   return (
     <View style={shieldStyles.container}>
-      <Animated.View style={[shieldStyles.shield, { shadowOpacity }]}>
-        <Text style={shieldStyles.shieldEmoji}>🛡️</Text>
-        <View style={shieldStyles.statusBadge}>
-          <View style={shieldStyles.statusDot} />
-          <Text style={shieldStyles.statusText}>Aguardando Conexão...</Text>
+      <View>
+        <Animated.View pointerEvents="none" style={[shieldStyles.glow, { opacity: glowOpacity }]} />
+        <View style={shieldStyles.shield}>
+          <Text style={shieldStyles.shieldEmoji}>🛡️</Text>
+          <View style={shieldStyles.statusBadge}>
+            <View style={shieldStyles.statusDot} />
+            <Text style={shieldStyles.statusText}>Aguardando Conexão...</Text>
+          </View>
         </View>
-      </Animated.View>
+      </View>
     </View>
   );
 }
 
 const shieldStyles = StyleSheet.create({
   container: { alignItems: 'center', marginVertical: 28 },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 24,
+    backgroundColor: '#0f172a',
+    boxShadow: '0 0 40px #10b981',
+  },
   shield: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -241,10 +262,6 @@ const shieldStyles = StyleSheet.create({
     padding: 32,
     borderWidth: 1,
     borderColor: '#10b981',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 20,
-    elevation: 12,
   },
   shieldEmoji: { fontSize: 64 },
   statusBadge: {
@@ -269,7 +286,7 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
   const [locationLoading, setLocationLoading] = useState(false);
   const [connectToken, setConnectToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useState(() => new Animated.Value(1))[0];
 
   const goToSlide = (next: number) => {
     Animated.sequence([
@@ -307,13 +324,13 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
     if (Platform.OS === 'android') {
       const opened = (() => {
         try {
-          IntentLauncher.startActivityAsync(
-            IntentLauncher.ActivityAction.NOTIFICATION_LISTENER_SETTINGS,
-          ).catch(() => Linking.openSettings());
-          return true;
-        } catch {
-          // Fall back to the general settings screen below.
-        }
+          if (IntentLauncher) {
+            IntentLauncher.startActivityAsync(
+              IntentLauncher.ActivityAction.NOTIFICATION_LISTENER_SETTINGS,
+            );
+            return true;
+          }
+        } catch { /* Fall back to system settings when the activity is unavailable. */ }
         return false;
       })();
       if (!opened) {
@@ -330,7 +347,7 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
   const handleConnectBank = async () => {
     setTokenLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/pluggy/token`);
+      const res = await backendFetch('/api/pluggy/token');
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
       if (!data.accessToken) throw new Error('Token ausente');
@@ -343,14 +360,14 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
   };
 
   // Slide 4: Pluggy success → unlock app
-  const handlePluggySuccess = async (itemData: any) => {
+  const handlePluggySuccess = async (itemData: { item: { id: string } }) => {
     setConnectToken(null);
     const itemId = itemData?.item?.id;
     if (itemId) {
       // Fire-and-forget sync in background
-      fetch(`${API_URL}/api/pluggy/sync`, {
+      backendFetch('/api/pluggy/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-secret-key': process.env.EXPO_PUBLIC_API_SECRET || '' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId }),
       }).catch(() => {});
     }
@@ -366,7 +383,7 @@ export function OnboardingScreen({ onComplete }: OnboardingProps) {
           connectToken={connectToken}
           includeSandbox
           onSuccess={handlePluggySuccess}
-          onError={(err: any) => {
+          onError={(err) => {
             console.error('Pluggy error:', err);
             setConnectToken(null);
             Alert.alert('Erro de Conexão', err?.message || 'Falha ao conectar ao banco.');
@@ -511,11 +528,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     marginBottom: 16,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 10,
+    boxShadow: '0 0 60px rgba(16, 185, 129, 0.6)',
   },
   appName: {
     color: '#10b981',
@@ -555,11 +568,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     width: '100%',
     alignItems: 'center',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    boxShadow: '0 4px 24px rgba(16, 185, 129, 0.4)',
   },
   buttonDisabled: {
     opacity: 0.6,

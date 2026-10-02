@@ -1,21 +1,24 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [
-    ".env",
-    "tsconfig.base.json",
-    "eslint.config.mjs"
+    ".env"
   ],
   "globalEnv": [
     "DATABASE_URL",
-    "NEXT_TELEMETRY_DISABLED",
-    "EXPO_NO_TELEMETRY",
-    "EXPO_OFFLINE",
-    "EXPO_PUBLIC_API_URL",
-    "EXPO_PUBLIC_API_SECRET",
-    "API_SECRET_KEY",
+    "SUPABASE_URL",
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
     "PLUGGY_CLIENT_ID",
     "PLUGGY_CLIENT_SECRET",
-    "GEMINI_API_KEY"
+    "GEMINI_API_KEY",
+    "API_SECRET_KEY",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "NEXT_TELEMETRY_DISABLED",
+    "EXPO_NO_TELEMETRY",
+    "EXPO_NO_DOTENV",
+    "EXPO_PUBLIC_API_URL",
+    "EXPO_PUBLIC_API_SECRET"
   ],
   "tasks": {
     "build": {
@@ -24,7 +27,6 @@
       ],
       "outputs": [
         ".next/**",
-        "!.next/cache/**",
         "dist/**"
       ]
     },

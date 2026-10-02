@@ -77,7 +77,7 @@ describe('owned financial model and preservation', () => {
     const sql = await legacyDatabase();
     await sql`UPDATE transactions SET external_id='fixture-1',source='ofx'`;
     const before = await sql`SELECT id,amount,date,source,external_id FROM transactions ORDER BY id`;
-    await expect(migrate(sql, migrations, legacyOwner)).rejects.toThrow('EF02: Duplicate legacy external identities');
+    await expect(migrate(sql, migrations, legacyOwner)).rejects.toThrow('Duplicate transaction external IDs require manual reconciliation');
     expect(await sql`SELECT id,amount,date,source,external_id FROM transactions ORDER BY id`).toEqual(before);
     expect(await sql`SELECT to_regclass('public.ecofinance_migrations') AS registry`).toEqual([{ registry: null }]);
   });
@@ -205,6 +205,27 @@ describe('versioned PostgreSQL migrations', () => {
     expect(result!.count).toBe(0);
   });
 
+  it('upgrades the published predecessor without changing its migration history', async () => {
+    const sql = await legacyDatabase();
+    await migrate(sql, migrations.slice(0, 2));
+    const oldHistory = await sql`SELECT name,checksum,applied_at FROM ecofinance_migrations ORDER BY name`;
+    const before = await sql`SELECT id,account_id,amount,date,source,external_id FROM transactions ORDER BY id`;
+    expect(await migrate(sql, migrations, legacyOwner)).toEqual(['0003_owned_finance.sql']);
+    expect(await sql`SELECT name,checksum,applied_at FROM ecofinance_migrations ORDER BY name LIMIT 2`).toEqual(oldHistory);
+    expect(await sql`SELECT id,account_id,amount,date,source,external_id FROM transactions ORDER BY id`).toEqual(before);
+    await sql`UPDATE transactions SET external_id='fixture-1' WHERE source='manual'`;
+    const [index] = await sql`SELECT indisunique FROM pg_index WHERE indexrelid='idx_transactions_external_id'::regclass`;
+    expect(index!.indisunique).toBe(false);
+  });
+
+  it('retains the predecessor import guarantee before upgrading the owned model', async () => {
+    const sql = await isolatedDatabase();
+    await migrate(sql, migrations.slice(0, 2));
+    const [account] = await sql`INSERT INTO accounts(name) VALUES ('Predecessor') RETURNING id`;
+    await sql`INSERT INTO transactions(account_id,description,amount,date,external_id) VALUES (${account!.id},'Primeira','-42.90','2026-10-02','fixture-1') ON CONFLICT(external_id) DO NOTHING`;
+    await sql`INSERT INTO transactions(account_id,description,amount,date,external_id) VALUES (${account!.id},'Duplicata','-42.90','2026-10-02','fixture-1') ON CONFLICT(external_id) DO NOTHING`;
+    expect(await sql`SELECT count(*)::int AS count,sum(amount)::text AS total FROM transactions`).toEqual([{count:1,total:'-42.90'}]);
+  });
   it('rolls back DDL and history when a pending migration fails', async () => {
     const sql = await isolatedDatabase();
     await migrate(sql, migrations);

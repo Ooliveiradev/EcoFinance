@@ -14,7 +14,8 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION"
-      ]
+      ],
+      "allowBackup": false
     },
     "plugins": [
       "expo-location",
@@ -25,14 +26,8 @@
           "color": "#10b981"
         }
       ],
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "1.9.25"
-          }
-        }
-      ]
+      "expo-font",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

@@ -57,8 +57,6 @@ yarn-error.log*
 # =============================================================================
 coverage/
 .nyc_output/
-playwright-report/
-test-results/
 
 # =============================================================================
 # Expo / React Native
@@ -75,5 +73,11 @@ apps/expo/ios/
 # =============================================================================
 *.pem
 .vercel
-.local-postgres/
 
+
+playwright-report/
+test-results/
+
+# Local CI diagnosis reports and extracted tools
+.ci-diagnostics/
+.local-postgres/

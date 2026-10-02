@@ -1,16 +1,19 @@
+import { timingSafeEqual } from 'node:crypto';
 // ---------------------------------------------------------------------------
 // POST /api/pluggy/sync — Synchronize transactions from Pluggy Open Finance
 // ---------------------------------------------------------------------------
 import { NextRequest, NextResponse } from 'next/server';
-import { db, accounts, transactions, eq } from '@ecofinance/db';
+import { db, accounts, transactions, eq, sql } from '@ecofinance/db';
 import { pluggySyncRequestSchema, categorizeTransaction } from '@ecofinance/shared';
 import { PluggyClient, PluggyApiError } from '@/lib/pluggy-client';
 
 function validateApiKey(request: NextRequest): boolean {
   const apiKey = request.headers.get('x-api-secret-key');
   const expected = process.env.API_SECRET_KEY;
-  if (!expected) return false;
-  return apiKey === expected;
+  if (!expected || !apiKey || expected.length < 32) return false;
+  const received = Buffer.from(apiKey);
+  const configured = Buffer.from(expected);
+  return received.length === configured.length && timingSafeEqual(received, configured);
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
     const toDate = now.toISOString().split('T')[0];
 
-    for (const pluggyAccount of pluggyAccounts) {
+    await Promise.all(pluggyAccounts.map(async pluggyAccount => {
       try {
         // ── 6. Upsert local account ─────────────────────────────────────────
         const existingAccounts = await db
@@ -123,46 +126,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
 
         // ── 8. Upsert each transaction ────────────────────────────────────
-        for (const txn of pluggyTransactions) {
-          try {
-            const category = categorizeTransaction(txn.description || txn.descriptionRaw || '');
-            const externalId = `pluggy_${txn.id}`;
-
-            await db
-              .insert(transactions)
-              .values({
-                accountId: localAccountId,
-                description: txn.description || txn.descriptionRaw || 'Sem descrição',
-                amount: String(txn.amount),
-                date: new Date(txn.date),
-                category,
-                source: 'pluggy',
-                externalId,
-              })
-              .onConflictDoUpdate({
-                target: transactions.externalId,
-                set: {
-                  description: txn.description || txn.descriptionRaw || 'Sem descrição',
-                  amount: String(txn.amount),
-                  date: new Date(txn.date),
-                  category,
-                  updatedAt: new Date(),
-                },
-              });
-
-            totalSynced++;
-          } catch (txnError) {
-            const message =
-              txnError instanceof Error ? txnError.message : String(txnError);
-            errors.push(`Transaction ${txn.id}: ${message}`);
-          }
+        const rows = pluggyTransactions.map(txn => ({
+          accountId: localAccountId,
+          description: txn.description || txn.descriptionRaw || 'Sem descrição',
+          amount: String(txn.amount), date: new Date(txn.date),
+          category: categorizeTransaction(txn.description || txn.descriptionRaw || ''),
+          source: 'pluggy' as const, externalId: `pluggy_${txn.id}`,
+        }));
+        if (rows.length) {
+          await db.transaction(tx => tx.insert(transactions).values(rows).onConflictDoUpdate({
+            target: transactions.externalId,
+            set: { description: sql`excluded.description`, amount: sql`excluded.amount`,
+              date: sql`excluded.date`, category: sql`excluded.category`, updatedAt: new Date() },
+          }));
+          totalSynced += rows.length;
         }
       } catch (accountError) {
         const message =
           accountError instanceof Error ? accountError.message : String(accountError);
         errors.push(`Account ${pluggyAccount.id}: ${message}`);
       }
-    }
+    }));
 
     return NextResponse.json(
       { synced: totalSynced, errors },

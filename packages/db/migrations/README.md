@@ -6,7 +6,7 @@ Arquivos executáveis seguem `NNNN_nome.sql`, em ordem numérica. O runner mant�
 
 `0001_init.sql` é o bootstrap do legado: cria o schema de extensões, instala PostGIS, adota tabelas do antigo db:push, valida as colunas monetárias/data, acrescenta geom e recupera índices/funções/trigger. Preserva colunas financeiras e faz backfill apenas da geometria. Não cria unicidade global de external_id: essa falha é reproduzida no teste OFX e a correção precisa do novo escopo de proprietário/conta/fonte da #2.
 
-`0002_owned_finance.sql` expande o modelo para ownership, categorias editáveis, planejamento, cartões e importações. Legado exige proprietário/nome/fuso explícitos; duplicidades e diferenças financeiras bloqueiam a operação. Consulte [procedimento e evidências](../../../docs/refatoracao/modelo-financeiro.md). Preserva os campos antigos; não adapta automaticamente as rotas à autenticação.
+`0003_owned_finance.sql` expande o modelo para ownership, categorias editáveis, planejamento, cartões e importações. Legado exige proprietário/nome/fuso explícitos; duplicidades e diferenças financeiras bloqueiam a operação. Consulte [procedimento e evidências](../../../docs/refatoracao/modelo-financeiro.md). Preserva os campos antigos; não adapta automaticamente as rotas à autenticação.
 
 Antes de usar em dados reais, fazer snapshot e ensaio de restauração em banco isolado. Bootstrap, backfill, constraints e pg_dump/pg_restore foram executados localmente em PostgreSQL 16 + PostGIS com dados sintéticos. Nenhum banco de produção foi migrado.
 
