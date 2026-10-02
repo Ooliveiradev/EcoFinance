@@ -216,31 +216,44 @@ function ShieldVisual() {
   useEffect(() => {
     const glow = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: false }),
-        Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: false }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
       ]),
     );
     glow.start();
     return () => glow.stop();
   }, [glowAnim]);
 
-  const shadowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
+  const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
 
   return (
     <View style={shieldStyles.container}>
-      <Animated.View style={[shieldStyles.shield, { shadowOpacity }]}>
-        <Text style={shieldStyles.shieldEmoji}>🛡️</Text>
-        <View style={shieldStyles.statusBadge}>
-          <View style={shieldStyles.statusDot} />
-          <Text style={shieldStyles.statusText}>Aguardando Conexão...</Text>
+      <View>
+        <Animated.View pointerEvents="none" style={[shieldStyles.glow, { opacity: glowOpacity }]} />
+        <View style={shieldStyles.shield}>
+          <Text style={shieldStyles.shieldEmoji}>🛡️</Text>
+          <View style={shieldStyles.statusBadge}>
+            <View style={shieldStyles.statusDot} />
+            <Text style={shieldStyles.statusText}>Aguardando Conexão...</Text>
+          </View>
         </View>
-      </Animated.View>
+      </View>
     </View>
   );
 }
 
 const shieldStyles = StyleSheet.create({
   container: { alignItems: 'center', marginVertical: 28 },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 24,
+    backgroundColor: '#0f172a',
+    boxShadow: '0 0 40px #10b981',
+  },
   shield: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -249,10 +262,6 @@ const shieldStyles = StyleSheet.create({
     padding: 32,
     borderWidth: 1,
     borderColor: '#10b981',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 20,
-    elevation: 12,
   },
   shieldEmoji: { fontSize: 64 },
   statusBadge: {
@@ -519,11 +528,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     marginBottom: 16,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 10,
+    boxShadow: '0 0 60px rgba(16, 185, 129, 0.6)',
   },
   appName: {
     color: '#10b981',
@@ -563,11 +568,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     width: '100%',
     alignItems: 'center',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    boxShadow: '0 4px 24px rgba(16, 185, 129, 0.4)',
   },
   buttonDisabled: {
     opacity: 0.6,

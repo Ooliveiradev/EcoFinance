@@ -38,7 +38,7 @@ A migration 0001 cria extensions, adota geom, configura search_path, preenche ge
 
 O [ruleset ativo da main](https://github.com/Ooliveiradev/EcoFinance/rules/24392292) exige PR quality gate do GitHub Actions, branch atualizada, PR e resolução das conversas; bloqueia force-push/deleção, sem bypass. Revisores adicionais podem ser configurados quando houver um time. Um workflow sozinho não protege a branch.
 
-Local em 02/10/2026: tipos e lint passaram; 28 unitários, cobertura de linhas 98,17%, funções 100%, branches 89,74%; nove testes de migração/planner e seis controles de segurança passaram. React Doctor sem achados nos dois apps. Builds Next/Android/iOS e scans de bundles passaram. O run remoto do PR é a evidência final de Linux, CodeQL, E2E e Android nativo.
+Local em 02/10/2026: tipos e lint passaram; 28 unitários, cobertura de linhas 98,17%, funções 100%, branches 89,74%; dez testes de migração/planner e seis controles de segurança passaram. React Doctor sem achados nos dois apps. Builds Next/Android/iOS e scans de bundles passaram. O run remoto do PR é a evidência final de Linux, CodeQL, E2E e Android nativo.
 
 ```bash
 pnpm install --frozen-lockfile

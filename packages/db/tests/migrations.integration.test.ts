@@ -65,7 +65,7 @@ describe('versioned PostgreSQL migrations', () => {
     expect(nearby.map(row => row.id)).toContain('00000000-0000-4000-8000-000000000002');
   });
 
-  it('deduplicates external transaction IDs without losing the first transaction', async () => {
+  it('ignores repeated imports without losing the first transaction', async () => {
     const sql = await isolatedDatabase();
     await migrate(sql, migrations);
     const [account] = await sql`INSERT INTO accounts(name) VALUES ('Conta sintética') RETURNING id`;
@@ -76,6 +76,17 @@ describe('versioned PostgreSQL migrations', () => {
       VALUES (${account!.id}, 'Duplicata', '-42.90', '2026-10-02', 'fixture-1') ON CONFLICT (external_id) DO NOTHING`;
     const [result] = await sql`SELECT count(*)::int AS count FROM transactions`;
     expect(result!.count).toBe(1);
+  });
+
+  it('refuses existing duplicate external IDs without deleting financial records', async () => {
+    const sql = await isolatedDatabase();
+    await sql.unsafe(await readFile(new URL('./fixtures/legacy.sql', import.meta.url), 'utf8'));
+    await sql`UPDATE transactions SET external_id = 'fixture-1'`;
+    const before = await sql`SELECT * FROM transactions ORDER BY id`;
+    await expect(migrate(sql, migrations)).rejects.toThrow('Duplicate transaction external IDs require manual reconciliation');
+    expect(await sql`SELECT * FROM transactions ORDER BY id`).toEqual(before);
+    const [registry] = await sql`SELECT to_regclass('public.ecofinance_migrations') AS name`;
+    expect(registry!.name).toBeNull();
   });
 
   it('rolls back DDL and history when a pending migration fails', async () => {

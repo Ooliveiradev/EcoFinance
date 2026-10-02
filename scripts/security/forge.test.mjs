@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import forge from 'node-forge';
 
 test('RSA verification rejects nested DigestAlgorithm slack (CVE-2026-85393)', () => {
-  const keys = generateKeyPairSync('rsa', { modulusLength: 1024 });
+  const keys = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const privateKey = forge.pki.privateKeyFromPem(keys.privateKey.export({ format: 'pem', type: 'pkcs1' }));
   const publicKey = forge.pki.publicKeyFromPem(keys.publicKey.export({ format: 'pem', type: 'pkcs1' }));
   const md = forge.md.sha256.create().update('synthetic regression fixture');

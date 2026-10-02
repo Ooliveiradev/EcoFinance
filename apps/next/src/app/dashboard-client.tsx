@@ -8,7 +8,6 @@ import {
   ArrowDownRight,
   Activity,
 } from 'lucide-react';
-const CategoryChart = dynamic(() => import('./category-chart'), { ssr: false, loading: () => <div className="h-[240px]">Carregando gráfico…</div> });
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,6 +21,8 @@ import {
 import { cn, formatBRL, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+
+const CategoryChart = dynamic(() => import('./category-chart'), { ssr: false, loading: () => <div className="h-[240px]">Carregando gráfico…</div> });
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
