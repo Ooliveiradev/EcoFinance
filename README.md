@@ -135,7 +135,7 @@ Abra o `.env` e preencha as variáveis. Veja a [tabela completa abaixo](#-variá
 docker compose up -d
 ```
 
-Isso cria um container PostgreSQL 16 + PostGIS na porta `5432`.  
+Isso cria um container PostgreSQL 16 + PostGIS na porta `5432`.
 `DATABASE_URL` para uso local: `postgresql://postgres:postgres@localhost:5432/ecofinance`
 
 ### 4. Instalar dependências
@@ -323,3 +323,7 @@ Configure `API_SECRET_KEY` apenas no servidor, com pelo menos 32 caracteres alea
 O aplicativo usa Expo SDK 57 e exige uma nova compilação nativa ao atualizar de SDK 52. A pasta Android foi atualizada preservando os arquivos nativos. Gere a chave debug localmente em `~/.android/debug.keystore`; releases precisam de assinatura própria via EAS ou configuração segura do Gradle.
 
 Veja [os checks obrigatórios e a correção auditável de dependência](docs/ci-quality.md).
+
+## Modelo financeiro EF-02
+
+Modelo por proprietário e migração aditiva em 0003_owned_finance.sql. Consulte [procedimento e evidências](docs/refatoracao/modelo-financeiro.md) e [plano de implementação](docs/refatoracao/plano.md). As migrações 0001/0002 publicadas são preservadas. Sessão por usuário e adaptação dos fluxos à nova estrutura permanecem nas próximas entregas; nenhum banco real foi migrado.

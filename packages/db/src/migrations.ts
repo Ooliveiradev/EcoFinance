@@ -31,8 +31,9 @@ export function pendingMigrations(migrations: Migration[], applied: { name: stri
   return migrations.slice(applied.length);
 }
 
+export interface LegacyOwner { id: string; name: string; timezone: string }
 
-export async function migrate(sql: Sql, migrations: Migration[]): Promise<string[]> {
+export async function migrate(sql: Sql, migrations: Migration[], legacyOwner?: LegacyOwner): Promise<string[]> {
   // One transaction protects the history and all DDL; concurrent runners wait.
   return sql.begin(async transaction => {
     await transaction`SELECT pg_advisory_xact_lock(17012026, 1)`;
@@ -46,6 +47,11 @@ export async function migrate(sql: Sql, migrations: Migration[]): Promise<string
     `;
     const pending = pendingMigrations(migrations, applied);
     await transaction.unsafe('SET LOCAL search_path TO public, extensions');
+    if (legacyOwner) {
+      await transaction`SELECT set_config('ecofinance.legacy_owner_id', ${legacyOwner.id}, true),
+        set_config('ecofinance.legacy_owner_name', ${legacyOwner.name}, true),
+        set_config('ecofinance.legacy_timezone', ${legacyOwner.timezone}, true)`;
+    }
     for (const migration of pending) {
       await transaction.unsafe(migration.content);
       await transaction`INSERT INTO public.ecofinance_migrations (name, checksum)
