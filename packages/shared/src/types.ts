@@ -26,7 +26,11 @@ export type TransactionSource =
   | 'pluggy'
   | 'ofx'
   | 'manual'
-  | 'uber';
+  | 'uber'
+  | 'csv'
+  | 'spreadsheet'
+  | 'document'
+  | 'email';
 
 // ---------------------------------------------------------------------------
 // Core domain interfaces

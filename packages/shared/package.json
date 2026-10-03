@@ -8,11 +8,12 @@
   },
   "main": "./src/index.ts",
   "scripts": {
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "zod": "^3.24.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "typescript": "^5.8.0"

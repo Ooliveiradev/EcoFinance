@@ -18,7 +18,8 @@
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
     "clean": "turbo clean",
-    "security:audit": "node scripts/security/audit.mjs"
+    "security:audit": "node scripts/security/audit.mjs",
+    "db:verify-recovery": "tsx packages/db/scripts/verify-recovery.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
