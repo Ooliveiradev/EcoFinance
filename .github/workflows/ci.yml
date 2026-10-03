@@ -109,6 +109,11 @@ jobs:
           docker exec "$CONTAINER_ID" createdb -U postgres ecofinance_restore
           docker exec -i "$CONTAINER_ID" pg_restore -U postgres -d ecofinance_restore --exit-on-error < "$RUNNER_TEMP/ecofinance.dump"
           docker exec -i "$CONTAINER_ID" psql -U postgres -d ecofinance_restore -v ON_ERROR_STOP=1 < packages/db/tests/fixtures/assert-recovery.sql
+      - name: Verify complete financial graph and legacy recovery
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          pnpm db:verify-recovery
       - name: Database coverage evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
