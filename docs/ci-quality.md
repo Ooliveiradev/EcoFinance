@@ -28,9 +28,9 @@ node-forge@1.4.0 não publicou correção para [CVE-2026-85393](https://github.c
 
 ## Operação e compatibilidade
 
-Use Node 22.13+ e pnpm 9.15. Configure API_SECRET_KEY somente no servidor com pelo menos 32 caracteres aleatórios. O navegador solicita a credencial e recebe sessão assinada de seis horas, HttpOnly/SameSite strict. Páginas financeiras, chat e APIs rejeitam visitantes anônimos; mutações com sessão exigem Origin correto. Integrações usam credencial em header com comparação constante.
+Use Node 22.13+ e pnpm 9.15. Configure AUTH_SECRET somente no servidor, com pelo menos 32 caracteres aleatórios, e AUTH_URL como origem canônica HTTPS. O navegador usa email/senha e recebe cookie de sessão de seis horas, HttpOnly/SameSite strict/Secure em HTTPS. Páginas financeiras e APIs exigem sessão e proprietário; mutações com cookie exigem Origin correto. A credencial global API_SECRET_KEY deixou de autenticar qualquer rota. [Política, provisionamento e recuperação](refatoracao/autenticacao.md).
 
-No mobile, informe URL HTTPS e credencial em Opções; SecureStore mantém a credencial no aparelho. Nunca coloque segredos em EXPO_PUBLIC_* ou no bundle. HTTP só é permitido em loopback/emulador; redirecionamentos com credenciais são rejeitados. Webhooks Pluggy devem usar x-api-secret-key em custom headers; segredo na URL não é mais aceito. Atualizar de SDK 52 exige recompilar o app nativo.
+No mobile, informe URL HTTPS/email/senha no login; SecureStore mantém apenas a sessão assinada e revogável por aparelho. Nunca coloque segredos em EXPO_PUBLIC_* ou no bundle. HTTP só é permitido em loopback/emulador; redirecionamentos com credenciais são rejeitados. Conectores/webhooks/ingestão antigos estão desativados; não provisionar credenciais globais para reativá-los. Atualizar de SDK 52 exige recompilar o app nativo.
 
 A migration 0001 cria extensions, adota geom, configura search_path, preenche geolocalização legada e verifica a preservação dos dados financeiros. 0002_external_id cria a unicidade necessária para imports/upserts; duplicatas existentes causam rollback e exigem reconciliação manual, sem apagar dados. O runner recusa alteração de migrations já registradas por checksum. Não execute testes em produção: eles criam/removem exclusivamente bancos descartáveis.
 
@@ -53,9 +53,9 @@ node scripts/security/build-with-canaries.mjs web
 node scripts/security/build-with-canaries.mjs mobile
 # Banco descartável PostGIS com CREATE DATABASE:
 TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci pnpm test:integration --coverage
-# E2E exige DATABASE_URL de teste, db:migrate e recovery.sql:
+# E2E exige banco local descartável; global setup migra/provisiona a fixture:
 pnpm exec playwright install chromium webkit
-pnpm test:e2e
+TEST_E2E_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci pnpm test:e2e
 ```
 
-Checks não garantem código perfeito. O projeto usa um acesso compartilhado de instalação, sem isolamento multiusuário. iOS nativo, aparelhos, integrações reais e novas jornadas precisam de validação específica antes de release. A refatoração não commitada do checkout original foi preservada em separado.
+Checks não garantem código perfeito. A autenticação individual e o isolamento seguem os critérios/evidências da EF-03; iOS nativo, aparelhos, integrações reais e novas jornadas precisam de validação específica antes de release. As demais issues de segurança exigem seus próprios critérios completos: scanners/auditoria não substituem MFA, rotação, ensaio operacional, monitoramento ou política de incidentes. A refatoração não commitada do checkout original foi preservada em separado.
