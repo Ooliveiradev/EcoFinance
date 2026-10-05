@@ -46,13 +46,13 @@ export async function handleAuth(request: Request) {
       status: 429, headers: { 'Retry-After': '60', 'Cache-Control': PRIVATE_CACHE },
     });
   }
-  const headers = new Headers(request.headers);
-  headers.delete('content-length');
-  if (headers.has('authorization')) headers.delete('cookie');
+  const headers = new Headers([...request.headers].filter(([key]) =>
+    key !== 'content-length' && !(key === 'cookie' && request.headers.has('authorization'))));
   const response = await getAuth().handler(new Request(request.url, { method: request.method, headers, body }));
-  const outputHeaders = new Headers(response.headers);
-  outputHeaders.set('Cache-Control', PRIVATE_CACHE);
-  if (origin !== null) outputHeaders.delete('set-auth-token');
+  const outputHeaders = new Headers([
+    ...[...response.headers].filter(([key]) => key !== 'cache-control' && !(key === 'set-auth-token' && origin !== null)),
+    ['Cache-Control', PRIVATE_CACHE],
+  ]);
   const payload = await response.json();
   // A browser's HttpOnly session must never be mirrored in readable JSON.
   // Device clients obtain only the signed token via set-auth-token.

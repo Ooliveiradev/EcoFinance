@@ -52,6 +52,7 @@ export default function App() {
   useEffect(() => onSessionExpired(() => setAuthenticated(false)), []);
 
   useEffect(() => {
+    let active = true;
     const init = async () => {
       setIsReady(false);
       setStartupError(false);
@@ -59,23 +60,28 @@ export default function App() {
       try {
         await disableLegacyCapture();
         const value = await AsyncStorage.getItem(ONBOARDING_KEY);
-        setHasOnboarded(value === 'done');
         const session = await loadBackendConfig();
+        if (!active) return;
+        setHasOnboarded(value === 'done');
         if (session) {
           const response = await backendFetch('/api/auth/get-session');
           if (!response.ok) throw new Error('Session service unavailable');
           const value: unknown = await response.json();
+          if (!active) return;
           if (value === null) await clearSession();
+          if (!active) return;
           setAuthenticated(response.ok && value !== null);
         }
       } catch (error) {
+        if (!active) return;
         if (error instanceof SessionExpired) setAuthenticated(false);
         else setStartupError(true);
       } finally {
-        setIsReady(true);
+        if (active) setIsReady(true);
       }
     };
     init();
+    return () => { active = false; };
   }, [attempt]);
 
   // Show a splash/loading screen while checking AsyncStorage
