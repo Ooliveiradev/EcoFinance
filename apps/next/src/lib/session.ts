@@ -1,27 +1,28 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { getAuth } from './auth';
+import { authHeaders, trustedMutation, PRIVATE_CACHE } from './access-policy';
 
-export const SESSION_COOKIE = 'ecofinance_session';
-export const SESSION_SECONDS = 6 * 60 * 60;
-
-export function matchesCredential(received: string | null, secret: string | undefined): boolean {
-  if (!received || !secret || secret.length < 32 || received.length > 256) return false;
-  const left = Buffer.from(received);
-  const right = Buffer.from(secret);
-  return left.length === right.length && timingSafeEqual(left, right);
+export async function requestSession(request: Request) {
+  return getAuth().api.getSession({ headers: authHeaders(request.headers), query: { disableCookieCache: true } });
 }
-
-export function createSession(secret: string, now = Date.now()): string {
-  if (secret.length < 32) throw new Error('API credential must have at least 32 characters');
-  const expires = Math.floor(now / 1000) + SESSION_SECONDS;
-  const signature = createHmac('sha256', secret).update(`ecofinance-session-v1:${expires}`).digest('base64url');
-  return `${expires}.${signature}`;
+export async function requirePageUser() {
+  const session = await getAuth().api.getSession({ headers: authHeaders(await headers()), query: { disableCookieCache: true } });
+  if (!session) redirect('/login');
+  return session.user.id;
 }
-
-export function validSession(token: string | undefined, secret: string | undefined, now = Date.now()): boolean {
-  if (!secret || secret.length < 32 || !token || !/^\d{10}\.[A-Za-z0-9_-]{43}$/.test(token)) return false;
-  const [expires, signature] = token.split('.');
-  const seconds = Math.floor(now / 1000);
-  if (Number(expires) <= seconds || Number(expires) > seconds + SESSION_SECONDS) return false;
-  const expected = createHmac('sha256', secret).update(`ecofinance-session-v1:${expires}`).digest('base64url');
-  return timingSafeEqual(Buffer.from(signature!), Buffer.from(expected));
+export async function authorize(request: Request) {
+  if (!trustedMutation(request, new URL(getAuth().options.baseURL!).origin)) {
+    return { response: Response.json({ error: 'INVALID_ORIGIN' }, { status: 403, headers: { 'Cache-Control': PRIVATE_CACHE } }) };
+  }
+  const session = await requestSession(request);
+  if (!session) return { response: Response.json({ error: 'SESSION_EXPIRED' }, { status: 401, headers: { 'Cache-Control': PRIVATE_CACHE } }) };
+  return { userId: session.user.id };
+}
+export async function retiredEndpoint(request: Request) {
+  const access = await authorize(request);
+  if (access.response) return access.response;
+  return Response.json({ error: 'LEGACY_DISABLED', message: 'Este fluxo foi desativado. A substituição exige revisão e confirmação.' }, {
+    status: 410, headers: { 'Cache-Control': PRIVATE_CACHE },
+  });
 }

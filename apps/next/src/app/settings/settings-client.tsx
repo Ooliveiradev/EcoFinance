@@ -31,7 +31,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/lib/preferences-context';
 
-export function SettingsClient() {
+function useSettingsState() {
   const {
     preferences,
     resolvedTheme,
@@ -134,6 +134,11 @@ export function SettingsClient() {
     { id: 'dark', label: 'Escuro', icon: Moon },
   ];
 
+  return { preferences, resolvedTheme, setTheme, setFavoriteCategory, toggleCardVisibility, moveCard, resetPreferences, connectionStatus, connectionDetails, notificationPermission, locationPermission, handleRequestNotification, handleRequestLocation, handleTestConnection, themeOptions };
+}
+
+export function SettingsClient() {
+  const state = useSettingsState();
   return (
     <div className="space-y-8 max-w-4xl mx-auto animate-fade-in pb-12">
       {/* Header */}
@@ -146,7 +151,22 @@ export function SettingsClient() {
         </p>
       </header>
 
-      {/* 1. Appearance / Theme */}
+      <AppearanceSettings state={state} />
+
+      <DashboardSettings state={state} />
+
+      <FavoriteCategorySettings state={state} />
+
+      <BackendDiagnostics state={state} />
+
+      <DevicePermissions state={state} />
+    </div>
+  );
+}
+
+function AppearanceSettings({ state }: {state: ReturnType<typeof useSettingsState>}) {
+  const { preferences, resolvedTheme, setTheme, themeOptions } = state;
+  return (
       <section aria-labelledby="theme-heading" className="space-y-4">
         <div className="flex items-center gap-2">
           <Sun className="w-5 h-5 text-primary" />
@@ -194,8 +214,12 @@ export function SettingsClient() {
           </CardContent>
         </Card>
       </section>
+  );
+}
 
-      {/* 2. Dashboard Cards Order & Visibility */}
+function DashboardSettings({ state }: {state: ReturnType<typeof useSettingsState>}) {
+  const { preferences, toggleCardVisibility, moveCard } = state;
+  return (
       <section aria-labelledby="dashboard-heading" className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -207,7 +231,7 @@ export function SettingsClient() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={resetPreferences}
+            onClick={state.resetPreferences}
             className="text-xs text-muted hover:text-foreground self-start sm:self-auto touch-target"
           >
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
@@ -306,8 +330,12 @@ export function SettingsClient() {
           </CardContent>
         </Card>
       </section>
+  );
+}
 
-      {/* 3. Favorite Category */}
+function FavoriteCategorySettings({ state }: {state: ReturnType<typeof useSettingsState>}) {
+  const { preferences, setFavoriteCategory } = state;
+  return (
       <section aria-labelledby="fav-cat-heading" className="space-y-4">
         <div className="flex items-center gap-2">
           <Tag className="w-5 h-5 text-primary" />
@@ -325,6 +353,7 @@ export function SettingsClient() {
             <div className="max-w-md">
               <select
                 id="favorite-category"
+                aria-label="Categoria favorita"
                 value={preferences.favoriteCategory ?? ''}
                 onChange={(e) => setFavoriteCategory(e.target.value ? e.target.value : null)}
                 className="w-full h-10 px-3 rounded-xl border border-border bg-surface text-sm text-foreground focus-visible:outline-none cursor-pointer"
@@ -340,8 +369,12 @@ export function SettingsClient() {
           </CardContent>
         </Card>
       </section>
+  );
+}
 
-      {/* 4. Real Backend Health & Diagnostics */}
+function BackendDiagnostics({ state }: {state: ReturnType<typeof useSettingsState>}) {
+  const { connectionStatus, connectionDetails, handleTestConnection } = state;
+  return (
       <section aria-labelledby="backend-heading" className="space-y-4">
         <div className="flex items-center gap-2">
           <Server className="w-5 h-5 text-primary" />
@@ -401,14 +434,18 @@ export function SettingsClient() {
 
             {connectionDetails?.timestamp && (
               <p className="text-[11px] font-mono text-muted">
-                Última checagem: {new Date(connectionDetails.timestamp).toLocaleTimeString('pt-BR')}
+                Última checagem: {new Date(connectionDetails.timestamp).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
               </p>
             )}
           </CardContent>
         </Card>
       </section>
+  );
+}
 
-      {/* 5. Browser Permissions */}
+function DevicePermissions({ state }: {state: ReturnType<typeof useSettingsState>}) {
+  const { notificationPermission, locationPermission, handleRequestNotification, handleRequestLocation } = state;
+  return (
       <section aria-labelledby="permissions-heading" className="space-y-4">
         <div className="flex items-center gap-2">
           <Shield className="w-5 h-5 text-primary" />
@@ -487,6 +524,5 @@ export function SettingsClient() {
           </Card>
         </div>
       </section>
-    </div>
   );
 }

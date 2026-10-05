@@ -11,7 +11,8 @@ import {
   Landmark,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button-variants';
 import { cn, formatBRL, formatDate } from '@/lib/utils';
 import dynamic from 'next/dynamic';
 
@@ -157,7 +158,7 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: D
         ) : initialAccounts.map((account, i) => (
           <Card
             key={account.id}
-            className="hover:scale-[1.01] hover:shadow-md transition-all group"
+            className="hover:scale-[1.01] hover:shadow-md transition-[transform,box-shadow] group"
             style={{ animationDelay: `${(i + 2) * 80}ms`, animationFillMode: 'both' }}
           >
             <CardContent className="p-6 space-y-4">

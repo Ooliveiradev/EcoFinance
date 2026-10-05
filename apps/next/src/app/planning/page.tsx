@@ -21,6 +21,7 @@ import PlanningClient, {
   type PlanningOccurrence,
   type PlanningBudgetCategory,
 } from './planning-client';
+import { requirePageUser } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -30,6 +31,7 @@ interface PageProps {
 }
 
 export default async function PlanningPage({ searchParams }: PageProps) {
+  const userId = await requirePageUser();
   const resolvedParams = searchParams ? await searchParams : {};
   const rawMonth = typeof resolvedParams.mes === 'string' ? resolvedParams.mes : null;
 
@@ -58,7 +60,7 @@ export default async function PlanningPage({ searchParams }: PageProps) {
         })
         .from(recurrenceOccurrences)
         .innerJoin(recurrenceRules, eq(recurrenceOccurrences.ruleId, recurrenceRules.id))
-        .where(eq(recurrenceOccurrences.competenceMonth, `${resolved.month}-01`))
+        .where(and(eq(recurrenceOccurrences.ownerId, userId), eq(recurrenceOccurrences.competenceMonth, `${resolved.month}-01`)))
         .orderBy(recurrenceOccurrences.dueDate);
 
       occurrences = occResult.map((o) => ({
@@ -83,7 +85,7 @@ export default async function PlanningPage({ searchParams }: PageProps) {
       const budgetResult = await db
         .select()
         .from(budgets)
-        .where(eq(budgets.competenceMonth, `${resolved.month}-01`))
+        .where(and(eq(budgets.ownerId, userId), eq(budgets.competenceMonth, `${resolved.month}-01`)))
         .limit(1);
 
       if (budgetResult.length > 0) {
@@ -101,7 +103,7 @@ export default async function PlanningPage({ searchParams }: PageProps) {
           })
           .from(budgetCategories)
           .innerJoin(categories, eq(budgetCategories.categoryId, categories.id))
-          .where(eq(budgetCategories.budgetId, b.id));
+          .where(and(eq(budgetCategories.ownerId, userId), eq(budgetCategories.budgetId, b.id)));
 
         categoryBudgets = catResult.map((c) => ({
           id: c.id,
@@ -124,6 +126,7 @@ export default async function PlanningPage({ searchParams }: PageProps) {
       .from(transactions)
       .where(
         and(
+          eq(transactions.ownerId, userId),
           lt(transactions.amount, '0'),
           gte(transactions.date, startOfSelectedMonth),
           lt(transactions.date, startOfNextMonth),

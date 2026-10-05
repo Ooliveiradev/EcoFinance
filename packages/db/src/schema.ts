@@ -1,11 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, numeric, timestamp, pgEnum, doublePrecision, integer, index, unique, foreignKey, date, boolean, jsonb, check, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, numeric, timestamp, pgEnum, doublePrecision, integer, index, unique, uniqueIndex, foreignKey, date, boolean, jsonb, check, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   displayName: text('display_name').notNull(),
+  email: text('email'),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  image: text('image'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => [
+  uniqueIndex('users_email_unique').on(sql`lower(${table.email})`).where(sql`${table.email} IS NOT NULL`),
+  check('users_email_normalized', sql`${table.email} IS NULL OR (${table.email}=lower(trim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254)`),
+]);
 
 // Compatibility writers can only run inside an explicitly owned transaction.
 // Without that context, the database's NOT NULL constraint rejects the insert.

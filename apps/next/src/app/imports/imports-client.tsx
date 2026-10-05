@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button-variants';
 import { Input } from '@/components/ui/input';
 import { cn, formatDate } from '@/lib/utils';
 
@@ -111,7 +112,7 @@ export default function ImportsClient({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Falha ao processar arquivo no servidor.');
+        throw new Error(data.message || data.error || 'Falha ao processar arquivo no servidor.');
       }
 
       setResult({
@@ -212,6 +213,8 @@ export default function ImportsClient({
 
               {/* Drag and Drop Zone */}
               <div
+                role="group"
+                aria-label="Área para soltar arquivo de importação"
                 onDragOver={(e) => {
                   e.preventDefault();
                   setDragOver(true);
@@ -336,7 +339,14 @@ export default function ImportsClient({
           </CardContent>
         </Card>
 
-        {/* Instructions / Help */}
+        <ImportHelp recentBatches={recentBatches} />
+      </div>
+    </div>
+  );
+}
+
+function ImportHelp({recentBatches}: {recentBatches: ImportBatchItem[]}) {
+  return (
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
@@ -392,7 +402,5 @@ export default function ImportsClient({
             </Card>
           )}
         </div>
-      </div>
-    </div>
   );
 }

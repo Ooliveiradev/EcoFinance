@@ -7,11 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "auth:user": "tsx scripts/user.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.7",
     "@ecofinance/db": "workspace:*",
     "@ecofinance/shared": "workspace:*",
+    "@node-rs/argon2": "^2.2.1",
+    "better-auth": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "drizzle-orm": "^0.45.2",

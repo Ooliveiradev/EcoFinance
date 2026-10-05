@@ -1,10 +1,12 @@
-import { db, accounts, importBatches, desc } from '@ecofinance/db';
+import { db, accounts, importBatches, desc, eq } from '@ecofinance/db';
+import { requirePageUser } from '@/lib/session';
 import ImportsClient, { type ImportBatchItem } from './imports-client';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function ImportsPage() {
+  const userId = await requirePageUser();
   try {
     const accountList = await db
       .select({
@@ -13,6 +15,7 @@ export default async function ImportsPage() {
         balance: accounts.balance,
       })
       .from(accounts)
+      .where(eq(accounts.ownerId, userId))
       .orderBy(accounts.name);
 
     let batches: ImportBatchItem[] = [];
@@ -25,6 +28,7 @@ export default async function ImportsPage() {
           createdAt: importBatches.createdAt,
         })
         .from(importBatches)
+        .where(eq(importBatches.ownerId, userId))
         .orderBy(desc(importBatches.createdAt))
         .limit(10);
 

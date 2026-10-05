@@ -1,6 +1,6 @@
 # Plano de implementação do EcoFinance
 
-> Atualização em 02/10/2026: base local estabilizada e modelo/migração EF-02 implementados, com integração PostgreSQL e recuperação executadas. Consulte [baseline](baseline.md) e [modelo financeiro/evidências](modelo-financeiro.md). EF-03 é a próxima entrega: sessões e autorização. EF-01 ainda depende da CI em checkout limpo; os novos fluxos financeiros de interface permanecem nas respectivas issues.
+> Atualização em 05/10/2026: EF-01 (#1) concluída após os PRs #20/#27 integrados e CI remota aprovada; EF-02 (#2) já concluída. A entrega atual implementa EF-03 (#3), hash de senhas (#29) e expiração/revogação (#36); consulte [autenticação e evidências](autenticacao.md). Vincular issues completas no PR com Closes #N; somente o merge conclui as vinculadas. EF-04/EF-05 são as próximas entregas financeiras de interface. Os critérios anteriores e observações abaixo registram o diagnóstico histórico da base.
 
 Data da revisão: 02/10/2026. Base local: `f0e085a`; árvore de trabalho limpa antes deste documento.
 

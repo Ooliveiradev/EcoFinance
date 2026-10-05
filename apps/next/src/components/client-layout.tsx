@@ -56,6 +56,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     else setTheme('system');
   };
 
+  if (pathname === '/login') return <main className="min-h-screen bg-slate-950">{children}</main>;
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Accessible skip link for keyboard navigation */}
@@ -123,7 +125,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           <Button
             variant="default"
             className="w-full flex items-center justify-center gap-2 py-2.5 h-11 text-sm font-bold shadow-sm"
-            onClick={() => setIsAddExpenseOpen(true)}
+            onClick={(event) => { event.currentTarget.focus(); setIsAddExpenseOpen(true); }}
           >
             <Plus className="w-4 h-4" />
             Adicionar gasto
@@ -174,6 +176,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       <aside
         id="mobile-drawer"
         aria-label="Menu móvel"
+        inert={!sidebarOpen}
+        aria-hidden={!sidebarOpen}
         className={cn(
           'fixed inset-y-0 left-0 z-50 w-72 bg-surface border-r border-border flex flex-col transform transition-transform duration-200 ease-in-out lg:hidden',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
@@ -278,7 +282,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setIsAddExpenseOpen(true)}
+          onClick={(event) => { event.currentTarget.focus(); setIsAddExpenseOpen(true); }}
           aria-label="Adicionar gasto rápido"
           className="h-10 w-10 text-primary"
         >

@@ -16,11 +16,17 @@ interface AddExpenseModalProps {
   accounts?: Array<{ id: string; name: string }>;
 }
 
-export function AddExpenseModal({
-  isOpen,
+const EMPTY_ACCOUNTS: Array<{ id: string; name: string }> = [];
+
+export function AddExpenseModal(props: AddExpenseModalProps) {
+  if (!props.isOpen) return null;
+  return <ExpenseDialog {...props} />;
+}
+
+function ExpenseDialog({
   onClose,
   onSuccess,
-  accounts = [],
+  accounts = EMPTY_ACCOUNTS,
 }: AddExpenseModalProps) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -32,33 +38,18 @@ export function AddExpenseModal({
   const [success, setSuccess] = useState(false);
 
   const initialRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setError(null);
-      setSuccess(false);
-      setDescription('');
-      setAmount('');
-      setDate(civilToday(new Date()));
-      if (accounts.length > 0 && !accountId) {
-        setAccountId(accounts[0]!.id);
-      }
-      setTimeout(() => initialRef.current?.focus(), 50);
-    }
-  }, [isOpen, accounts, accountId]);
-
-  // Handle ESC key to close
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog?.showModal();
+    initialRef.current?.focus();
+    return () => {
+      dialog?.close();
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,14 +87,12 @@ export function AddExpenseModal({
       if (!res.ok) {
         // If unauthenticated or forbidden, report real error
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Erro ao registrar gasto.');
+        throw new Error(data.message || data.error || 'Erro ao registrar gasto.');
       }
 
       setSuccess(true);
-      setTimeout(() => {
-        onSuccess?.();
-        onClose();
-      }, 1000);
+      onSuccess?.();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha na comunicação com o servidor.');
     } finally {
@@ -112,11 +101,11 @@ export function AddExpenseModal({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref={dialogRef}
+      onCancel={onClose}
       aria-labelledby="add-expense-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+      className="fixed inset-0 m-auto w-full max-w-lg max-h-[90dvh] overflow-y-auto p-4 bg-transparent backdrop:bg-black/60 backdrop:backdrop-blur-xs animate-fade-in"
     >
       <div className="relative w-full max-w-md bg-surface text-foreground border border-border rounded-2xl shadow-xl overflow-hidden animate-fade-in-up">
         {/* Header */}
@@ -261,6 +250,6 @@ export function AddExpenseModal({
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 }

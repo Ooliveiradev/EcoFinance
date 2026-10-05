@@ -29,7 +29,8 @@ import {
 } from '@ecofinance/shared';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button-variants';
 import {
   Table,
   TableHeader,
@@ -111,6 +112,9 @@ const SOURCE_BADGES: Record<string, { label: string; className: string }> = {
   csv: { label: 'CSV', className: 'bg-warning-soft text-warning border-warning/30' },
 };
 
+const EMPTY_BILLS: UpcomingBillItem[] = [];
+const EMPTY_ACCOUNTS: Array<{ id: string; name: string }> = [];
+
 export default function DashboardClient({
   month,
   isCurrentMonth,
@@ -122,8 +126,8 @@ export default function DashboardClient({
   transactionsCount,
   categoryData,
   recentTransactions,
-  upcomingBills = [],
-  accounts = [],
+  upcomingBills = EMPTY_BILLS,
+  accounts = EMPTY_ACCOUNTS,
 }: DashboardClientProps) {
   const router = useRouter();
   const { preferences } = usePreferences();
@@ -200,7 +204,126 @@ export default function DashboardClient({
     </section>
   );
 
-  const renderMonthSummaryCard = () => (
+  const renderMonthSummaryCard = () => <MonthSummaryCard stats={stats} />;
+  const renderCategoriesCard = () => <CategoriesCard categoryData={categoryData} formattedMonth={formattedMonth} totalExpenses={totalExpenses} />;
+  const renderRecentEntriesCard = () => <RecentEntriesCard recentTransactions={recentTransactions} formattedMonth={formattedMonth} onAddExpense={() => setIsAddExpenseOpen(true)} />;
+  /* ------------------------------------------------------------------ */
+  /*  Card Map for Dynamic Ordering                                     */
+  /* ------------------------------------------------------------------ */
+
+  const cardRenderer: Record<DashboardCardId, () => React.JSX.Element> = {
+    'upcoming-bills': renderUpcomingBillsCard,
+    'month-summary': renderMonthSummaryCard,
+    categories: renderCategoriesCard,
+    'recent-entries': renderRecentEntriesCard,
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Real Error State Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-danger-soft text-danger border border-danger/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="text-sm font-bold">Falha ao obter dados financeiros</p>
+              <p className="text-xs opacity-90 mt-0.5">{error}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.refresh()}
+            className="self-start sm:self-auto border-danger/30 hover:bg-danger/10 text-danger shrink-0 touch-target"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Tentar novamente
+          </Button>
+        </div>
+      )}
+
+      {/* Invalid Month Query Warning */}
+      {!monthValid && (
+        <div
+          role="status"
+          className="p-3 rounded-xl bg-warning-soft text-warning border border-warning/20 text-xs flex items-center gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>
+            O mês solicitado no endereço não foi reconhecido. Exibindo os lançamentos de{' '}
+            <strong>{formattedMonth}</strong>.
+          </span>
+        </div>
+      )}
+
+      {/* Top Header with Month Navigator and Quick Actions */}
+      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-2 border-b border-border">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+              Meu mês
+            </h1>
+            {isCurrentMonth && (
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                Mês atual
+              </Badge>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted capitalize">
+            Visão consolidada de {formattedMonth}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <MonthSelector currentMonth={month} />
+
+          <Button
+            onClick={(event) => { event.currentTarget.focus(); setIsAddExpenseOpen(true); }}
+            size="default"
+            className="touch-target shadow-xs"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            Adicionar gasto
+          </Button>
+
+          <Link
+            href="/imports"
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'default' }),
+              'touch-target border-border text-foreground hover:bg-surface-muted',
+            )}
+          >
+            <Upload className="w-4 h-4 mr-1.5" />
+            Importar arquivo
+          </Link>
+        </div>
+      </header>
+
+      {/* Dynamic Cards Rendered in User Preferred Order & Visibility */}
+      <div className="space-y-6">
+        {activeCardIds.map((cardId) => {
+          const renderer = cardRenderer[cardId];
+          return renderer ? <React.Fragment key={cardId}>{renderer()}</React.Fragment> : null;
+        })}
+      </div>
+
+      {/* Quick Add Expense Modal */}
+      <AddExpenseModal
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+        onSuccess={() => router.refresh()}
+        accounts={accounts}
+      />
+    </div>
+  );
+}
+
+interface DashboardStat { id: string; title: string; value: number; icon: React.ComponentType<{className?: string}>; trend: TrendDescription | null; trendLabel: string; isCurrency: boolean; trendColor?: string; }
+function MonthSummaryCard({ stats }: { stats: DashboardStat[] }) {
+  return (
     <section key="month-summary" aria-labelledby="month-summary-title">
       <h2 id="month-summary-title" className="sr-only">
         Resumo financeiro do mês
@@ -267,7 +390,11 @@ export default function DashboardClient({
     </section>
   );
 
-  const renderCategoriesCard = () => (
+
+}
+
+function CategoriesCard({ categoryData, formattedMonth, totalExpenses }: { categoryData: CategoryData[]; formattedMonth: string; totalExpenses: number }) {
+  return (
     <section key="categories" aria-labelledby="categories-chart-title">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -369,7 +496,11 @@ export default function DashboardClient({
     </section>
   );
 
-  const renderRecentEntriesCard = () => (
+
+}
+
+function RecentEntriesCard({ recentTransactions, formattedMonth, onAddExpense }: { recentTransactions: TransactionItem[]; formattedMonth: string; onAddExpense: () => void }) {
+  return (
     <section key="recent-entries" aria-labelledby="recent-entries-title">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -403,7 +534,7 @@ export default function DashboardClient({
               <div className="flex items-center gap-3">
                 <Button
                   size="sm"
-                  onClick={() => setIsAddExpenseOpen(true)}
+                  onClick={(event) => { event.currentTarget.focus(); onAddExpense(); }}
                   className="touch-target"
                 >
                   <Plus className="w-4 h-4 mr-1.5" />
@@ -481,118 +612,5 @@ export default function DashboardClient({
         </CardContent>
       </Card>
     </section>
-  );
-
-  /* ------------------------------------------------------------------ */
-  /*  Card Map for Dynamic Ordering                                     */
-  /* ------------------------------------------------------------------ */
-
-  const cardRenderer: Record<DashboardCardId, () => React.JSX.Element> = {
-    'upcoming-bills': renderUpcomingBillsCard,
-    'month-summary': renderMonthSummaryCard,
-    categories: renderCategoriesCard,
-    'recent-entries': renderRecentEntriesCard,
-  };
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Real Error State Banner */}
-      {error && (
-        <div
-          role="alert"
-          className="p-4 rounded-2xl bg-danger-soft text-danger border border-danger/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-        >
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 shrink-0" />
-            <div>
-              <p className="text-sm font-bold">Falha ao obter dados financeiros</p>
-              <p className="text-xs opacity-90 mt-0.5">{error}</p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.refresh()}
-            className="self-start sm:self-auto border-danger/30 hover:bg-danger/10 text-danger shrink-0 touch-target"
-          >
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            Tentar novamente
-          </Button>
-        </div>
-      )}
-
-      {/* Invalid Month Query Warning */}
-      {!monthValid && (
-        <div
-          role="status"
-          className="p-3 rounded-xl bg-warning-soft text-warning border border-warning/20 text-xs flex items-center gap-2"
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>
-            O mês solicitado no endereço não foi reconhecido. Exibindo os lançamentos de{' '}
-            <strong>{formattedMonth}</strong>.
-          </span>
-        </div>
-      )}
-
-      {/* Top Header with Month Navigator and Quick Actions */}
-      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-2 border-b border-border">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-              Meu mês
-            </h1>
-            {isCurrentMonth && (
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
-                Mês atual
-              </Badge>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-muted capitalize">
-            Visão consolidada de {formattedMonth}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <MonthSelector currentMonth={month} />
-
-          <Button
-            onClick={() => setIsAddExpenseOpen(true)}
-            size="default"
-            className="touch-target shadow-xs"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Adicionar gasto
-          </Button>
-
-          <Link
-            href="/imports"
-            className={cn(
-              buttonVariants({ variant: 'outline', size: 'default' }),
-              'touch-target border-border text-foreground hover:bg-surface-muted',
-            )}
-          >
-            <Upload className="w-4 h-4 mr-1.5" />
-            Importar arquivo
-          </Link>
-        </div>
-      </header>
-
-      {/* Dynamic Cards Rendered in User Preferred Order & Visibility */}
-      <div className="space-y-6">
-        {activeCardIds.map((cardId) => {
-          const renderer = cardRenderer[cardId];
-          return renderer ? renderer() : null;
-        })}
-      </div>
-
-      {/* Quick Add Expense Modal */}
-      <AddExpenseModal
-        isOpen={isAddExpenseOpen}
-        onClose={() => setIsAddExpenseOpen(false)}
-        onSuccess={() => router.refresh()}
-        accounts={accounts}
-      />
-    </div>
   );
 }

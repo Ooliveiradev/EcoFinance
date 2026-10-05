@@ -21,7 +21,8 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button-variants';
 import {
   Table,
   TableHeader,
@@ -132,7 +133,7 @@ export default function TransactionsClient({ initialData }: { initialData: DBTra
         <div className="flex flex-wrap items-center gap-3">
           <Button
             size="sm"
-            onClick={() => setIsAddExpenseOpen(true)}
+            onClick={(event) => { event.currentTarget.focus(); setIsAddExpenseOpen(true); }}
             className="touch-target"
           >
             <Plus className="w-4 h-4 mr-1.5" />
@@ -243,6 +244,54 @@ export default function TransactionsClient({ initialData }: { initialData: DBTra
 
       {/* Table */}
       <Card>
+        <TransactionsTable paginated={paginated} hasFilters={hasFilters} clearFilters={clearFilters} toggleSort={toggleSort} onAddExpense={() => setIsAddExpenseOpen(true)} />
+
+        {/* Pagination */}
+        {filtered.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+            <p className="text-xs text-muted">
+              Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de{' '}
+              {filtered.length} lançamentos
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="touch-target"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Anterior
+              </Button>
+              <span className="text-xs font-semibold text-foreground px-2">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="touch-target"
+              >
+                Próximo
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <AddExpenseModal
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+      />
+    </div>
+  );
+}
+
+function TransactionsTable({paginated, hasFilters, clearFilters, toggleSort, onAddExpense}: {paginated: DBTransaction[]; hasFilters: boolean; clearFilters: () => void; toggleSort: (field: 'date' | 'amount' | 'description') => void; onAddExpense: () => void}) {
+  return (
         <CardContent className="p-0">
           {paginated.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -262,7 +311,7 @@ export default function TransactionsClient({ initialData }: { initialData: DBTra
               ) : (
                 <Button
                   size="sm"
-                  onClick={() => setIsAddExpenseOpen(true)}
+                  onClick={(event) => { event.currentTarget.focus(); onAddExpense(); }}
                   className="mt-4 touch-target"
                 >
                   <Plus className="w-4 h-4 mr-1.5" />
@@ -360,47 +409,5 @@ export default function TransactionsClient({ initialData }: { initialData: DBTra
             </div>
           )}
         </CardContent>
-
-        {/* Pagination */}
-        {filtered.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-border">
-            <p className="text-xs text-muted">
-              Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de{' '}
-              {filtered.length} lançamentos
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="touch-target"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Anterior
-              </Button>
-              <span className="text-xs font-semibold text-foreground px-2">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="touch-target"
-              >
-                Próximo
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      <AddExpenseModal
-        isOpen={isAddExpenseOpen}
-        onClose={() => setIsAddExpenseOpen(false)}
-      />
-    </div>
   );
 }
