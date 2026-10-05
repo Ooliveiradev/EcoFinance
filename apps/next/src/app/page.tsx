@@ -1,20 +1,12 @@
-import { db, accounts, transactions, sql, desc, gte, lt, and } from '@ecofinance/db';
+import { db, accounts, transactions, sql, desc, gte, lt, and, eq } from '@ecofinance/db';
+import { requirePageUser } from '@/lib/session';
 import DashboardClient from './dashboard-client';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Empty state returned when the database is not yet available
-const EMPTY_STATE = {
-  totalBalance: 0,
-  income: { value: 0, trend: 0 },
-  expenses: { value: 0, trend: 0 },
-  transactionsCount: { value: 0, trend: 0 },
-  categoryData: [] as { name: string; value: number; color: string }[],
-  recentTransactions: [] as { id: string; date: string; description: string; category: import("@ecofinance/shared").TransactionCategory; amount: string; source: string }[],
-};
-
 export default async function DashboardPage() {
+  const userId = await requirePageUser();
   try {
     const now = new Date();
 
@@ -29,7 +21,7 @@ export default async function DashboardPage() {
     // 1. Total Balance
     const balanceResult = await db
       .select({ total: sql<string>`sum(${accounts.balance})` })
-      .from(accounts);
+      .from(accounts).where(eq(accounts.ownerId, userId));
     const totalBalance = Number(balanceResult[0]?.total || 0);
 
     // 2. Current Month Stats (Income, Expenses, Count)
@@ -42,6 +34,7 @@ export default async function DashboardPage() {
       .from(transactions)
       .where(
         and(
+          eq(transactions.ownerId, userId),
           gte(transactions.date, startOfCurrentMonth),
           lt(transactions.date, startOfNextMonth),
         ),
@@ -61,6 +54,7 @@ export default async function DashboardPage() {
       .from(transactions)
       .where(
         and(
+          eq(transactions.ownerId, userId),
           gte(transactions.date, startOfLastMonth),
           lt(transactions.date, startOfThisMonthForTrend),
         ),
@@ -89,6 +83,7 @@ export default async function DashboardPage() {
       .from(transactions)
       .where(
         and(
+          eq(transactions.ownerId, userId),
           lt(transactions.amount, '0'), // Only expenses
           gte(transactions.date, startOfCurrentMonth),
           lt(transactions.date, startOfNextMonth),
@@ -108,6 +103,7 @@ export default async function DashboardPage() {
     const recentTx = await db
       .select()
       .from(transactions)
+      .where(eq(transactions.ownerId, userId))
       .orderBy(desc(transactions.date))
       .limit(10);
 
@@ -127,8 +123,6 @@ export default async function DashboardPage() {
       />
     );
   } catch {
-    // Graceful degradation: render empty dashboard if DB is not yet configured.
-    // Run `pnpm db:push` and restart the server to fix this.
-    return <DashboardClient {...EMPTY_STATE} />;
+    throw new Error('Não foi possível carregar seu mês. Tente novamente.');
   }
 }

@@ -20,8 +20,10 @@ const client = postgres(connectionString, {
 });
 
 export const db = drizzle(client, { schema });
+export async function closeDatabase() { await client.end({ timeout: 5 }); }
 
 export * from './schema';
+export * from './auth-schema';
 
 // Re-export drizzle-orm query helpers so consumers always use the same
 // drizzle-orm instance (avoids SQL<unknown> type mismatches in the monorepo).

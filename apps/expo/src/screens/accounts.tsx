@@ -110,13 +110,13 @@ export function AccountsScreen() {
         <>
           <Text style={styles.title}>Suas Contas</Text>
           <Text style={styles.subtitle}>
-            Conecte seu banco via Pluggy para visualizar seus saldos e sincronizar transações.
+            A conexão bancária legada está desativada durante a migração. Consulte suas contas na web.
           </Text>
           
           <TouchableOpacity 
             style={[styles.button, isLoading && styles.buttonDisabled]} 
             onPress={handleConnectBank}
-            disabled={isLoading}
+            disabled
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" />

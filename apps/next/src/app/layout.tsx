@@ -12,7 +12,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'EcoFinance | Dashboard',
   description:
-    'Gestão inteligente de finanças pessoais com sincronização automática de bancos, rastreamento de transações e visualização geográfica.',
+    'Organização de finanças pessoais em uma instalação própria, com acesso individual.',
   keywords: ['finanças', 'dashboard', 'pessoal', 'banco', 'transações'],
 };
 

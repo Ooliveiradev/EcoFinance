@@ -67,19 +67,17 @@ export function HomeScreen() {
           <View style={[styles.indicator, { backgroundColor: taskActive ? '#10b981' : '#f43f5e' }]} />
           <View style={{ flex: 1 }}>
             <Text style={styles.statusText}>
-              Captura em Segundo Plano: {taskActive ? 'Ativa' : 'Inativa'}
+              Captura automática desativada
             </Text>
             <Text style={styles.statusSub}>
-              {taskActive
-                ? 'As notificações bancárias serão capturadas automaticamente.'
-                : 'Conceda permissão para ativar a captura automática.'}
+              A captura será substituída por um fluxo de revisão e confirmação.
             </Text>
           </View>
         </View>
 
         {!taskActive && (
-          <TouchableOpacity style={styles.button} onPress={handleRequestPermission}>
-            <Text style={styles.buttonText}>Ativar Captura Automática</Text>
+          <TouchableOpacity style={styles.button} onPress={handleRequestPermission} disabled>
+            <Text style={styles.buttonText}>Captura indisponível nesta versão</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -88,9 +86,8 @@ export function HomeScreen() {
       <View style={styles.infoCard}>
         <Text style={styles.infoTitle}>💡 Como funciona</Text>
         <Text style={styles.infoText}>
-          Quando você receber uma notificação de compra do seu banco (Nubank, Itaú, Inter, etc.),
-          o aplicativo vai capturar automaticamente o valor, a descrição e o GPS, e enviar para
-          o seu dashboard EcoFinance.
+          A coleta legada de notificações e GPS foi desativada. O fluxo de lançamentos
+          e revisão mobile está em construção. Use as consultas disponíveis na web.
         </Text>
       </View>
 

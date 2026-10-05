@@ -15,7 +15,7 @@ export default function AIClient() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Olá! Sou seu assistente financeiro de IA. Como posso te ajudar hoje?',
+      content: 'O assistente está desativado durante a migração. Nenhuma mensagem será enviada a um provedor de IA.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -150,6 +150,7 @@ export default function AIClient() {
           <div className="relative flex-1">
             <label htmlFor="chat-message" className="block text-sm text-slate-300 mb-2">Sua pergunta</label>
             <textarea
+              disabled
               id="chat-message"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -167,7 +168,7 @@ export default function AIClient() {
           <button
             type="submit"
             aria-label="Enviar mensagem"
-            disabled={!input.trim() || isLoading}
+            disabled
             className="h-[52px] w-[52px] rounded-xl bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-500/25 shrink-0"
           >
             {isLoading ? (

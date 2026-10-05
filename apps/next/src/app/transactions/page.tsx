@@ -1,14 +1,17 @@
-import { db, transactions, desc } from '@ecofinance/db';
+import { db, transactions, desc, eq } from '@ecofinance/db';
+import { requirePageUser } from '@/lib/session';
 import TransactionsClient from './transactions-client';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function TransactionsPage() {
+  const userId = await requirePageUser();
   try {
     const allTx = await db
       .select()
       .from(transactions)
+      .where(eq(transactions.ownerId, userId))
       .orderBy(desc(transactions.date));
 
     // Serialize dates to ISO strings before passing to Client Component
@@ -18,7 +21,5 @@ export default async function TransactionsPage() {
     }));
 
     return <TransactionsClient initialData={serialized} />;
-  } catch {
-    return <TransactionsClient initialData={[]} />;
-  }
+  } catch { throw new Error('Não foi possível carregar seus lançamentos. Tente novamente.'); }
 }

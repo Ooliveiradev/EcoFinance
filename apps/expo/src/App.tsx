@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
@@ -12,7 +12,9 @@ import { AccountsScreen } from './screens/accounts';
 import { SettingsScreen } from './screens/settings';
 import { AIScreen } from './screens/ai';
 import { OnboardingScreen, ONBOARDING_KEY } from './screens/onboarding';
-import { registerNotificationHandlerTask } from './services/notification-handler';
+import { LoginScreen } from './screens/auth/login';
+import { disableLegacyCapture } from './services/notification-handler';
+import { backendFetch, clearSession, loadBackendConfig, onSessionExpired, SessionExpired } from './services/backend-config';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
@@ -43,26 +45,38 @@ const CustomDarkTheme = {
 export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [startupError, setStartupError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => onSessionExpired(() => setAuthenticated(false)), []);
 
   useEffect(() => {
     const init = async () => {
-      // Register background task (non-blocking)
-      registerNotificationHandlerTask().catch((err) => {
-        console.warn('Could not register notification task:', err);
-      });
-
+      setIsReady(false);
+      setStartupError(false);
       // Check if user has already completed onboarding
       try {
+        await disableLegacyCapture();
         const value = await AsyncStorage.getItem(ONBOARDING_KEY);
         setHasOnboarded(value === 'done');
-      } catch {
-        setHasOnboarded(false);
+        const session = await loadBackendConfig();
+        if (session) {
+          const response = await backendFetch('/api/auth/get-session');
+          if (!response.ok) throw new Error('Session service unavailable');
+          const value: unknown = await response.json();
+          if (value === null) await clearSession();
+          setAuthenticated(response.ok && value !== null);
+        }
+      } catch (error) {
+        if (error instanceof SessionExpired) setAuthenticated(false);
+        else setStartupError(true);
       } finally {
         setIsReady(true);
       }
     };
     init();
-  }, []);
+  }, [attempt]);
 
   // Show a splash/loading screen while checking AsyncStorage
   if (!isReady) {
@@ -74,6 +88,10 @@ export default function App() {
   }
 
   // Show onboarding for first-time users
+  if (startupError) return <View style={{ flex: 1, backgroundColor: '#020617', padding: 24, justifyContent: 'center', gap: 16 }}>
+    <Text accessibilityRole="alert" style={{ color: '#fff' }}>Não foi possível verificar sua sessão. Verifique a conexão e tente novamente.</Text>
+    <Pressable accessibilityRole="button" onPress={() => setAttempt(value => value + 1)}><Text style={{ color: '#34d399' }}>Tentar novamente</Text></Pressable>
+  </View>;
   if (!hasOnboarded) {
     return (
       <>
@@ -84,6 +102,7 @@ export default function App() {
   }
 
   // Main app after onboarding
+  if (!authenticated) return <LoginScreen onComplete={() => setAuthenticated(true)} />;
   return (
     <NavigationContainer theme={CustomDarkTheme}>
       <StatusBar style="light" />

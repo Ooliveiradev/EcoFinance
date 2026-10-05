@@ -1,6 +1,6 @@
 export const serverCredentials = [
   'DATABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'PLUGGY_CLIENT_ID',
-  'PLUGGY_CLIENT_SECRET', 'GEMINI_API_KEY', 'API_SECRET_KEY',
+  'PLUGGY_CLIENT_SECRET', 'GEMINI_API_KEY', 'API_SECRET_KEY', 'AUTH_SECRET',
 ];
 
 export function sourceFindings(path, content) {

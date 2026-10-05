@@ -115,9 +115,9 @@ describe('owned financial model and preservation', () => {
     await expect(sql`DELETE FROM accounts WHERE id=${accountA}`).rejects.toMatchObject({ code: '23503' });
     await expect(sql`DELETE FROM categories WHERE id=${categoryA}`).rejects.toMatchObject({ code: '23503' });
     expect(await sql`SELECT count(*)::int AS count,sum(amount)::text AS total FROM transactions`).toEqual([{ count: 2, total: '-32.90' }]);
-    const unsafe = await sql`SELECT conname FROM pg_constraint WHERE connamespace='public'::regnamespace AND contype='f' AND confdeltype IN ('c','n')`;
+    const unsafe = await sql`SELECT conname FROM pg_constraint WHERE connamespace='public'::regnamespace AND contype='f' AND confdeltype IN ('c','n') AND conrelid NOT IN ('auth_sessions'::regclass,'auth_accounts'::regclass)`;
     expect(unsafe).toEqual([]);
-    const tables = await sql`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT IN ('users','ecofinance_migrations','spatial_ref_sys')`;
+    const tables = await sql`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT IN ('users','ecofinance_migrations','spatial_ref_sys','auth_accounts','auth_sessions','auth_verifications','auth_rate_limits')`;
     for (const { tablename } of tables) {
       const [column] = await sql`SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name=${tablename} AND column_name='owner_id'`;
       expect(column, tablename).toEqual({ is_nullable: 'NO' });
@@ -210,7 +210,7 @@ describe('versioned PostgreSQL migrations', () => {
     await migrate(sql, migrations.slice(0, 2));
     const oldHistory = await sql`SELECT name,checksum,applied_at FROM ecofinance_migrations ORDER BY name`;
     const before = await sql`SELECT id,account_id,amount,date,source,external_id FROM transactions ORDER BY id`;
-    expect(await migrate(sql, migrations, legacyOwner)).toEqual(['0003_owned_finance.sql']);
+    expect(await migrate(sql, migrations, legacyOwner)).toEqual(['0003_owned_finance.sql', '0004_auth_sessions.sql']);
     expect(await sql`SELECT name,checksum,applied_at FROM ecofinance_migrations ORDER BY name LIMIT 2`).toEqual(oldHistory);
     expect(await sql`SELECT id,account_id,amount,date,source,external_id FROM transactions ORDER BY id`).toEqual(before);
     await sql`UPDATE transactions SET external_id='fixture-1' WHERE source='manual'`;

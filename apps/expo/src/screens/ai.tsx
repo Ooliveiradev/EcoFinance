@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { backendFetch } from '../services/backend-config';
 
 interface Message {
   id: string;
@@ -19,14 +20,12 @@ interface Message {
   content: string;
 }
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
-
 export function AIScreen() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Olá! Sou seu assistente financeiro de IA. Como posso te ajudar hoje?',
+      content: 'O assistente está desativado durante a migração. Nenhuma mensagem será enviada a um provedor de IA.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -53,7 +52,7 @@ export function AIScreen() {
         content: m.content,
       }));
 
-      const response = await fetch(`${API_URL}/api/chat`, {
+      const response = await backendFetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,8 +73,7 @@ export function AIScreen() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error(error);
+    } catch {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -134,12 +132,13 @@ export function AIScreen() {
             value={input}
             onChangeText={setInput}
             multiline
+            editable={false}
             maxLength={500}
           />
           <TouchableOpacity
             style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]}
             onPress={sendMessage}
-            disabled={!input.trim() || isLoading}
+            disabled
           >
             <MaterialCommunityIcons
               name="send"

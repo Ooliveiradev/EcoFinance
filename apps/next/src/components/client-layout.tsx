@@ -29,6 +29,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  if (pathname === '/login') return <main className="min-h-screen bg-slate-950">{children}</main>;
+
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Mobile overlay for sidebar (if needed) */}
