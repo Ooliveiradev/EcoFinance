@@ -1,189 +1,336 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
+  CalendarDays,
   ArrowLeftRight,
-  Wallet,
-  MapPin,
-  Bot,
+  Target,
+  WalletCards,
+  FileSpreadsheet,
   Settings,
+  Plus,
+  Menu,
+  X,
+  Sun,
+  Moon,
+  Laptop,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePreferences } from '@/lib/preferences-context';
+import { Button } from '@/components/ui/button';
+import { AddExpenseModal } from '@/components/add-expense-modal';
 
-const mainNavItems = [
-  { href: '/', label: 'Início', icon: LayoutDashboard },
-  { href: '/accounts', label: 'Contas', icon: Wallet },
-  { href: '/ai', label: 'Assistente', icon: Bot },
-  { href: '/settings', label: 'Opções', icon: Settings },
-];
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  exact?: boolean;
+}
 
-const secondaryNavItems = [
-  { href: '/transactions', label: 'Transações', icon: ArrowLeftRight },
-  { href: '/map', label: 'Mapa', icon: MapPin },
+// Primary navigation as specified in Issue EF-04
+const primaryNavItems: NavItem[] = [
+  { href: '/', label: 'Meu mês', icon: CalendarDays, exact: true },
+  { href: '/transactions', label: 'Lançamentos', icon: ArrowLeftRight },
+  { href: '/planning', label: 'Planejamento', icon: Target },
+  { href: '/accounts', label: 'Contas e cartões', icon: WalletCards },
+  { href: '/imports', label: 'Importações', icon: FileSpreadsheet },
+  { href: '/settings', label: 'Configurações', icon: Settings },
 ];
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const { preferences, setTheme, resolvedTheme } = usePreferences();
+
+  const isLinkActive = (item: NavItem) => {
+    if (item.exact) return pathname === item.href;
+    return pathname === item.href || pathname.startsWith(item.href + '/');
+  };
+
+  const cycleTheme = () => {
+    if (preferences.theme === 'system') setTheme('light');
+    else if (preferences.theme === 'light') setTheme('dark');
+    else setTheme('system');
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* Mobile overlay for sidebar (if needed) */}
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Accessible skip link for keyboard navigation */}
+      <a
+        href="#main-content"
+        className="sr-only-focusable fixed top-2 left-2 z-50 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-lg shadow-md"
+      >
+        Pular para o conteúdo principal
+      </a>
+
+      {/* Mobile Backdrop Overlay */}
       {sidebarOpen && (
         <button
           type="button"
-          aria-label="Fechar menu"
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
+          aria-label="Fechar menu de navegação"
+          className="fixed inset-0 z-40 bg-overlay backdrop-blur-xs lg:hidden transition-opacity cursor-pointer"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Desktop Sidebar */}
       <aside
+        id="desktop-sidebar"
         className={cn(
-          'fixed top-0 left-0 z-50 h-screen w-64 bg-slate-900/80 backdrop-blur-xl border-r border-slate-800/80 flex flex-col transition-transform duration-300 ease-in-out',
-          'hidden lg:flex', // Only visible on desktop
+          'fixed top-0 left-0 z-40 h-screen w-64 bg-surface border-r border-border flex flex-col transition-transform duration-200 ease-in-out',
+          'hidden lg:flex',
         )}
       >
-        {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-6 border-b border-slate-800/80">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/25 group-hover:shadow-emerald-500/40 transition-shadow">
-              <span className="text-white font-bold text-sm">E</span>
+        {/* Brand / Logo */}
+        <div className="flex items-center justify-between h-16 px-6 border-b border-border">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 group focus-visible:outline-none"
+            aria-label="EcoFinance Início"
+          >
+            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground font-black text-sm flex items-center justify-center shadow-xs">
+              E
             </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+            <span className="text-lg font-extrabold tracking-tight text-foreground">
               EcoFinance
             </span>
           </Link>
+
+          {/* Theme Quick Switcher */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={cycleTheme}
+            aria-label={`Alternar tema (atual: ${preferences.theme})`}
+            title={`Tema: ${preferences.theme === 'system' ? 'Automático' : preferences.theme === 'light' ? 'Claro' : 'Escuro'}`}
+            className="h-8 w-8 text-muted hover:text-foreground"
+          >
+            {preferences.theme === 'system' ? (
+              <Laptop className="w-4 h-4" />
+            ) : resolvedTheme === 'dark' ? (
+              <Moon className="w-4 h-4" />
+            ) : (
+              <Sun className="w-4 h-4" />
+            )}
+          </Button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-6 space-y-8 overflow-y-auto">
-          <div>
-            <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Principal
-            </div>
-            <div className="space-y-1">
-              {mainNavItems.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 group',
-                      isActive
-                        ? 'bg-emerald-500/10 text-emerald-400 shadow-sm shadow-emerald-500/5'
-                        : 'text-slate-400 hover:text-slate-50 hover:bg-slate-800/50',
-                    )}
-                  >
-                    <item.icon
-                      className={cn(
-                        'w-5 h-5 transition-colors',
-                        isActive
-                          ? 'text-emerald-400'
-                          : 'text-slate-500 group-hover:text-slate-300',
-                      )}
-                    />
-                    {item.label}
-                    {isActive && (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-glow" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
+        {/* Quick Primary Action */}
+        <div className="p-4 border-b border-border">
+          <Button
+            variant="default"
+            className="w-full flex items-center justify-center gap-2 py-2.5 h-11 text-sm font-bold shadow-sm"
+            onClick={() => setIsAddExpenseOpen(true)}
+          >
+            <Plus className="w-4 h-4" />
+            Adicionar gasto
+          </Button>
+        </div>
 
-          <div>
-            <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Explorar
-            </div>
-            <div className="space-y-1">
-              {secondaryNavItems.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 group',
-                      isActive
-                        ? 'bg-slate-800 text-slate-200'
-                        : 'text-slate-400 hover:text-slate-50 hover:bg-slate-800/50',
-                    )}
-                  >
-                    <item.icon
-                      className={cn(
-                        'w-5 h-5 transition-colors',
-                        isActive
-                          ? 'text-slate-300'
-                          : 'text-slate-500 group-hover:text-slate-300',
-                      )}
-                    />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
+        {/* Navigation list */}
+        <nav
+          aria-label="Navegação Principal"
+          className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto"
+        >
+          <div className="px-3 mb-2 text-[11px] font-bold text-muted uppercase tracking-wider">
+            Menu
           </div>
+          {primaryNavItems.map((item) => {
+            const active = isLinkActive(item);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-150',
+                  active
+                    ? 'bg-nav-active text-nav-active-foreground shadow-xs'
+                    : 'text-muted hover:text-foreground hover:bg-surface-muted',
+                )}
+              >
+                <item.icon
+                  className={cn('w-4.5 h-4.5 shrink-0', active ? 'text-nav-active-foreground' : 'text-muted')}
+                />
+                <span className="truncate">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-800/80">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>v1.0.0 • Beta</span>
-          </div>
+        {/* Footer info */}
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between text-xs text-muted">
+          <span>EcoFinance v1.0</span>
+          <span className="px-1.5 py-0.5 rounded bg-surface-muted font-mono text-[10px]">
+            {resolvedTheme}
+          </span>
+        </div>
+      </aside>
+
+      {/* Mobile Drawer (Accessible off-canvas menu) */}
+      <aside
+        id="mobile-drawer"
+        aria-label="Menu móvel"
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 w-72 bg-surface border-r border-border flex flex-col transform transition-transform duration-200 ease-in-out lg:hidden',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="flex items-center justify-between h-16 px-6 border-b border-border">
+          <Link
+            href="/"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center gap-2.5"
+          >
+            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground font-black text-sm flex items-center justify-center">
+              E
+            </div>
+            <span className="text-lg font-extrabold tracking-tight text-foreground">
+              EcoFinance
+            </span>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Fechar menu"
+            className="h-8 w-8 text-muted"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+
+        <div className="p-4 border-b border-border">
+          <Button
+            variant="default"
+            className="w-full flex items-center justify-center gap-2 py-2.5 h-11 text-sm font-bold shadow-sm"
+            onClick={() => {
+              setSidebarOpen(false);
+              setIsAddExpenseOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            Adicionar gasto
+          </Button>
+        </div>
+
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {primaryNavItems.map((item) => {
+            const active = isLinkActive(item);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setSidebarOpen(false)}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-colors',
+                  active
+                    ? 'bg-nav-active text-nav-active-foreground shadow-xs'
+                    : 'text-muted hover:text-foreground hover:bg-surface-muted',
+                )}
+              >
+                <item.icon className="w-5 h-5 shrink-0" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-border flex items-center justify-between">
+          <span className="text-xs text-muted">Tema de exibição:</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={cycleTheme}
+            className="h-8 text-xs font-semibold gap-1.5"
+          >
+            {resolvedTheme === 'dark' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+            {preferences.theme === 'system' ? 'Auto' : resolvedTheme === 'dark' ? 'Escuro' : 'Claro'}
+          </Button>
         </div>
       </aside>
 
       {/* Mobile Top Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 h-14 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/80 flex items-center px-4 justify-center">
-        <span className="text-sm font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-          EcoFinance
-        </span>
-      </div>
+      <header className="lg:hidden sticky top-0 z-30 h-14 bg-surface/90 backdrop-blur-md border-b border-border flex items-center justify-between px-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Abrir menu de navegação"
+          className="h-10 w-10 text-foreground"
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
 
-      {/* Main content */}
-      <main className="lg:pl-64 min-h-screen pb-20 lg:pb-0">
-        <div className="p-4 sm:p-6 lg:p-8 pt-20 lg:pt-8">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-primary text-primary-foreground font-black text-xs flex items-center justify-center">
+            E
+          </div>
+          <span className="text-base font-extrabold tracking-tight text-foreground">
+            EcoFinance
+          </span>
+        </Link>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsAddExpenseOpen(true)}
+          aria-label="Adicionar gasto rápido"
+          className="h-10 w-10 text-primary"
+        >
+          <Plus className="w-5 h-5" />
+        </Button>
+      </header>
+
+      {/* Main Content Area */}
+      <main
+        id="main-content"
+        className="flex-1 lg:pl-64 min-h-screen pb-20 lg:pb-8 flex flex-col"
+        tabIndex={-1}
+      >
+        <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {children}
         </div>
       </main>
 
-      {/* Mobile Bottom Tabs */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800/80 flex items-center justify-around px-2 pb-safe">
-        {mainNavItems.map((item) => {
-          const isActive = pathname === item.href;
+      {/* Mobile Bottom Navigation Bar (WCAG compliant touch targets >= 44px) */}
+      <nav
+        aria-label="Navegação inferior mobile"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 bg-surface/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1"
+      >
+        {primaryNavItems.slice(0, 5).map((item) => {
+          const active = isLinkActive(item);
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors',
-                isActive ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-300'
+                'flex flex-col items-center justify-center flex-1 h-full py-1 text-center transition-colors touch-target',
+                active ? 'text-primary' : 'text-muted hover:text-foreground',
               )}
             >
-              <item.icon
-                className={cn(
-                  'w-6 h-6 transition-transform duration-200',
-                  isActive ? 'scale-110' : 'scale-100'
-                )}
-              />
-              <span className={cn(
-                'text-[10px] font-medium',
-                isActive ? 'font-semibold' : 'font-medium'
-              )}>
-                {item.label}
+              <item.icon className="w-5 h-5 mb-0.5" />
+              <span className={cn('text-[10px] truncate max-w-[64px]', active ? 'font-bold' : 'font-medium')}>
+                {item.label === 'Contas e cartões' ? 'Contas' : item.label}
               </span>
             </Link>
           );
         })}
       </nav>
+
+      {/* Quick Add Expense Modal */}
+      <AddExpenseModal
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+        onSuccess={() => {
+          if (typeof window !== 'undefined') window.location.reload();
+        }}
+      />
     </div>
   );
 }

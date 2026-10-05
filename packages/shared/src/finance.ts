@@ -93,3 +93,12 @@ export type FinancialEntryInput = z.infer<typeof financialEntrySchema>;
 export type FinancialAccountInput = z.infer<typeof financialAccountSchema>;
 export type CategoryInput = z.infer<typeof categoryInputSchema>;
 export type ImportItemInput = z.infer<typeof importItemSchema>;
+
+const brlFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
+
+export function formatBRL(value: number): string {
+  return brlFormatter.format(value);
+}

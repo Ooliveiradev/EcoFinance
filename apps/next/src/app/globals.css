@@ -1,54 +1,151 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import 'tailwindcss';
 
+/*
+ * Design tokens
+ * -------------
+ * Colours are semantic and switch with `data-theme` on <html> ("light" | "dark",
+ * resolved from the stored preference by the pre-paint script in layout.tsx).
+ * Components must use the semantic utilities (bg-surface, text-muted, ...) and
+ * never raw palette colours, so both themes stay in sync.
+ *
+ * Every text/background pair below is checked against WCAG 2.2 AA (4.5:1 for text,
+ * 3:1 for UI boundaries and focus) by src/styles/contrast.test.ts.
+ */
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --surface-raised: #ffffff;
+  --muted: #475569;
+  --border: #cbd5e1;
+  --border-strong: #64748b;
+  --overlay: rgb(15 23 42 / 0.55);
+
+  --primary: #047857;
+  --primary-hover: #065f46;
+  --primary-foreground: #ffffff;
+  --link: #047857;
+  --nav-active-bg: #d1fae5;
+  --nav-active-fg: #064e3b;
+  --focus: #1d4ed8;
+
+  --success: #047857;
+  --success-soft: #ecfdf5;
+  --warning: #92400e;
+  --warning-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #1d4ed8;
+  --info-soft: #eff6ff;
+
+  --chart-1: #c2410c;
+  --chart-2: #1d4ed8;
+  --chart-3: #7e22ce;
+  --chart-4: #be185d;
+  --chart-5: #b91c1c;
+  --chart-6: #a16207;
+  --chart-7: #4338ca;
+  --chart-8: #047857;
+  --chart-9: #0e7490;
+  --chart-10: #64748b;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --background: #020617;
+  --foreground: #f8fafc;
+  --surface: #0f172a;
+  --surface-muted: #1e293b;
+  --surface-raised: #1e293b;
+  --muted: #a3b1c6;
+  --border: #334155;
+  --border-strong: #64748b;
+  --overlay: rgb(2 6 23 / 0.7);
+
+  --primary: #34d399;
+  --primary-hover: #6ee7b7;
+  --primary-foreground: #022c22;
+  --link: #6ee7b7;
+  --nav-active-bg: #064e3b;
+  --nav-active-fg: #d1fae5;
+  --focus: #7dd3fc;
+
+  --success: #6ee7b7;
+  --success-soft: #064e3b;
+  --warning: #fcd34d;
+  --warning-soft: #451a03;
+  --danger: #fda4af;
+  --danger-soft: #4c0519;
+  --info: #93c5fd;
+  --info-soft: #172554;
+
+  --chart-1: #fb923c;
+  --chart-2: #60a5fa;
+  --chart-3: #c084fc;
+  --chart-4: #f472b6;
+  --chart-5: #f87171;
+  --chart-6: #facc15;
+  --chart-7: #818cf8;
+  --chart-8: #34d399;
+  --chart-9: #22d3ee;
+  --chart-10: #94a3b8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-overlay: var(--overlay);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-link: var(--link);
+  --color-nav-active: var(--nav-active-bg);
+  --color-nav-active-foreground: var(--nav-active-fg);
+  --color-focus: var(--focus);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+}
+
+/* Typography scale: rem-based so browser text size and zoom settings are respected. */
 @theme {
-  --color-background: #020617;
-  --color-foreground: #f8fafc;
-  --color-card: rgba(15, 23, 42, 0.6);
-  --color-card-foreground: #f8fafc;
-  --color-primary: #10b981;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #1e293b;
-  --color-secondary-foreground: #f8fafc;
-  --color-muted: #1e293b;
-  --color-muted-foreground: #94a3b8;
-  --color-accent: #1e293b;
-  --color-accent-foreground: #f8fafc;
-  --color-destructive: #f43f5e;
-  --color-destructive-foreground: #ffffff;
-  --color-border: rgba(51, 65, 85, 0.3);
-  --color-input: rgba(51, 65, 85, 0.3);
-  --color-ring: #10b981;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
-  --color-emerald-400: #34d399;
-  --color-emerald-500: #10b981;
-  --color-emerald-600: #059669;
-  --color-teal-400: #2dd4bf;
-  --color-teal-500: #14b8a6;
-  --color-rose-400: #fb7185;
-  --color-rose-500: #f43f5e;
-  --color-amber-400: #fbbf24;
-  --color-amber-500: #f59e0b;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.125rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+  --text-title: 1.125rem;
+  --text-title--line-height: 1.625rem;
+  --text-headline: 1.5rem;
+  --text-headline--line-height: 2rem;
+  --text-display: 1.875rem;
+  --text-display--line-height: 2.375rem;
 
-  --color-slate-50: #f8fafc;
-  --color-slate-100: #f1f5f9;
-  --color-slate-200: #e2e8f0;
-  --color-slate-300: #cbd5e1;
-  --color-slate-400: #94a3b8;
-  --color-slate-500: #64748b;
-  --color-slate-600: #475569;
-  --color-slate-700: #334155;
-  --color-slate-800: #1e293b;
-  --color-slate-900: #0f172a;
-  --color-slate-950: #020617;
+  --radius-control: 0.625rem;
+  --radius-card: 1rem;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --radius: 0.75rem;
-
-  --animate-fade-in: fade-in 0.5s ease-out forwards;
-  --animate-fade-in-up: fade-in-up 0.6s ease-out forwards;
-  --animate-slide-in-left: slide-in-left 0.4s ease-out forwards;
-  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-fade-in-up: fade-in-up 0.4s ease-out both;
   --animate-spin-slow: spin 2s linear infinite;
 }
 
@@ -58,57 +155,86 @@
 }
 
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slide-in-left {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.3); }
-  50% { box-shadow: 0 0 24px rgba(16, 185, 129, 0.6); }
 }
 
 @layer base {
   html {
     scroll-behavior: smooth;
-    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    @apply bg-slate-950 text-slate-50 font-sans antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
   }
 
   * {
-    @apply border-border;
+    border-color: var(--border);
   }
 
-  /* Custom Scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* One consistent, high-contrast focus indicator for every interactive element. */
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
   }
 
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: rgba(51, 65, 85, 0.5);
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(71, 85, 105, 0.7);
-  }
-
-  /* Selection */
   ::selection {
-    background: rgba(16, 185, 129, 0.3);
-    color: #f8fafc;
+    background: var(--nav-active-bg);
+    color: var(--nav-active-fg);
+  }
+
+  /* Native form controls inherit the theme and keep a readable placeholder. */
+  ::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+}
+
+/* Touch targets: WCAG 2.5.8 asks for at least 24px; we provide 44px for primary controls. */
+@utility touch-target {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+/* Visually hidden but available to assistive technology. */
+@utility sr-only-focusable {
+  &:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Forced-colors (Windows High Contrast): keep boundaries and focus visible. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline-color: Highlight;
   }
 }

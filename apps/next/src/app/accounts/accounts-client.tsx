@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   RefreshCw,
   Plus,
@@ -10,7 +11,7 @@ import {
   Landmark,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { cn, formatBRL, formatDate } from '@/lib/utils';
 import dynamic from 'next/dynamic';
 
@@ -28,8 +29,8 @@ type DBAccount = {
 };
 
 const typeColors: Record<string, string> = {
-  banco: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  carteira: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  banco: 'bg-info-soft text-info border-info/30',
+  carteira: 'bg-success-soft text-success border-success/30',
 };
 
 export default function AccountsClient({ initialAccounts }: { initialAccounts: DBAccount[] }) {
@@ -81,14 +82,13 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: D
   }
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6 relative animate-fade-in">
       {connectToken && (
         <PluggyConnect
           connectToken={connectToken}
           includeSandbox={true}
           onSuccess={async (itemData) => {
             setConnectToken(null);
-            // Sincronizar dados imediatamente
             await handleSync(itemData.item.id);
           }}
           onError={() => setConnectToken(null)}
@@ -96,37 +96,53 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: D
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-50 sm:text-3xl">Contas</h1>
-          <p className="mt-1 text-sm text-slate-400">Gerencie suas contas bancárias vinculadas</p>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl tracking-tight">
+            Contas e cartões
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            Gerencie suas contas bancárias vinculadas, cartões e saldos
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="secondary" size="sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/imports"
+            className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'touch-target')}
+          >
             <Upload className="w-4 h-4 mr-2" />
-            Importar OFX
-          </Button>
-          <Button size="sm" onClick={handleAddAccount} disabled={isTokenLoading}>
-            {isTokenLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+            Importar OFX/CSV
+          </Link>
+          <Button
+            size="sm"
+            onClick={handleAddAccount}
+            disabled={isTokenLoading}
+            className="touch-target"
+          >
+            {isTokenLoading ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4 mr-2" />
+            )}
             Vincular Banco (Pluggy)
           </Button>
         </div>
       </div>
 
       {/* Total Balance */}
-      <Card
-        className="animate-fade-in-up overflow-hidden relative"
-        style={{ animationDelay: '100ms', animationFillMode: 'both' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-teal-500/5" />
-        <CardContent className="p-6 relative">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
-              <Landmark className="w-6 h-6 text-emerald-400" />
+      <Card className="overflow-hidden relative">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Landmark className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm text-slate-400">Saldo Total</p>
-              <p className="text-3xl font-bold text-slate-50 tracking-tight">{formatBRL(totalBalance)}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Saldo Total Consolidado
+              </p>
+              <p className="text-3xl font-bold text-foreground tracking-tight">
+                {formatBRL(totalBalance)}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -135,30 +151,32 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: D
       {/* Accounts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {initialAccounts.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-slate-500 bg-slate-900/50 rounded-2xl border border-slate-800">
-            Nenhuma conta vinculada ainda. Clique em "Vincular Banco" para conectar sua conta via Pluggy.
+          <div className="col-span-full py-12 text-center text-muted bg-surface-muted rounded-2xl border border-border">
+            Nenhuma conta vinculada ainda. Clique em "Vincular Banco" para conectar sua conta via Open Finance ou "Importar OFX/CSV" para carregar um extrato.
           </div>
         ) : initialAccounts.map((account, i) => (
           <Card
             key={account.id}
-            className="hover:scale-[1.02] hover:shadow-xl hover:shadow-emerald-500/5 animate-fade-in-up group"
-            style={{ animationDelay: `${(i + 2) * 100}ms`, animationFillMode: 'both' }}
+            className="hover:scale-[1.01] hover:shadow-md transition-all group"
+            style={{ animationDelay: `${(i + 2) * 80}ms`, animationFillMode: 'both' }}
           >
             <CardContent className="p-6 space-y-4">
               {/* Bank Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-slate-800/80 flex items-center justify-center text-xl">
+                  <div className="w-10 h-10 rounded-xl bg-surface-muted flex items-center justify-center text-xl shrink-0">
                     🏦
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-slate-50 truncate max-w-[150px]">{account.name}</h3>
+                    <h3 className="text-base font-semibold text-foreground truncate max-w-[150px]">
+                      {account.name}
+                    </h3>
                   </div>
                 </div>
                 <span
                   className={cn(
-                    'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
-                    typeColors[account.type] || 'bg-slate-800 text-slate-400 border-slate-700',
+                    'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium uppercase',
+                    typeColors[account.type] || 'bg-surface-muted text-muted border-border',
                   )}
                 >
                   {account.type}
@@ -167,32 +185,35 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: D
 
               {/* Balance */}
               <div>
-                <p className="text-xs text-slate-400 mb-1">Saldo disponível</p>
-                <p className="text-2xl font-bold text-slate-50 tracking-tight">{formatBRL(Number(account.balance))}</p>
+                <p className="text-xs text-muted mb-1">Saldo disponível</p>
+                <p className="text-2xl font-bold text-foreground tracking-tight">
+                  {formatBRL(Number(account.balance))}
+                </p>
               </div>
 
               {/* Sync Status */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-700/30">
+              <div className="flex items-center justify-between pt-3 border-t border-border">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-success" />
                   <div className="text-xs">
-                    <span className="text-emerald-400">Ativa</span>
-                    <span className="text-slate-500 ml-1 block mt-0.5">Última att: {formatDate(account.updatedAt.toISOString())}</span>
+                    <span className="text-success font-semibold">Ativa</span>
+                    <span className="text-muted ml-1 inline-block">
+                      • {formatDate(account.updatedAt.toISOString())}
+                    </span>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-8 w-8 text-muted hover:text-foreground"
                   onClick={() => handleSync(account.pluggyItemId)}
                   disabled={syncingIds.has(account.pluggyItemId || '') || !account.pluggyItemId}
-                  title="Sincronizar"
+                  aria-label={`Sincronizar ${account.name}`}
                 >
                   <RefreshCw
                     className={cn(
-                      'w-4 h-4 text-slate-400',
-                      syncingIds.has(account.pluggyItemId || '') && 'animate-spin-slow text-emerald-400',
+                      'w-4 h-4',
+                      syncingIds.has(account.pluggyItemId || '') && 'animate-spin text-primary',
                     )}
                   />
                 </Button>

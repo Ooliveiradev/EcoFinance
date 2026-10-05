@@ -1,48 +1,90 @@
-import { db, accounts, transactions, sql, desc, gte, lt, and } from '@ecofinance/db';
-import DashboardClient from './dashboard-client';
+import {
+  db,
+  accounts,
+  transactions,
+  recurrenceOccurrences,
+  recurrenceRules,
+  invoices,
+  cards,
+  sql,
+  desc,
+  gte,
+  lt,
+  and,
+  eq,
+} from '@ecofinance/db';
+import {
+  resolveMonthParam,
+  monthBounds,
+  shiftMonth,
+  percentChange,
+  describeTrend,
+  currentMonthParam,
+  type TransactionCategory,
+} from '@ecofinance/shared';
+import DashboardClient, { type UpcomingBillItem } from './dashboard-client';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Empty state returned when the database is not yet available
-const EMPTY_STATE = {
-  totalBalance: 0,
-  income: { value: 0, trend: 0 },
-  expenses: { value: 0, trend: 0 },
-  transactionsCount: { value: 0, trend: 0 },
-  categoryData: [] as { name: string; value: number; color: string }[],
-  recentTransactions: [] as { id: string; date: string; description: string; category: import("@ecofinance/shared").TransactionCategory; amount: string; source: string }[],
-};
+interface PageProps {
+  searchParams?: Promise<{ mes?: string }>;
+}
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: PageProps) {
+  const resolvedParams = searchParams ? await searchParams : {};
+  const rawMonth = typeof resolvedParams.mes === 'string' ? resolvedParams.mes : null;
+
+  const now = new Date();
+  const resolved = resolveMonthParam(rawMonth, now);
+  const bounds = monthBounds(resolved.month);
+
+  if (!bounds) {
+    // Should never happen with resolveMonthParam, but provide guaranteed bounds
+    const fallbackCurrent = currentMonthParam(now);
+    return (
+      <DashboardClient
+        month={fallbackCurrent}
+        isCurrentMonth={true}
+        monthValid={false}
+        totalBalance={0}
+        income={{ value: 0, trend: describeTrend(null) }}
+        expenses={{ value: 0, trend: describeTrend(null) }}
+        transactionsCount={{ value: 0, trend: describeTrend(null) }}
+        categoryData={[]}
+        recentTransactions={[]}
+        upcomingBills={[]}
+        accounts={[]}
+      />
+    );
+  }
+
   try {
-    const now = new Date();
+    const startOfSelectedMonth = new Date(`${bounds.start}T00:00:00.000Z`);
+    const startOfNextMonth = new Date(`${bounds.endExclusive}T00:00:00.000Z`);
 
-    // Define current month boundaries
-    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const prevMonth = shiftMonth(resolved.month, -1);
+    const prevBounds = prevMonth ? monthBounds(prevMonth) : null;
+    const startOfLastMonth = prevBounds ? new Date(`${prevBounds.start}T00:00:00.000Z`) : null;
+    const startOfThisMonthForTrend = prevBounds ? new Date(`${prevBounds.endExclusive}T00:00:00.000Z`) : null;
 
-    // Define last month boundaries for trend calculations
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const startOfThisMonthForTrend = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // 1. Total Balance
+    // 1. Total Balance across all accounts
     const balanceResult = await db
-      .select({ total: sql<string>`sum(${accounts.balance})` })
+      .select({ total: sql<string>`coalesce(sum(${accounts.balance}), '0')` })
       .from(accounts);
     const totalBalance = Number(balanceResult[0]?.total || 0);
 
-    // 2. Current Month Stats (Income, Expenses, Count)
+    // 2. Selected Month Stats (Income, Expenses, Count)
     const currentMonthStats = await db
       .select({
-        income: sql<string>`sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end)`,
-        expenses: sql<string>`sum(case when ${transactions.amount} < 0 then ${transactions.amount} else 0 end)`,
+        income: sql<string>`coalesce(sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end), '0')`,
+        expenses: sql<string>`coalesce(sum(case when ${transactions.amount} < 0 then ${transactions.amount} else 0 end), '0')`,
         count: sql<number>`count(*)`,
       })
       .from(transactions)
       .where(
         and(
-          gte(transactions.date, startOfCurrentMonth),
+          gte(transactions.date, startOfSelectedMonth),
           lt(transactions.date, startOfNextMonth),
         ),
       );
@@ -51,46 +93,49 @@ export default async function DashboardPage() {
     const curExpenses = Math.abs(Number(currentMonthStats[0]?.expenses || 0));
     const curCount = Number(currentMonthStats[0]?.count || 0);
 
-    // 3. Last Month Stats (Income, Expenses, Count)
-    const lastMonthStats = await db
-      .select({
-        income: sql<string>`sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end)`,
-        expenses: sql<string>`sum(case when ${transactions.amount} < 0 then ${transactions.amount} else 0 end)`,
-        count: sql<number>`count(*)`,
-      })
-      .from(transactions)
-      .where(
-        and(
-          gte(transactions.date, startOfLastMonth),
-          lt(transactions.date, startOfThisMonthForTrend),
-        ),
-      );
+    // 3. Last Month Stats (for baseline comparison)
+    let lastIncome = 0;
+    let lastExpenses = 0;
+    let lastCount = 0;
+    let hasLastMonthBaseline = false;
 
-    const lastIncome = Number(lastMonthStats[0]?.income || 0);
-    const lastExpenses = Math.abs(Number(lastMonthStats[0]?.expenses || 0));
-    const lastCount = Number(lastMonthStats[0]?.count || 0);
+    if (startOfLastMonth && startOfThisMonthForTrend) {
+      const lastMonthStats = await db
+        .select({
+          income: sql<string>`coalesce(sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end), '0')`,
+          expenses: sql<string>`coalesce(sum(case when ${transactions.amount} < 0 then ${transactions.amount} else 0 end), '0')`,
+          count: sql<number>`count(*)`,
+        })
+        .from(transactions)
+        .where(
+          and(
+            gte(transactions.date, startOfLastMonth),
+            lt(transactions.date, startOfThisMonthForTrend),
+          ),
+        );
 
-    // Calculate Trends
-    const calcTrend = (curr: number, prev: number) => {
-      if (prev === 0) return curr > 0 ? 100 : 0;
-      return ((curr - prev) / prev) * 100;
-    };
+      lastIncome = Number(lastMonthStats[0]?.income || 0);
+      lastExpenses = Math.abs(Number(lastMonthStats[0]?.expenses || 0));
+      lastCount = Number(lastMonthStats[0]?.count || 0);
+      hasLastMonthBaseline = lastCount > 0 || lastIncome > 0 || lastExpenses > 0;
+    }
 
-    const incomeTrend = calcTrend(curIncome, lastIncome);
-    const expensesTrend = calcTrend(curExpenses, lastExpenses);
-    const countTrend = calcTrend(curCount, lastCount);
+    // Explicit trends without invented fake percentages
+    const incomeTrend = describeTrend(hasLastMonthBaseline ? percentChange(curIncome, lastIncome) : null);
+    const expensesTrend = describeTrend(hasLastMonthBaseline ? percentChange(curExpenses, lastExpenses) : null);
+    const countTrend = describeTrend(hasLastMonthBaseline ? percentChange(curCount, lastCount) : null);
 
-    // 4. Category Data for PieChart (Current Month Expenses)
+    // 4. Category Data for PieChart / Donut (Selected Month Expenses)
     const categoryResult = await db
       .select({
         name: transactions.category,
-        value: sql<string>`sum(${transactions.amount})`,
+        value: sql<string>`coalesce(sum(abs(${transactions.amount})), '0')`,
       })
       .from(transactions)
       .where(
         and(
-          lt(transactions.amount, '0'), // Only expenses
-          gte(transactions.date, startOfCurrentMonth),
+          lt(transactions.amount, '0'),
+          gte(transactions.date, startOfSelectedMonth),
           lt(transactions.date, startOfNextMonth),
         ),
       )
@@ -100,35 +145,129 @@ export default async function DashboardPage() {
       .map((c) => ({
         name: c.name,
         value: Math.abs(Number(c.value)),
-        color: '', // Handled by client mapping
+        color: '',
       }))
       .filter((c) => c.value > 0);
 
-    // 5. Recent Transactions
+    // 5. Recent Transactions in the month
     const recentTx = await db
       .select()
       .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, startOfSelectedMonth),
+          lt(transactions.date, startOfNextMonth),
+        ),
+      )
       .orderBy(desc(transactions.date))
       .limit(10);
 
     const serializedTx = recentTx.map((tx) => ({
-      ...tx,
+      id: tx.id,
       date: tx.date.toISOString(),
+      description: tx.description,
+      category: tx.category as TransactionCategory,
+      amount: tx.amount,
+      source: tx.source,
     }));
+
+    // 6. Upcoming Bills (recurrence occurrences and invoices)
+    let upcomingBills: UpcomingBillItem[] = [];
+    try {
+      const occurrencesResult = await db
+        .select({
+          id: recurrenceOccurrences.id,
+          amount: recurrenceOccurrences.amount,
+          dueDate: recurrenceOccurrences.dueDate,
+          status: recurrenceOccurrences.status,
+          description: recurrenceRules.description,
+        })
+        .from(recurrenceOccurrences)
+        .innerJoin(recurrenceRules, eq(recurrenceOccurrences.ruleId, recurrenceRules.id))
+        .where(eq(recurrenceOccurrences.competenceMonth, `${resolved.month}-01`))
+        .orderBy(recurrenceOccurrences.dueDate);
+
+      const invoiceResult = await db
+        .select({
+          id: invoices.id,
+          statedTotal: invoices.statedTotal,
+          dueDate: invoices.dueDate,
+          status: invoices.status,
+          cardName: cards.name,
+        })
+        .from(invoices)
+        .innerJoin(cards, eq(invoices.cardId, cards.id))
+        .where(eq(invoices.competenceMonth, `${resolved.month}-01`));
+
+      upcomingBills = [
+        ...occurrencesResult.map((b) => ({
+          id: b.id,
+          description: b.description,
+          amount: Math.abs(Number(b.amount)),
+          dueDate: b.dueDate,
+          category: 'Recorrente',
+          isPaid: b.status === 'paid',
+        })),
+        ...invoiceResult.map((inv) => ({
+          id: inv.id,
+          description: `Fatura ${inv.cardName}`,
+          amount: Math.abs(Number(inv.statedTotal || 0)),
+          dueDate: inv.dueDate,
+          category: 'Cartão de crédito',
+          isPaid: inv.status === 'paid',
+        })),
+      ];
+    } catch {
+      // If relations are not seeded yet, default to empty list
+      upcomingBills = [];
+    }
+
+    // 7. Active Accounts for Quick Expense Entry
+    let accountList: Array<{ id: string; name: string }> = [];
+    try {
+      accountList = await db
+        .select({
+          id: accounts.id,
+          name: accounts.name,
+        })
+        .from(accounts)
+        .orderBy(accounts.name);
+    } catch {
+      accountList = [];
+    }
 
     return (
       <DashboardClient
+        month={resolved.month}
+        isCurrentMonth={resolved.isCurrent}
+        monthValid={resolved.valid}
         totalBalance={totalBalance}
         income={{ value: curIncome, trend: incomeTrend }}
         expenses={{ value: curExpenses, trend: expensesTrend }}
         transactionsCount={{ value: curCount, trend: countTrend }}
         categoryData={categoryData}
         recentTransactions={serializedTx}
+        upcomingBills={upcomingBills}
+        accounts={accountList}
       />
     );
   } catch {
-    // Graceful degradation: render empty dashboard if DB is not yet configured.
-    // Run `pnpm db:push` and restart the server to fix this.
-    return <DashboardClient {...EMPTY_STATE} />;
+    // Graceful degradation when database connection fails or tables are uninitialized
+    return (
+      <DashboardClient
+        month={resolved.month}
+        isCurrentMonth={resolved.isCurrent}
+        monthValid={resolved.valid}
+        error="Não foi possível carregar os dados financeiros do banco de dados."
+        totalBalance={0}
+        income={{ value: 0, trend: describeTrend(null) }}
+        expenses={{ value: 0, trend: describeTrend(null) }}
+        transactionsCount={{ value: 0, trend: describeTrend(null) }}
+        categoryData={[]}
+        recentTransactions={[]}
+        upcomingBills={[]}
+        accounts={[]}
+      />
+    );
   }
 }

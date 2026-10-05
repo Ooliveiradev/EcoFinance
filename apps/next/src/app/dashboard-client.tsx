@@ -1,15 +1,35 @@
 'use client';
 
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   TrendingUp,
   TrendingDown,
   DollarSign,
   ArrowUpRight,
   ArrowDownRight,
+  Minus,
   Activity,
+  Plus,
+  Upload,
+  AlertTriangle,
+  Inbox,
+  ArrowRight,
+  RefreshCw,
 } from 'lucide-react';
+import {
+  monthLabel,
+  formatBRL,
+  TRANSACTION_CATEGORY_LABELS,
+  type TransactionCategory,
+  type TrendDescription,
+  type DashboardCardId,
+} from '@ecofinance/shared';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Table,
   TableHeader,
@@ -18,43 +38,54 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table';
-import { cn, formatBRL, formatDate } from '@/lib/utils';
-import Link from 'next/link';
-import dynamic from 'next/dynamic';
+import { cn, formatDate } from '@/lib/utils';
+import { usePreferences } from '@/lib/preferences-context';
+import { MonthSelector } from '@/components/month-selector';
+import { UpcomingBillsCard, type UpcomingBill } from '@/components/upcoming-bills-card';
+import { AddExpenseModal } from '@/components/add-expense-modal';
 
-const CategoryChart = dynamic(() => import('./category-chart'), { ssr: false, loading: () => <div className="h-[240px]">Carregando gráfico…</div> });
+const CategoryChart = dynamic(() => import('./category-chart'), {
+  ssr: false,
+  loading: () => (
+    <div
+      role="status"
+      className="h-[240px] flex items-center justify-center text-xs text-muted"
+    >
+      Carregando gráfico…
+    </div>
+  ),
+});
 
-/* ------------------------------------------------------------------ */
-/*  Props                                                              */
-/* ------------------------------------------------------------------ */
+export type UpcomingBillItem = UpcomingBill;
 
-interface StatData {
-  value: number;
-  trend: number; // percentage diff vs last month
-}
-
-interface CategoryData {
+export interface CategoryData {
   name: string;
   value: number;
   color: string;
 }
 
-interface Transaction {
+export interface TransactionItem {
   id: string;
   date: string;
   description: string;
-  category: import("@ecofinance/shared").TransactionCategory;
-  amount: string; // numeric
+  category: TransactionCategory;
+  amount: string;
   source: string;
 }
 
-interface DashboardClientProps {
+export interface DashboardClientProps {
+  month: string;
+  isCurrentMonth: boolean;
+  monthValid?: boolean;
+  error?: string;
   totalBalance: number;
-  income: StatData;
-  expenses: StatData;
-  transactionsCount: StatData;
+  income: { value: number; trend: TrendDescription };
+  expenses: { value: number; trend: TrendDescription };
+  transactionsCount: { value: number; trend: TrendDescription };
   categoryData: CategoryData[];
-  recentTransactions: Transaction[];
+  recentTransactions: TransactionItem[];
+  upcomingBills?: UpcomingBillItem[];
+  accounts?: Array<{ id: string; name: string }>;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -65,193 +96,330 @@ const CATEGORY_COLORS: Record<string, string> = {
   saude: '#ef4444',
   moradia: '#f59e0b',
   educacao: '#6366f1',
-  investimento: '#10b981',
+  salario: '#10b981',
+  investimento: '#06b6d4',
+  transferencia: '#8b5cf6',
   desconhecido: '#64748b',
 };
 
-const categoryLabels: Record<string, string> = {
-  comida: 'Alimentação',
-  transporte: 'Transporte',
-  assinaturas: 'Assinaturas',
-  lazer: 'Lazer',
-  saude: 'Saúde',
-  moradia: 'Moradia',
-  educacao: 'Educação',
-  salario: 'Salário',
-  investimento: 'Investimento',
-  transferencia: 'Transferência',
-  desconhecido: 'Outros',
+const SOURCE_BADGES: Record<string, { label: string; className: string }> = {
+  pluggy: { label: 'Banco (Pluggy)', className: 'bg-info-soft text-info border-info/30' },
+  notification: { label: 'Notificação', className: 'bg-success-soft text-success border-success/30' },
+  ofx: { label: 'Arquivo OFX', className: 'bg-warning-soft text-warning border-warning/30' },
+  uber: { label: 'Uber', className: 'bg-surface-muted text-muted border-border' },
+  manual: { label: 'Manual', className: 'bg-surface-raised text-foreground border-border' },
+  csv: { label: 'CSV', className: 'bg-warning-soft text-warning border-warning/30' },
 };
-
-const sourceColors: Record<string, string> = {
-  pluggy: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  notification: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-  ofx: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
-  uber: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
-  manual: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-};
-
-/* ------------------------------------------------------------------ */
-/*  Custom Recharts Tooltip                                            */
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
-/*  Page                                                               */
-/* ------------------------------------------------------------------ */
 
 export default function DashboardClient({
+  month,
+  isCurrentMonth,
+  monthValid = true,
+  error,
   totalBalance,
   income,
   expenses,
   transactionsCount,
   categoryData,
-  recentTransactions
+  recentTransactions,
+  upcomingBills = [],
+  accounts = [],
 }: DashboardClientProps) {
-  
+  const router = useRouter();
+  const { preferences } = usePreferences();
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+
   const totalExpenses = categoryData.reduce((s, c) => s + c.value, 0);
+  const formattedMonth = monthLabel(month);
+
+  // Determine card rendering order and visibility based on user preferences
+  const activeCardIds: DashboardCardId[] = preferences.dashboardCards
+    .filter((card) => card.visible)
+    .map((card) => card.id);
 
   const stats = [
     {
+      id: 'balance',
       title: 'Saldo Total',
       value: totalBalance,
       icon: DollarSign,
-      trend: 0, // Balance trend is more complex, leaving at 0 for now
-      trendLabel: 'atual',
+      trend: null as TrendDescription | null,
+      trendLabel: 'Consolidado de todas as contas',
       isCurrency: true,
     },
     {
-      title: 'Receitas (Mês)',
+      id: 'income',
+      title: `Receitas (${formattedMonth})`,
       value: income.value,
       icon: TrendingUp,
       trend: income.trend,
-      trendLabel: 'vs mês anterior',
+      trendLabel: income.trend.label,
       isCurrency: true,
+      trendColor:
+        income.trend.direction === 'up'
+          ? 'text-success bg-success-soft'
+          : income.trend.direction === 'down'
+          ? 'text-danger bg-danger-soft'
+          : 'text-muted bg-surface-muted',
     },
     {
-      title: 'Despesas (Mês)',
+      id: 'expenses',
+      title: `Despesas (${formattedMonth})`,
       value: expenses.value,
       icon: TrendingDown,
       trend: expenses.trend,
-      trendLabel: 'vs mês anterior',
+      trendLabel: expenses.trend.label,
       isCurrency: true,
+      // For expenses: going down is good (green), going up is bad (red)
+      trendColor:
+        expenses.trend.direction === 'down'
+          ? 'text-success bg-success-soft'
+          : expenses.trend.direction === 'up'
+          ? 'text-danger bg-danger-soft'
+          : 'text-muted bg-surface-muted',
     },
     {
-      title: 'Transações',
+      id: 'count',
+      title: `Transações (${formattedMonth})`,
       value: transactionsCount.value,
       icon: Activity,
       trend: transactionsCount.trend,
-      trendLabel: 'vs mês anterior',
+      trendLabel: transactionsCount.trend.label,
       isCurrency: false,
+      trendColor: 'text-foreground bg-surface-muted',
     },
   ];
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="animate-fade-in">
-        <h1 className="text-2xl font-bold text-slate-50 sm:text-3xl">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-400">Visão geral das suas finanças</p>
-      </div>
+  /* ------------------------------------------------------------------ */
+  /*  Render Card Components                                            */
+  /* ------------------------------------------------------------------ */
 
-      {/* Stats Grid */}
+  const renderUpcomingBillsCard = () => (
+    <section key="upcoming-bills" aria-labelledby="upcoming-bills-title">
+      <UpcomingBillsCard bills={upcomingBills} />
+    </section>
+  );
+
+  const renderMonthSummaryCard = () => (
+    <section key="month-summary" aria-labelledby="month-summary-title">
+      <h2 id="month-summary-title" className="sr-only">
+        Resumo financeiro do mês
+      </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, i) => (
-          <Card
-            key={stat.title}
-            className="hover:scale-[1.02] hover:shadow-emerald-500/10 hover:shadow-xl animate-fade-in-up group"
-            style={{ animationDelay: `${i * 100}ms`, animationFillMode: 'both' }}
-          >
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-slate-400">{stat.title}</span>
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center group-hover:from-emerald-500/30 group-hover:to-teal-500/30 transition-colors">
-                  <stat.icon className="w-4.5 h-4.5 text-emerald-400" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-slate-50 tracking-tight">
-                {stat.isCurrency ? formatBRL(stat.value) : stat.value}
-              </p>
-              <div className="mt-2 flex items-center gap-1.5">
-                {stat.trend > 0 ? (
-                  <span className="inline-flex items-center gap-0.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
-                    <ArrowUpRight className="w-3 h-3" />
-                    +{stat.trend.toFixed(1)}%
+        {stats.map((stat, i) => {
+          const Icon = stat.icon;
+          return (
+            <Card
+              key={stat.id}
+              className="hover:scale-[1.01] hover:shadow-lg transition-transform"
+              style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                    {stat.title}
                   </span>
-                ) : stat.trend < 0 ? (
-                  <span className="inline-flex items-center gap-0.5 text-xs font-medium text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded-md">
-                    <ArrowDownRight className="w-3 h-3" />
-                    {stat.trend.toFixed(1)}%
-                  </span>
-                ) : (
-                  <span className="text-xs font-medium text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded-md">
-                    0%
-                  </span>
-                )}
-                <span className="text-xs text-slate-500">{stat.trendLabel}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Charts + Transactions Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Category Donut */}
-        <Card
-          className="lg:col-span-2 animate-fade-in-up"
-          style={{ animationDelay: '400ms', animationFillMode: 'both' }}
-        >
-          <CardHeader>
-            <CardTitle className="text-base">Despesas por Categoria (Mês)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {categoryData.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-slate-500 text-sm">
-                Sem despesas neste mês.
-              </div>
-            ) : (
-              <>
-                <div className="h-[240px] relative">
-                  <CategoryChart data={categoryData} colors={CATEGORY_COLORS} />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-xs text-slate-400">Total</span>
-                    <span className="text-lg font-bold text-slate-50">{formatBRL(totalExpenses)}</span>
+                  <div
+                    className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"
+                    aria-hidden="true"
+                  >
+                    <Icon className="w-4 h-4" />
                   </div>
                 </div>
-                {/* Legend */}
-                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2">
-                  {categoryData.map((cat) => (
-                    <div key={cat.name} className="flex items-center gap-2 text-xs">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_COLORS[cat.name] || CATEGORY_COLORS['desconhecido'] }} />
-                      <span className="text-slate-400 truncate">{categoryLabels[cat.name] || cat.name}</span>
-                      <span className="ml-auto text-slate-300 font-medium">{formatBRL(cat.value)}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Recent Transactions */}
-        <Card
-          className="lg:col-span-3 animate-fade-in-up"
-          style={{ animationDelay: '500ms', animationFillMode: 'both' }}
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Transações Recentes</CardTitle>
-              <Link href="/transactions" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
-                Ver todas →
-              </Link>
+                <p className="text-2xl font-bold text-foreground tracking-tight">
+                  {stat.isCurrency ? formatBRL(stat.value) : stat.value}
+                </p>
+
+                <div className="mt-3 flex items-center gap-2">
+                  {stat.trend && stat.trend.direction !== 'unknown' ? (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md',
+                        stat.trendColor,
+                      )}
+                      aria-label={stat.trend.label}
+                    >
+                      {stat.trend.direction === 'up' && <ArrowUpRight className="w-3.5 h-3.5" />}
+                      {stat.trend.direction === 'down' && <ArrowDownRight className="w-3.5 h-3.5" />}
+                      {stat.trend.direction === 'flat' && <Minus className="w-3.5 h-3.5" />}
+                      <span>{stat.trend.short}</span>
+                    </span>
+                  ) : stat.trend ? (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-medium text-muted bg-surface-muted px-2 py-0.5 rounded-md"
+                      aria-label="Sem mês anterior para comparação"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                      <span>Sem base anterior</span>
+                    </span>
+                  ) : null}
+
+                  <span className="text-xs text-muted truncate" title={stat.trendLabel}>
+                    {stat.trend ? 'vs mês anterior' : stat.trendLabel}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  const renderCategoriesCard = () => (
+    <section key="categories" aria-labelledby="categories-chart-title">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle id="categories-chart-title" className="text-base font-bold text-foreground">
+              Despesas por Categoria
+            </CardTitle>
+            <p className="text-xs text-muted mt-0.5">Distribuição dos gastos em {formattedMonth}</p>
+          </div>
+          {categoryData.length > 0 && (
+            <Badge variant="outline" className="text-xs font-semibold">
+              Total: {formatBRL(totalExpenses)}
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {categoryData.length === 0 ? (
+            <div className="py-12 flex flex-col items-center justify-center text-center">
+              <div className="w-12 h-12 rounded-full bg-surface-muted text-muted flex items-center justify-center mb-3">
+                <Inbox className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">
+                Nenhuma despesa categorizada neste mês
+              </p>
+              <p className="text-xs text-muted max-w-sm mt-1">
+                Lançamentos cadastrados com categorias aparecerão aqui para ajudar na sua gestão de orçamento.
+              </p>
             </div>
-          </CardHeader>
-          <CardContent>
-            {recentTransactions.length === 0 ? (
-               <div className="py-12 flex items-center justify-center text-slate-500 text-sm">
-                 Nenhuma transação encontrada.
-               </div>
-            ) : (
+          ) : (
+            <>
+              {/* Donut Chart with Centered Total */}
+              <div className="h-[240px] relative">
+                <CategoryChart data={categoryData} colors={CATEGORY_COLORS} />
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none"
+                  aria-hidden="true"
+                >
+                  <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+                    Total
+                  </span>
+                  <span className="text-lg font-bold text-foreground">
+                    {formatBRL(totalExpenses)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Accessible Summary Data Table underneath */}
+              <div className="pt-2 border-t border-border">
+                <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                  Tabela resumo de categorias ({formattedMonth})
+                </h3>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <caption className="sr-only">
+                      Detalhamento de despesas por categoria de {formattedMonth}
+                    </caption>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Categoria</TableHead>
+                        <TableHead className="text-xs text-right">Valor</TableHead>
+                        <TableHead className="text-xs text-right">Participação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categoryData.map((cat) => {
+                        const pct = totalExpenses > 0 ? (cat.value / totalExpenses) * 100 : 0;
+                        const label = TRANSACTION_CATEGORY_LABELS[cat.name as TransactionCategory] ?? cat.name;
+                        const color = CATEGORY_COLORS[cat.name] ?? CATEGORY_COLORS.desconhecido;
+
+                        return (
+                          <TableRow key={cat.name}>
+                            <TableCell className="text-xs font-medium text-foreground">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: color }}
+                                  aria-hidden="true"
+                                />
+                                <span>{label}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs font-semibold text-foreground text-right">
+                              {formatBRL(cat.value)}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted text-right">
+                              {pct.toFixed(1).replace('.', ',')}%
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  );
+
+  const renderRecentEntriesCard = () => (
+    <section key="recent-entries" aria-labelledby="recent-entries-title">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle id="recent-entries-title" className="text-base font-bold text-foreground">
+              Lançamentos do Mês
+            </CardTitle>
+            <p className="text-xs text-muted mt-0.5">Últimas transações em {formattedMonth}</p>
+          </div>
+          <Link
+            href="/transactions"
+            className="text-xs font-semibold text-primary hover:text-primary-hover flex items-center gap-1 transition-colors"
+          >
+            Ver todos
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </CardHeader>
+
+        <CardContent>
+          {recentTransactions.length === 0 ? (
+            <div className="py-12 flex flex-col items-center justify-center text-center">
+              <div className="w-12 h-12 rounded-full bg-surface-muted text-muted flex items-center justify-center mb-3">
+                <Inbox className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">
+                Nenhum lançamento em {formattedMonth}
+              </p>
+              <p className="text-xs text-muted max-w-sm mt-1 mb-4">
+                Registre seus gastos ou importe um extrato bancário para começar a acompanhar o mês.
+              </p>
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  onClick={() => setIsAddExpenseOpen(true)}
+                  className="touch-target"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Adicionar gasto
+                </Button>
+                <Link
+                  href="/imports"
+                  className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'touch-target')}
+                >
+                  <Upload className="w-4 h-4 mr-1.5" />
+                  Importar arquivo
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -259,50 +427,172 @@ export default function DashboardClient({
                     <TableHead className="text-xs">Descrição</TableHead>
                     <TableHead className="text-xs">Categoria</TableHead>
                     <TableHead className="text-xs text-right">Valor</TableHead>
-                    <TableHead className="text-xs hidden sm:table-cell">Fonte</TableHead>
+                    <TableHead className="text-xs hidden sm:table-cell">Origem</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentTransactions.map((tx) => (
-                    <TableRow key={tx.id} className="group/row">
-                      <TableCell className="text-xs text-slate-400 whitespace-nowrap">
-                        {formatDate(tx.date)}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium text-slate-200 max-w-[200px] truncate">
-                        {tx.description}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={tx.category} className="text-[10px]">
-                          {categoryLabels[tx.category] ?? tx.category}
-                        </Badge>
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          'text-xs font-semibold text-right whitespace-nowrap',
-                          Number(tx.amount) >= 0 ? 'text-emerald-400' : 'text-rose-400',
-                        )}
-                      >
-                        {Number(tx.amount) >= 0 ? '+' : ''}
-                        {formatBRL(Number(tx.amount))}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <span
+                  {recentTransactions.map((tx) => {
+                    const isPositive = Number(tx.amount) >= 0;
+                    const catLabel = TRANSACTION_CATEGORY_LABELS[tx.category] ?? tx.category;
+                    const sourceInfo = SOURCE_BADGES[tx.source] ?? {
+                      label: tx.source,
+                      className: 'bg-surface-muted text-muted border-border',
+                    };
+
+                    return (
+                      <TableRow key={tx.id}>
+                        <TableCell className="text-xs text-muted whitespace-nowrap">
+                          {formatDate(tx.date)}
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-foreground max-w-[220px] truncate">
+                          {tx.description}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={tx.category} className="text-[10px]">
+                            {catLabel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell
                           className={cn(
-                            'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase',
-                            sourceColors[tx.source] ?? 'bg-slate-800 text-slate-300 border-slate-700/50',
+                            'text-xs font-bold text-right whitespace-nowrap',
+                            isPositive ? 'text-success' : 'text-danger',
                           )}
                         >
-                          {tx.source}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          {isPositive ? '+' : ''}
+                          {formatBRL(Number(tx.amount))}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <span
+                            className={cn(
+                              'inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium',
+                              sourceInfo.className,
+                            )}
+                          >
+                            {sourceInfo.label}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  );
+
+  /* ------------------------------------------------------------------ */
+  /*  Card Map for Dynamic Ordering                                     */
+  /* ------------------------------------------------------------------ */
+
+  const cardRenderer: Record<DashboardCardId, () => React.JSX.Element> = {
+    'upcoming-bills': renderUpcomingBillsCard,
+    'month-summary': renderMonthSummaryCard,
+    categories: renderCategoriesCard,
+    'recent-entries': renderRecentEntriesCard,
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Real Error State Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-danger-soft text-danger border border-danger/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="text-sm font-bold">Falha ao obter dados financeiros</p>
+              <p className="text-xs opacity-90 mt-0.5">{error}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.refresh()}
+            className="self-start sm:self-auto border-danger/30 hover:bg-danger/10 text-danger shrink-0 touch-target"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Tentar novamente
+          </Button>
+        </div>
+      )}
+
+      {/* Invalid Month Query Warning */}
+      {!monthValid && (
+        <div
+          role="status"
+          className="p-3 rounded-xl bg-warning-soft text-warning border border-warning/20 text-xs flex items-center gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>
+            O mês solicitado no endereço não foi reconhecido. Exibindo os lançamentos de{' '}
+            <strong>{formattedMonth}</strong>.
+          </span>
+        </div>
+      )}
+
+      {/* Top Header with Month Navigator and Quick Actions */}
+      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-2 border-b border-border">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+              Meu mês
+            </h1>
+            {isCurrentMonth && (
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                Mês atual
+              </Badge>
             )}
-          </CardContent>
-        </Card>
+          </div>
+          <p className="mt-1 text-sm text-muted capitalize">
+            Visão consolidada de {formattedMonth}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <MonthSelector currentMonth={month} />
+
+          <Button
+            onClick={() => setIsAddExpenseOpen(true)}
+            size="default"
+            className="touch-target shadow-xs"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            Adicionar gasto
+          </Button>
+
+          <Link
+            href="/imports"
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'default' }),
+              'touch-target border-border text-foreground hover:bg-surface-muted',
+            )}
+          >
+            <Upload className="w-4 h-4 mr-1.5" />
+            Importar arquivo
+          </Link>
+        </div>
+      </header>
+
+      {/* Dynamic Cards Rendered in User Preferred Order & Visibility */}
+      <div className="space-y-6">
+        {activeCardIds.map((cardId) => {
+          const renderer = cardRenderer[cardId];
+          return renderer ? renderer() : null;
+        })}
       </div>
+
+      {/* Quick Add Expense Modal */}
+      <AddExpenseModal
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+        onSuccess={() => router.refresh()}
+        accounts={accounts}
+      />
     </div>
   );
 }

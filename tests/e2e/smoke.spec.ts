@@ -7,7 +7,7 @@ async function authenticate(page: Page) {
 }
 
 
-for (const path of ['/', '/accounts', '/transactions', '/settings', '/ai']) {
+for (const path of ['/', '/accounts', '/transactions', '/settings', '/ai', '/planning', '/imports']) {
   test(`renders ${path} without unhandled browser errors`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -31,9 +31,9 @@ test('reads the synthetic database fixture, not a swallowed DB error', async ({ 
 test('navigates between the existing account and settings screens', async ({ page }) => {
   await authenticate(page);
   await page.goto('/');
-  await page.getByRole('link', { name: 'Contas', exact: true }).filter({ visible: true }).click();
+  await page.getByRole('link', { name: 'Contas e cartões' }).filter({ visible: true }).first().click();
   await expect(page).toHaveURL(/\/accounts$/);
-  await page.getByRole('link', { name: 'Opções', exact: true }).filter({ visible: true }).click();
+  await page.getByRole('link', { name: 'Configurações' }).filter({ visible: true }).first().click();
   await expect(page).toHaveURL(/\/settings$/);
 });
 

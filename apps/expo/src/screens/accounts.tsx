@@ -108,7 +108,7 @@ export function AccountsScreen() {
         </View>
       ) : (
         <>
-          <Text style={styles.title}>Suas Contas</Text>
+          <Text style={styles.title}>Contas e cartões</Text>
           <Text style={styles.subtitle}>
             Conecte seu banco via Pluggy para visualizar seus saldos e sincronizar transações.
           </Text>
