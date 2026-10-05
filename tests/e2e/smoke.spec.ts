@@ -8,25 +8,59 @@ async function authenticate(request: APIRequestContext,email='a@example.test') {
   const response=await request.post('/api/auth/sign-in/email',{headers:{origin:'http://127.0.0.1:3000'},data:{email,password:TEST_PASSWORD}});
   expect(response.status()).toBe(200); return response;
 }
-for(const path of ['/','/accounts','/transactions','/settings','/ai']) {
+for(const path of ['/','/accounts','/transactions','/settings','/ai','/planning','/imports']) {
   test(`renders ${path} with a user session and no browser errors`,async({page})=>{
     const errors:string[]=[]; page.on('pageerror',error=>errors.push(error.message));
     await authenticate(page.request); const response=await page.goto(path);
     expect(response?.status()).toBe(200); await expect(page.getByRole('main')).toBeVisible(); expect(errors).toEqual([]);
   });
 }
+test('navigates through the desktop sidebar and the mobile drawer', async ({ page, isMobile }) => {
+  await authenticate(page.request);
+  await page.goto('/');
+  for (const [name, path] of [['Contas e cartões', '/accounts'], ['Configurações', '/settings']] as const) {
+    if (isMobile) await page.getByRole('button', { name: 'Abrir menu de navegação' }).click();
+    await page.getByRole('link', { name, exact: true }).filter({ visible: true }).first().click();
+    await expect(page).toHaveURL(new RegExp(path + '$'));
+    if (isMobile) await expect(page.getByRole('complementary', { name: 'Menu móvel' })).toHaveCount(0);
+  }
+});
+test('expense dialog retains edits, traps keyboard focus and restores the trigger', async ({ page }) => {
+  await authenticate(page.request);
+  await page.goto('/');
+  const trigger = page.getByRole('main').getByRole('button', { name: 'Adicionar gasto', exact: true });
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: 'Adicionar Gasto', exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Descrição do gasto *', { exact: true }).fill('Teste de foco');
+  await dialog.getByLabel('Valor (R$) *', { exact: true }).fill('10,00');
+  await dialog.getByLabel('Categoria', { exact: true }).selectOption('transporte');
+  await expect(dialog.getByLabel('Descrição do gasto *', { exact: true })).toHaveValue('Teste de foco');
+  for (let index = 0; index < 12; index++) {
+    await page.keyboard.press('Tab');
+    // Browsers can move focus to browser chrome (reported as body) at the
+    // document boundary, but the modal must never focus the inert background.
+    expect(await dialog.evaluate(element => element.matches(':modal') &&
+      (element.contains(document.activeElement) || document.activeElement === document.body))).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(page.getByLabel('Descrição do gasto *', { exact: true })).toHaveValue('');
+});
 test('login form uses a password and persists authenticated navigation',async({page})=>{
   await page.goto('/accounts'); await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel('Email',{exact:true}).fill('a@example.test');
   await page.getByLabel('Senha',{exact:true}).fill(TEST_PASSWORD);
   await page.getByRole('button',{name:'Entrar',exact:true}).click();
   await expect(page).toHaveURL('http://127.0.0.1:3000/');
-  await page.goto('/accounts'); await expect(page.getByText('Backup sintético',{exact:true})).toBeVisible();
-  await page.reload(); await expect(page.getByText('Backup sintético',{exact:true})).toBeVisible();
+  await page.goto('/accounts'); await expect(page.getByRole('heading', { name: 'Backup sintético', exact: true }).filter({ visible: true })).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Backup sintético', exact: true }).filter({ visible: true })).toBeVisible();
 });
 test('two users never see each other in SSR, APIs or forged filters',async({page,browser})=>{
   await authenticate(page.request);
-  await page.goto('/accounts'); await expect(page.getByText('Backup sintético',{exact:true})).toBeVisible();
+  await page.goto('/accounts'); await expect(page.getByRole('heading', { name: 'Backup sintético', exact: true }).filter({ visible: true })).toBeVisible();
   await expect(page.getByText('Conta B',{exact:true})).toHaveCount(0);
   const context=await browser.newContext(); const other:Page=await context.newPage();
   try {
@@ -34,6 +68,16 @@ test('two users never see each other in SSR, APIs or forged filters',async({page
     await other.goto('/accounts'); await expect(other.getByText('Conta B',{exact:true})).toBeVisible();
     await expect(other.getByText('Backup sintético',{exact:true})).toHaveCount(0);
     await other.goto('/transactions'); await expect(other.getByText('Compra sintética',{exact:true})).toHaveCount(0);
+    await other.goto('/?mes=2026-09');
+    await expect(other.getByText('Compra sintética', { exact: true })).toHaveCount(0);
+    await expect(other.getByText('Fatura Cartão A', { exact: true })).toHaveCount(0);
+    await expect(other.getByText('Recorrente', { exact: true })).toHaveCount(0);
+    await other.goto('/imports');
+    await expect(other.locator('option', { hasText: 'Backup sintético' })).toHaveCount(0);
+    await expect(other.getByText('confirmed', { exact: true })).toHaveCount(0);
+    await other.goto('/planning?mes=2026-09');
+    await expect(other.getByRole('main')).toBeVisible();
+    await expect(other.getByText('Recorrente', { exact: true })).toHaveCount(0);
     for(const query of ['', '?accountId=00000000-0000-4000-8000-000000000001','?id=00000000-0000-4000-8000-000000000002']) {
       const response=await other.request.get('/api/entries'+query); expect(response.status()).toBe(200); expect(await response.json()).toEqual({entries:[]});
     }
@@ -66,7 +110,7 @@ test('expired cookie returns to login and a new login resumes read access',async
   await page.getByLabel('Senha',{exact:true}).fill(TEST_PASSWORD);
   await page.getByRole('button',{name:'Entrar',exact:true}).click();
   await expect(page).toHaveURL('http://127.0.0.1:3000/');
-  await page.goto('/accounts'); await expect(page.getByText('Backup sintético',{exact:true})).toBeVisible();
+  await page.goto('/accounts'); await expect(page.getByRole('heading', { name: 'Backup sintético', exact: true }).filter({ visible: true })).toBeVisible();
 });
 test('private data is never cached and login/session JSON exposes no session token or password',async({request})=>{
   const login=await authenticate(request);
@@ -122,4 +166,7 @@ test('health exposes no private data and every other private API fails closed',a
   expect((await request.get('/api/health')).status()).toBe(200);
   for(const path of ['/api/accounts','/api/entries','/api/sessions','/api/pluggy/token','/api/transactions/nearby']) expect((await request.get(path)).status()).toBe(401);
   await page.goto('/accounts'); await expect(page).toHaveURL(/\/login$/); await expect(page.getByText('Backup sintético',{exact:true})).toHaveCount(0);
+  for (const path of ['/', '/planning', '/imports', '/settings']) {
+    await page.goto(path); await expect(page).toHaveURL(/\/login$/);
+  }
 });

@@ -3,7 +3,7 @@ import { SettingsClient } from './settings-client';
 import { SessionControls } from '@/components/session-controls';
 
 export const metadata: Metadata = {
-  title: 'EcoFinance | Opções',
+  title: 'EcoFinance | Configurações',
   description: 'Gerencie suas preferências e configurações.',
 };
 

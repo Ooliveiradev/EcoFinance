@@ -127,15 +127,15 @@ export default function App() {
           name="Home"
           component={HomeScreen}
           options={{
-            title: 'Início',
-            tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="home" color={color} size={size} />,
+            title: 'Meu mês',
+            tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="calendar-month" color={color} size={size} />,
           }}
         />
         <Tab.Screen
           name="Accounts"
           component={AccountsScreen}
           options={{
-            title: 'Contas',
+            title: 'Contas e cartões',
             tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="bank" color={color} size={size} />,
           }}
         />
@@ -151,7 +151,7 @@ export default function App() {
           name="Settings"
           component={SettingsScreen}
           options={{
-            title: 'Opções',
+            title: 'Configurações',
             tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="cog" color={color} size={size} />,
           }}
         />

@@ -108,7 +108,7 @@ export function AccountsScreen() {
         </View>
       ) : (
         <>
-          <Text style={styles.title}>Suas Contas</Text>
+          <Text style={styles.title}>Contas e cartões</Text>
           <Text style={styles.subtitle}>
             A conexão bancária legada está desativada durante a migração. Consulte suas contas na web.
           </Text>

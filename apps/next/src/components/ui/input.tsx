@@ -3,18 +3,21 @@ import { cn } from '@/lib/utils';
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
-function Input({ className, type, ...props }: InputProps) {
-  return (
-    <input
-      type={type}
-      className={cn(
-        'flex h-10 w-full rounded-xl border border-slate-700/30 bg-slate-900/60 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50 transition-colors duration-200 backdrop-blur-sm file:border-0 file:bg-transparent file:text-sm file:font-medium',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type = 'text', ...props }, ref) => {
+    return (
+      <input
+        ref={ref}
+        type={type}
+        className={cn(
+          'flex h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors duration-150',
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+);
 Input.displayName = 'Input';
 
 export { Input };
