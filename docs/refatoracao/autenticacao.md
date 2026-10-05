@@ -27,7 +27,7 @@ Fontes: [Drizzle](https://better-auth.com/docs/adapters/drizzle), [Bearer](https
 - Troca de senha força revokeOtherSessions no servidor, independentemente do valor enviado pelo cliente. Recuperação pelo operador revoga todas as sessões em uma transação.
 - Web: cookie HttpOnly, SameSite=Strict, Secure com AUTH_URL HTTPS. Senhas/tokens de sessão não aparecem no JSON público. O navegador não recebe set-auth-token.
 - Expo: token assinado individual, obtido após email/senha, no SecureStore WHEN_UNLOCKED_THIS_DEVICE_ONLY; nunca AsyncStorage ou variável pública. A configuração antiga é apagada no upgrade.
-- O app não segue redirects com credenciais. Um 401 apaga apenas a sessão correspondente, volta ao login e não reenvia mutações. Uma resposta antiga não apaga um login mais recente. Falha de rede no logout não anuncia revogação e permite retry.
+- O app não segue redirects com credenciais. Um 401 apaga apenas a sessão correspondente, volta ao login e não reenvia mutações. Uma resposta antiga não apaga um login mais recente: leituras, comparação/exclusão e gravação no SecureStore são serializadas; logout conserva a identidade capturada no início. Falha de rede no logout não anuncia revogação e permite retry.
 - A exclusão de sessão ocorre imediatamente no banco; não existe janela de cookie cache aceitando token revogado. Respostas privadas usam Cache-Control: private, no-store.
 
 ## Fronteiras de autorização
@@ -119,4 +119,4 @@ Casos cobertos: dois proprietários e IDs/filtros cruzados; credenciais ausentes
 | #36 — cookie, storage, expiração e retorno ao login | cookie HTTPS seguro, SecureStore por aparelho, evento de expiração; testes de rede/replay e resposta antiga após novo login |
 | #36 — decisão, procedimento e evidência | política, recuperação e rollback acima; testes usam bancos descartáveis, sem certificação de produção |
 
-Resultados locais: 47 testes unitários, 31 testes PostgreSQL e 66 E2E aprovados. A cobertura das políticas de acesso, limites de corpo e contratos de consulta é 100% de linhas e branches; a cobertura unitária global é 98,68% de linhas / 92,48% de branches. O fechamento depende também de todos os jobs obrigatórios da CI do PR aprovados.
+Resultados locais: 50 testes unitários, 31 testes PostgreSQL e 66 E2E aprovados. A cobertura das políticas de acesso, limites de corpo e contratos de consulta é 100% de linhas e branches; a cobertura unitária global é 98,68% de linhas / 92,48% de branches. O fechamento depende também de todos os jobs obrigatórios da CI do PR aprovados.

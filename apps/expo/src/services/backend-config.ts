@@ -5,6 +5,14 @@ const LEGACY_KEY = 'ecofinance.backend';
 export type BackendConfig = { url: string; credential: string; userId: string };
 export class SessionExpired extends Error {}
 const listeners = new Set<() => void>();
+let storageQueue: Promise<void> = Promise.resolve();
+// SecureStore has no compare-and-delete operation. Serialize access so expiry
+// and logout cannot erase a login saved between a comparison and deletion.
+function withStorage<T>(operation: () => Promise<T>): Promise<T> {
+  const result = storageQueue.then(operation);
+  storageQueue = result.then(() => {}, () => {});
+  return result;
+}
 export function onSessionExpired(listener: () => void) {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
@@ -18,7 +26,7 @@ export function validateBackendConfig(config: BackendConfig): BackendConfig {
       !/^[0-9a-f-]{36}$/i.test(config.userId)) throw new Error('Sessão inválida.');
   return { url: url.origin, credential: config.credential, userId: config.userId };
 }
-export async function loadBackendConfig(): Promise<BackendConfig | null> {
+async function readConfig(): Promise<BackendConfig | null> {
   // Never reuse the pre-ownership global credential after this upgrade.
   await SecureStore.deleteItemAsync(LEGACY_KEY);
   const value = await SecureStore.getItemAsync(CONFIG_KEY);
@@ -26,29 +34,42 @@ export async function loadBackendConfig(): Promise<BackendConfig | null> {
   try { return validateBackendConfig(JSON.parse(value)); }
   catch { await SecureStore.deleteItemAsync(CONFIG_KEY); return null; }
 }
+export function loadBackendConfig() { return withStorage(readConfig); }
 export async function saveBackendConfig(config: BackendConfig): Promise<void> {
-  await SecureStore.setItemAsync(CONFIG_KEY, JSON.stringify(validateBackendConfig(config)), {
+  await withStorage(() => SecureStore.setItemAsync(CONFIG_KEY, JSON.stringify(validateBackendConfig(config)), {
     keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  });
+  }));
 }
 export async function clearSession() {
-  await SecureStore.deleteItemAsync(CONFIG_KEY);
-  for (const listener of listeners) listener();
+  await withStorage(async () => {
+    await SecureStore.deleteItemAsync(CONFIG_KEY);
+    for (const listener of listeners) listener();
+  });
+}
+async function clearMatchingSession(expected: BackendConfig | null) {
+  await withStorage(async () => {
+    const current = await readConfig();
+    if (current?.credential !== expected?.credential || current?.url !== expected?.url || current?.userId !== expected?.userId) return;
+    await SecureStore.deleteItemAsync(CONFIG_KEY);
+    for (const listener of listeners) listener();
+  });
 }
 export async function backendFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const config = await loadBackendConfig();
   if (!config) {
-    for (const listener of listeners) listener();
+    await clearMatchingSession(null);
     throw new SessionExpired('Entre novamente para continuar.');
   }
+  return fetchForSession(config, path, init);
+}
+async function fetchForSession(config: BackendConfig, path: string, init: RequestInit): Promise<Response> {
   if (!path.startsWith('/api/') || path.startsWith('//') || path.includes('..') || /[\\?#]/.test(path)) throw new Error('Endpoint inválido.');
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${config.credential}`);
   const response = await fetch(`${config.url}${path}`, { ...init, signal: init.signal ?? AbortSignal.timeout(15000), credentials: 'omit', headers, redirect: 'error' });
   if (response.status === 401) {
     // An old request completing after a new login must not erase that session.
-    const current = await loadBackendConfig();
-    if (current?.credential === config.credential) await clearSession();
+    await clearMatchingSession(config);
     throw new SessionExpired('Sessão expirada. Entre novamente; nada foi reenviado.');
   }
   return response;
@@ -70,14 +91,17 @@ export async function signIn(urlValue: string, email: string, password: string) 
   await saveBackendConfig({ url: url.origin, credential, userId: data.user.id });
 }
 export async function signOut(all = false) {
-  if (all) {
-    const result = await backendFetch('/api/auth/revoke-sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    if (!result.ok) throw new Error('Não foi possível revogar sessões. Tente novamente.');
-  }
   try {
-    const response = await backendFetch('/api/auth/sign-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const config = await loadBackendConfig();
+    if (!config) { await clearMatchingSession(null); return; }
+    const init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' };
+    if (all) {
+      const result = await fetchForSession(config, '/api/auth/revoke-sessions', init);
+      if (!result.ok) throw new Error('Não foi possível revogar sessões. Tente novamente.');
+    }
+    const response = await fetchForSession(config, '/api/auth/sign-out', init);
     if (!response.ok) throw new Error('Não foi possível sair no servidor. Tente novamente.');
-    await clearSession();
+    await clearMatchingSession(config);
   } catch (error) {
     if (!(error instanceof SessionExpired)) throw error;
   }

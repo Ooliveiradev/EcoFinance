@@ -62,4 +62,43 @@ describe('mobile device sessions', () => {
     store.get.mockResolvedValue(JSON.stringify(config)); vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     await expect(signOut()).rejects.toThrow('offline'); expect(store.remove).not.toHaveBeenCalledWith('ecofinance.session.v2');
   });
+  it.each([401, 200])('serializes new login against pending credential deletion (%i)', async status => {
+    let stored: string | null = JSON.stringify(config);
+    const next = { ...config, credential: 'new.signed' };
+    let entered!: () => void; let release!: () => void;
+    const deleting = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    store.get.mockImplementation(async () => stored);
+    store.set.mockImplementation(async (_key: string, value: string) => { stored = value; });
+    store.remove.mockImplementation(async (key: string) => {
+      if (key !== 'ecofinance.session.v2') return;
+      entered(); await gate; stored = null;
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status })));
+    const pending = status === 401 ? backendFetch('/api/accounts').catch(error => error) : signOut();
+    await deleting;
+    const saving = saveBackendConfig(next);
+    expect(store.set).not.toHaveBeenCalled();
+    release(); await saving;
+    if (status === 401) expect(await pending).toBeInstanceOf(SessionExpired);
+    else await pending;
+    expect(await loadBackendConfig()).toEqual(next);
+  });
+  it('an old successful logout cannot clear a login completed while its response was pending', async () => {
+    let stored: string | null = JSON.stringify(config);
+    let respond!: (value: Response) => void; let started!: () => void;
+    const response = new Promise<Response>(resolve => { respond = resolve; });
+    const request = new Promise<void>(resolve => { started = resolve; });
+    store.get.mockImplementation(async () => stored);
+    store.set.mockImplementation(async (_key: string, value: string) => { stored = value; });
+    store.remove.mockImplementation(async (key: string) => { if (key === 'ecofinance.session.v2') stored = null; });
+    const fetch = vi.fn().mockImplementation(() => { started(); return response; });
+    vi.stubGlobal('fetch', fetch);
+    const pending = signOut(); await request;
+    const next = { ...config, credential: 'new.signed' };
+    await saveBackendConfig(next); respond(new Response('{}'));
+    await pending;
+    expect(await loadBackendConfig()).toEqual(next);
+    expect(fetch.mock.calls[0]![1].headers.get('Authorization')).toBe('Bearer '+config.credential);
+  });
 });
