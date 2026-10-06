@@ -1,0 +1,1778 @@
+{
+  "accounts": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "openingBalance",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "openingDate",
+        "type": "date",
+        "nullable": true
+      },
+      {
+        "key": "archivedAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "name",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "type",
+        "type": "account_type",
+        "nullable": false
+      },
+      {
+        "key": "balance",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "pluggyItemId",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "pluggyAccountId",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "budgetCategories": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "budgetId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "categoryId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "limit",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "budgetId",
+        "categoryId"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "budgets",
+        "fields": [
+          "ownerId",
+          "budgetId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "categories",
+        "fields": [
+          "ownerId",
+          "categoryId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "budgets": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "competenceMonth",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "limit",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "expectedIncome",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "reserve",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "competenceMonth"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "cards": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "name",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "paymentAccountId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "closingDay",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "dueDay",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "archivedAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "accounts",
+        "fields": [
+          "ownerId",
+          "paymentAccountId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "categories": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "name",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "color",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "icon",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "sortOrder",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "legacyKey",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "archivedAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "legacyKey"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "financialMigrationAudits": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "version",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "timezone",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "beforeSnapshot",
+        "type": "jsonb",
+        "nullable": false
+      },
+      {
+        "key": "afterSnapshot",
+        "type": "jsonb",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "version"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "importBatches": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "accountId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "cardId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "source",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "state",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "idempotencyKey",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "fileHash",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "storageKey",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "expiresAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "idempotencyKey"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "accounts",
+        "fields": [
+          "ownerId",
+          "accountId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "cards",
+        "fields": [
+          "ownerId",
+          "cardId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "importItems": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "batchId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "position",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "accountId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "categoryId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "invoiceId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "transactionId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "amount",
+        "type": "numeric(15, 2)",
+        "nullable": true
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "description",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "kind",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "purchaseDate",
+        "type": "date",
+        "nullable": true
+      },
+      {
+        "key": "competenceMonth",
+        "type": "date",
+        "nullable": true
+      },
+      {
+        "key": "provenance",
+        "type": "jsonb",
+        "nullable": false
+      },
+      {
+        "key": "warnings",
+        "type": "jsonb",
+        "nullable": false
+      },
+      {
+        "key": "state",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "batchId",
+        "position"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "importBatches",
+        "fields": [
+          "ownerId",
+          "batchId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "accounts",
+        "fields": [
+          "ownerId",
+          "accountId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "categories",
+        "fields": [
+          "ownerId",
+          "categoryId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "invoices",
+        "fields": [
+          "ownerId",
+          "invoiceId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "transactions",
+        "fields": [
+          "ownerId",
+          "transactionId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "installmentGroups": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "cardId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "description",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "totalAmount",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "count",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "purchaseDate",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "cards",
+        "fields": [
+          "ownerId",
+          "cardId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "installments": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "groupId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "invoiceId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "number",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "amount",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "competenceMonth",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "groupId",
+        "number"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "installmentGroups",
+        "fields": [
+          "ownerId",
+          "groupId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "invoices",
+        "fields": [
+          "ownerId",
+          "invoiceId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "invoices": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "cardId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "competenceMonth",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "closingDate",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "dueDate",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "statedTotal",
+        "type": "numeric(15, 2)",
+        "nullable": true
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "status",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "cardId",
+        "competenceMonth"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "cards",
+        "fields": [
+          "ownerId",
+          "cardId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "preferences": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "settings",
+        "type": "jsonb",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "recurrenceOccurrences": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ruleId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "competenceMonth",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "dueDate",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "amount",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "status",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "ruleId",
+        "competenceMonth"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "recurrenceRules",
+        "fields": [
+          "ownerId",
+          "ruleId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "recurrenceRules": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "accountId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "categoryId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "description",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "amount",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "startDate",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "endDate",
+        "type": "date",
+        "nullable": true
+      },
+      {
+        "key": "dueDay",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "estimated",
+        "type": "boolean",
+        "nullable": false
+      },
+      {
+        "key": "archivedAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "accounts",
+        "fields": [
+          "ownerId",
+          "accountId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "categories",
+        "fields": [
+          "ownerId",
+          "categoryId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "transactions": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "accountId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "categoryId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "kind",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "status",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "currency",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "purchaseDate",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "competenceMonth",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "dueDate",
+        "type": "date",
+        "nullable": true
+      },
+      {
+        "key": "paidDate",
+        "type": "date",
+        "nullable": true
+      },
+      {
+        "key": "reviewRequired",
+        "type": "boolean",
+        "nullable": false
+      },
+      {
+        "key": "invoiceId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "installmentId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "recurrenceOccurrenceId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "archivedAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "description",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "amount",
+        "type": "numeric(15, 2)",
+        "nullable": false
+      },
+      {
+        "key": "date",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "category",
+        "type": "transaction_category",
+        "nullable": false
+      },
+      {
+        "key": "source",
+        "type": "transaction_source",
+        "nullable": false
+      },
+      {
+        "key": "externalId",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "latitude",
+        "type": "double precision",
+        "nullable": true
+      },
+      {
+        "key": "longitude",
+        "type": "double precision",
+        "nullable": true
+      },
+      {
+        "key": "uberMetadataId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "accountId",
+        "source",
+        "externalId"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      },
+      {
+        "collection": "accounts",
+        "fields": [
+          "ownerId",
+          "accountId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "categories",
+        "fields": [
+          "ownerId",
+          "categoryId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "uberTripsMetadata",
+        "fields": [
+          "ownerId",
+          "uberMetadataId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "invoices",
+        "fields": [
+          "ownerId",
+          "invoiceId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "installments",
+        "fields": [
+          "ownerId",
+          "installmentId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "collection": "recurrenceOccurrences",
+        "fields": [
+          "ownerId",
+          "recurrenceOccurrenceId"
+        ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      }
+    ]
+  },
+  "uberTripsMetadata": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "originAddress",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "destinationAddress",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "driverName",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "durationSeconds",
+        "type": "integer",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "ownerId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "users": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "displayName",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "email",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "emailVerified",
+        "type": "boolean",
+        "nullable": false
+      },
+      {
+        "key": "image",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "email"
+      ]
+    ],
+    "refs": []
+  },
+  "authAccounts": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "userId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "accountId",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "providerId",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "password",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "accessToken",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "refreshToken",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "idToken",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "scope",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "accessTokenExpiresAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "refreshTokenExpiresAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "providerId",
+        "accountId"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "userId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "authRateLimits": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "key",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "count",
+        "type": "integer",
+        "nullable": false
+      },
+      {
+        "key": "lastRequest",
+        "type": "bigint",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "key"
+      ]
+    ],
+    "refs": []
+  },
+  "authSessions": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "userId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "token",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "expiresAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "ipAddress",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "userAgent",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "token"
+      ]
+    ],
+    "refs": [
+      {
+        "collection": "users",
+        "fields": [
+          "userId"
+        ],
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "authVerifications": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "identifier",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "value",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "expiresAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [],
+    "refs": []
+  }
+}

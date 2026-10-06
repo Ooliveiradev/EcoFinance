@@ -3,6 +3,7 @@ import { open, readFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import postgres from 'postgres';
 import { compareSnapshots, exportSnapshot, validateSnapshot } from '../src/portable-snapshot';
+import { restorePortable } from '../src/portable-restore';
 
 const [command, ...paths] = process.argv.slice(2);
 const read = async (path: string) => JSON.parse(await readFile(resolve(path), 'utf8')) as unknown;
@@ -29,6 +30,11 @@ try {
     } finally {
       await sql.end({ timeout: 5 });
     }
+  } else if(command==='restore' && paths.length===1) {
+    if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required.');
+    const sql=postgres(process.env.DATABASE_URL,{max:1,prepare:false,onnotice:()=>{}});
+    try { await restorePortable(sql,await read(paths[0]!));console.log('PASS: atomic restore into empty SQL target; sessions revoked.'); }
+    finally {await sql.end({timeout:5});}
   } else {
     throw new Error('Usage: db:snapshot export <new-file> | verify <file> | compare <source> <target>');
   }

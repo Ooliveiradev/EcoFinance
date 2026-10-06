@@ -1,151 +1,196 @@
 # Migração para Firebase — issue 47
 
-Atualizado em 06/10/2026. Projeto indicado: `ecofinance-912de`. Esta é a
-preparação da migração; o runtime continua usando PostgreSQL. Banco/edição,
-acesso ao destino e existência de dados reais no Supabase ainda precisam ser
-confirmados. Nenhum recurso Firebase ou dado real foi alterado.
+Atualizado em 06/10/2026. O mantenedor confirmou que o Supabase está vazio.
+Projeto: `ecofinance-912de`; banco **`ecofinance`**, Enterprise Native, região
+**São Paulo (`southamerica-east1`)**. API habilitada, banco criado e regras/índices
+publicados pelo Firebase CLI. A base real foi inicializada vazia e seu backup
+foi verificado. Nenhuma fixture sintética foi inserida no projeto real.
 
-## Inventário da origem
+O runtime web usa Firestore para finanças, identidade Better Auth, credenciais,
+sessões e limites de login. O Expo conserva seu contrato HTTP e SecureStore.
+Firebase Authentication, Storage e Hosting não foram substituídos nesta issue.
+A publicação do site em um serviço de hospedagem é separada da configuração do banco.
 
-PostgreSQL/PostGIS e Drizzle, migrations 0001–0004. Não há SDK Supabase no
-runtime. Better Auth armazena identidade, hashes Argon2, sessões revogáveis e
-rate limits no mesmo banco. Retirar PostgreSQL exige adaptar também esse
-armazenamento, mesmo que o login não mude para Firebase Authentication.
+## Inventário e modelo
 
-| Tabelas | Dados e vínculos a preservar |
+Origem histórica: PostgreSQL/PostGIS, Drizzle e migrations 0001–0004.
+São 21 tabelas, exportadas pelo catálogo em `portable-snapshot.ts`:
+
+| Grupo | Coleções Firestore correspondentes |
 | --- | --- |
-| users | UUID, email normalizado/único, nome e estado de verificação |
-| accounts, categories | Dono, saldos de abertura e legados, moeda, arquivamento |
-| transactions, uber_trips_metadata | Conta/categoria do mesmo dono, datas distintas, origens/IDs externos e geografia histórica |
-| recurrence_rules, recurrence_occurrences | Conta/categoria, calendário e ocorrência única por regra/mês |
-| budgets, budget_categories | Mês único por dono e limites por categoria |
-| cards, invoices | Conta de pagamento, fechamento/vencimento e fatura única por cartão/mês |
-| installment_groups, installments | Total, quantidade, número único de parcela e fatura |
-| import_batches, import_items | Idempotência por dono, posição única, estado, proveniência e vínculos |
-| preferences, financial_migration_audits | Preferências e evidência histórica de backfill |
-| auth_accounts, auth_sessions, auth_verifications, auth_rate_limits | Hashes, credenciais, expiração, recuperação e limites compartilhados |
+| Identidade | users, authAccounts, authSessions, authVerifications, authRateLimits |
+| Contas/lançamentos | accounts, categories, transactions, uberTripsMetadata |
+| Planejamento | recurrenceRules, recurrenceOccurrences, budgets, budgetCategories |
+| Cartões | cards, invoices, installmentGroups, installments |
+| Importações | importBatches, importItems |
+| Preferências/auditoria | preferences, financialMigrationAudits |
 
-São **21 tabelas de aplicação**, mais `ecofinance_migrations`. O catálogo
-executável em `packages/db/src/portable-snapshot.ts` deriva colunas/FKs do
-schema e inclui `transactions.geom`, mantida pelo SQL fora do Drizzle.
-Schemas externos como `auth`/`storage` e objetos do provedor exigem inventário
-separado; o exportador não afirma cobri-los.
+Cada documento usa o UUID existente como ID. Campos são camelCase, preservando
+o contrato TypeScript. `_unique` guarda claims transacionais de todos os índices
+únicos da origem; `_migration/source` registra schema/hash/histórico importado.
+`firestore-catalog.json` congela tipos, referências e unicidades sem carregar SQL
+no runtime. Validação de escrita exige valores/tipos corretos, moeda BRL,
+datas válidas, sinais/estados, proprietário imutável e referências do mesmo dono.
+Exclusão direta de finanças/usuários é recusada; fluxos de arquivamento e CRUD
+completo pertencem à #5 e seguintes. Auth só apaga registros descartáveis.
 
-| Consumidor | Adaptação necessária |
-| --- | --- |
-| lib/dashboard-data.ts | Somas, agrupamento, período anterior, últimas transações, recorrências/faturas e contas |
-| lib/owned-queries.ts; GET /api/entries | Dono/conta/data/descrição, ordenação e limite; substring não equivale a consulta Firestore simples |
-| GET /api/accounts; páginas accounts/transactions | Leitura restrita ao dono e serialização exata |
-| páginas planning/imports | Relações de orçamento, recorrência, cartão/fatura e lote |
-| lib/auth.ts, provision-user.ts, api/auth e api/sessions | Adapter mantido, email único, provisionamento atômico, revogação e rate limit |
-| Expo | Continua consumindo API; credenciais administrativas nunca vão ao cliente |
-| Ingestão/chat/mapa legados | Manter rotas desativadas durante a troca |
+Dinheiro permanece string decimal; somas usam BigInt em centavos no servidor.
+O gráfico recebe Number apenas após verificar o limite de representação. Datas
+civis permanecem YYYY-MM-DD, competências no primeiro dia. Timestamps são nativos
+Firestore e conservam microssegundos no armazenamento, inclusive após ler/editar
+campos diferentes. A geografia PostGIS histórica é preservada como campo de
+migração; integrações/mapa antigos continuam desativados.
 
-## Destino e acesso
+JSON é convertido somente quando todos os números têm representação decimal
+exata em JS/Firestore. Inteiros/decimais que perderiam precisão e contadores fora
+do intervalo seguro são recusados, sem converter silenciosamente. A origem real
+vazia não exige esse caso; uma migração futura com esses campos precisa de codec
+específico antes de ser autorizada ao corte.
 
-A CLI desta sessão não conseguiu ler a configuração pessoal (`EPERM`). Com
-configuração temporária, informou ausência de autenticação. Após login:
+## Consultas, integridade e autenticação
+
+Leituras usam pipelines Enterprise com ownerId aplicado pelo servidor. O cliente
+não fornece o proprietário. IDs/conta/período/substring são filtros validados;
+pipelines preservam substring literal sem tratar `%`/`_` como SQL. Os joins buscam
+somente IDs referenciados e verificam novamente seu proprietário. Índices densos
+por dono/data/mês/nome e chaves de login estão em `firestore.indexes.json`.
+
+Dashboard/planejamento filtram período no banco, com agregação BigInt no servidor
+para evitar overflow/arredondamento de dinheiro. Isso é uma escolha de precisão:
+a API Number do SDK não conserva qualquer soma int64 acima de 2^53. Nenhuma
+agregação financeira é delegada ao navegador. Consultas sem limite explícito
+recusam mais de 10.000 documentos, em vez de mostrar totais truncados; a futura
+paginação/materialização deve acompanhar crescimento. Listagem de entries tem
+limite validado; histórico de imports retorna os dez últimos lotes.
+
+O adaptador Better Auth usa a fábrica oficial, pipelines e transações Firestore,
+com email/credenciais/tokens únicos. Hashes Argon2, cookies HttpOnly/Strict/Secure,
+Bearer assinado por dispositivo, validade absoluta de seis horas, revogação em
+cada pedido, proteção de origem/CSRF e limites de corpo são mantidos. O contador
+de login é atômico e compartilhado entre réplicas. Escritas ficam enfileiradas até
+o commit; consultar uma coleção depois de alterá-la na mesma transação é recusado
+para impedir leitura obsoleta. Reset consulta sessões antes de escrever.
+
+`next.config.ts` externaliza Admin e Firestore juntos: pipelines verificam classes
+com instanceof e o bundle parcial criava duas instâncias incompatíveis do SDK.
+Os testes contra o build de produção cobrem esse cenário.
+
+## Ambientes e acesso
+
+Configure `FIREBASE_PROJECT_ID`, `FIRESTORE_DATABASE_ID`, `AUTH_URL` e `AUTH_SECRET`.
+No desenvolvimento local, use o fluxo oficial:
 
 ```sh
-npx firebase-tools@latest login
-npx firebase-tools@latest firestore:databases:list --project ecofinance-912de
-npx firebase-tools@latest firestore:databases:get <database-id> --project ecofinance-912de
+gcloud auth application-default login --project ecofinance-912de
+pnpm db:firebase init-empty
+pnpm dev
 ```
 
-Registrar banco, edição, região e identidade do runtime antes de adicionar
-dependências ou modelagem específicas. Avaliar Firestore e SQL Connect
-(anteriormente Data Connect) conforme o projeto existente: o primeiro exige
-substituir joins/FKs/constraints por consultas e transações da aplicação; o
-segundo mantém modelo relacional, com serviço SQL gerenciado e contratos próprios.
-Custos e compatibilidade precisam ser comprovados antes da decisão.
+ADC local foi criado pelo login oficial aprovado pelo mantenedor. `.env` contém
+apenas o caminho local ADC e a configuração do servidor; arquivos sensíveis ficam
+fora do Git. O token do Firebase CLI não foi copiado para outro arquivo.
+Na hospedagem, use identidade de serviço/Workload Identity e a permissão
+`roles/datastore.user`, vinculada ao banco necessário; não publique ADC de usuário.
+A URL AUTH_URL deve ser HTTPS fora de localhost. Não há cadastro público: crie
+o primeiro acesso por JSON em stdin conforme `autenticacao.md`.
 
-No Firestore, manter UUIDs originais, dinheiro em string decimal ou centavos
-inteiros com limite comprovado, datas civis como strings e timestamps sem truncar
-microssegundos. Identidades únicas exigem reservas transacionais: email, origem
-externa, ocorrência/mês, fatura e idempotência. Ciclos entre transação, parcela,
-fatura e item de importação exigem importação em duas fases e validação global.
+As regras publicadas são um protótipo que **nega toda leitura/escrita direta** de
+clientes, autenticados ou não. O Admin SDK usa IAM e ignora essas regras, portanto
+os testes de ownership no servidor são obrigatórios. O emulador verifica seis
+pedidos negados, e o deploy compila a sintaxe. Revisar antes de ampliar o público.
+Nenhuma chave administrativa vai ao navegador ou Expo.
 
-Com acesso exclusivamente pela API, negar acesso direto de clientes ao banco.
-Admin SDK exige IAM restrito e autorização da API; Security Rules não substituem
-esse isolamento. Usar identidade/ADC no servidor quando possível. Escolher um
-adapter Better Auth compatível e testar login/revogação/recuperação/concorrência
-antes de retirar PostgreSQL. Não trocar hashes de senha por valores reversíveis.
+Para desenvolvimento/testes, defina `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`,
+`FIREBASE_PROJECT_ID=demo-ecofinance` e `FIRESTORE_DATABASE_ID=ecofinance`.
+Use Java 21 e `firebase-tools@15.32.1`. As fixtures recusam modificar projeto real.
 
-Ensaiar dono/mês/data/ID, dono/conta/mês, dono/categoria/mês, regra/mês,
-cartão/mês, lote/posição, sessão/expiração e rate limit. Índices dependem da edição
-e das operações. Medir leituras, latência p50/p95, índices, escritas e custo com
-carga sintética reproduzível. Medições Firebase ainda estão pendentes.
+## Migração, backup e corte
 
-Referências: [transações Firestore](https://firebase.google.com/docs/firestore/manage-data/transactions),
-[limites](https://firebase.google.com/docs/firestore/quotas),
-[SQL Connect](https://firebase.google.com/docs/sql-connect).
+1. Coloque a instalação em manutenção e interrompa novas escritas/login. Não faça
+   dual-write. Guarde revisão de código, configuração e backup fora do repositório.
+2. Origem SQL com dados: `pnpm db:snapshot export .local-migrations/source.json`.
+   A exportação é repeatable-read somente leitura, UTC, com limite de 100.000 linhas,
+   inventário exato de tabelas/colunas, SHA-256, somas em centavos e FKs/ownership.
+   `pnpm db:snapshot verify <arquivo>` não abre conexão.
+3. Destino Firestore vazio: `pnpm db:firebase import <source.json>`; origem realmente
+   vazia confirmada pelo operador: `pnpm db:firebase init-empty`.
+4. O importador pré-valida todo o grafo, tipos, unicidades e tamanho; cria todos os
+   documentos/claims/metadados em **uma transação**. Limite: 400 documentos incluindo
+   claims, 8 MiB no total e 900 KiB por documento. Acima disso, recusa o corte e exige
+   export/import gerenciado ou ferramenta com staging validado. Não divide um grafo
+   em commits parciais. É adequado à base atual vazia e ao ensaio sintético.
+5. Reexecutar a mesma entrada em destino idêntico não duplica registros. Destino
+   preenchido/divergente é recusado. Após commit, todos os documentos são reconciliados.
+6. `pnpm db:firebase backup <novo-arquivo.json>` faz leitura consistente transacional
+   de todas as coleções e claims, com codecs tipados para timestamps/maps/arrays e
+   hash do conjunto completo. `restore <backup.json>` restaura em destino vazio e
+   reconcilia. Não sobrescreve destinos diferentes nem arquivos existentes.
+7. Teste login/leituras/isolamento na nova revisão antes de reabrir escritas. Este
+   banco começou sem usuários; provisione o primeiro acesso pelo operador.
 
-## Exportação verificável
+## Reversão e escritas posteriores
 
-Usar origem já atualizada pelas migrations 0001–0004. Banco legado deve primeiro
-ser restaurado isoladamente e passar pelo backfill com dono/fuso explícitos.
-Não migrar o banco real apenas para exportá-lo.
+Feche acesso/escritas antes de reverter. Um backup antigo da origem não contém os
+novos dados. Primeiro faça backup Firestore e gere **o estado atual**:
 
 ```sh
-# DATABASE_URL aponta para a origem/restauração inventariada.
-pnpm db:snapshot export .local-migrations/source.json
-pnpm db:snapshot verify .local-migrations/source.json
-# Após implementar exportação compatível do destino:
-pnpm db:snapshot compare .local-migrations/source.json .local-migrations/target.json
+pnpm db:firebase export-portable .local-migrations/current.json
 ```
 
-Uma transação REPEATABLE READ READ ONLY, com timezone UTC, exporta os campos
-das 21 tabelas sem modificar a origem. `numeric`, `bigint`, JSONB, datas,
-timestamps e geografia viram texto **no PostgreSQL, antes de JSON.parse**.
-JSONB é texto JSON, preservando números internos grandes; `geom` é EWKB
-hexadecimal. O futuro importer deve respeitar esses codecs.
+Prepare PostgreSQL/PostGIS isolado e vazio, aplique as migrations legadas com
+`pnpm db:migrate`, então configure DATABASE_URL desse destino e execute:
 
-Cada tabela contém registros, contagem, SHA-256 canônico e somas monetárias em
-centavos usando BigInt serializado como string. Verificação recusa campos
-ausentes/desconhecidos, IDs repetidos, tipos errados, checksum/soma divergente,
-referência ausente e vínculo entre donos. Comparação exige igualdade de todos os
-registros e do histórico nome/checksum, não apenas totais; horário de exportação
-pode diferir. Isso verifica transporte/vínculos, não todas as regras de domínio.
-Hashes detectam alteração, mas não autenticam um artefato contra um invasor que
-também possa recalculá-los.
+```sh
+pnpm db:snapshot restore .local-migrations/current.json
+pnpm db:snapshot export .local-migrations/sql-restored.json
+```
 
-O arquivo contém dados privados, hashes de senha e possíveis tokens. Guardar
-localmente em pasta protegida; nunca anexar a PR/issue/CI nem enviar ao Jev.
-`.local-migrations/` é ignorada pelo Git. O comando cria um arquivo novo de modo
-exclusivo, com modo 0600 onde suportado; no Windows, conferir ACLs da pasta.
-Logs não imprimem linhas nem URL da conexão.
+O restore usa casts parametrizados de texto (o serializer Date do driver perderia
+microssegundos), ordem das FKs e uma transação única. PostGIS recalcula geom a
+partir das coordenadas. Revoga sessões restauradas; teste novo login. Compare
+contagens, somas, identidades/referências, timestamps e JSON semanticamente antes
+de repor a revisão PostgreSQL `83df5f3` e DATABASE_URL. Não reabra acesso se a
+reconciliação falhar. Timestamps novos com precisão mais fina que um microssegundo
+são recusados no export para SQL. Limites atômicos de backup também se aplicam.
 
-Limite atual: 100 mil registros totais e timeout SQL de 60 segundos por consulta.
-O artefato fica em memória; bases grandes exigem streaming/limite de bytes antes
-do uso operacional. Arquivo parcialmente gravado falha na verificação.
-Esse transporte **não é backup completo**, importer Firebase ou restore:
-DDL, permissões, extensões e `applied_at` de migrations não são exportados.
-Fazer também `pg_dump --format=custom` e ensaiar `pg_restore`.
+Ensaio automatizado faz SQL → Firestore → novas escritas (login/conta) → SQL,
+comparando cada campo, JSON, soma e referência. Inclui `9999999999999.99`, precisão
+de seis casas no timestamp, recusa de destino ocupado e revogação de sessões.
 
-## Corte e reversão a implementar
+## Custo e desempenho
 
-1. Confirmar dados reais, acesso à origem, banco e edição de destino.
-2. Fazer dump completo, restaurar isoladamente e reconciliar a exportação.
-3. Implementar repositórios, adapter de autenticação e importer reexecutável
-   em ambiente de ensaio. Repetição deve recusar divergências, nunca sobrescrevê-las.
-4. Verificar dois donos/IDs cruzados, valores/datas, sessões, concorrência,
-   retries, restauração, custo/latência e gates do projeto.
-5. Entrar em manutenção no corte e bloquear todos os escritores, inclusive
-   provisionamento/reset, sessões e rate limits. Snapshot não captura escritas
-   posteriores; não adotar dual write improvisado. Exportar novamente e comparar.
-6. Registrar commit/backup/manifesto e validar o runtime Firebase antes de liberar
-   escritas. Nesse ponto, rollback pode usar aplicação/banco antigos congelados.
-7. Depois de novas escritas Firebase, rollback exige exportação reversa validada
-   ou replay auditável; o snapshot antigo perderia dados. Ensaiar esse caminho
-   antes do corte de produção.
-8. Remover dependências/serviços antigos somente após reconciliação e recuperação
-   comprovadas. Fechar #47 apenas com todos os critérios atendidos.
+Consultas reais no banco vazio em São Paulo em 06/10/2026: contas por dono/nome
+680 ms (primeira chamada incluindo inicialização), mês de lançamentos 155 ms,
+email de login 170 ms. São medições pontuais vazias, sem promessa para bases grandes.
+O SDK não retornou explainStats nesse ensaio, mesmo com analyze solicitado;
+não afirmamos ter comprovado o plano do índice no serviço real.
 
-## Evidência desta preparação
+[Preço oficial Enterprise](https://cloud.google.com/firestore/enterprise/pricing):
+leituras cobram bytes processados em blocos de 4 KiB, incluindo índices/documentos;
+escritas usam blocos de 1 KiB e entradas de índice. Uma consulta vazia ainda tem
+mínimo de uma unidade de leitura. Limite de resultado não limita sozinho todo o
+scan. O custo cresce com número/tamanho de lançamentos no mês, sessões e índices.
+Não há listener, busca de texto completa, geoespacial nem cache compartilhado de
+finanças nesta entrega. Consulte tarifas da região e consumo real antes de ampliar
+uso; PITR e backups gerenciados têm cobrança separada e não foram habilitados.
 
-Fixture PostgreSQL sintética com duas pessoas, planejamento, cartão, importação
-e geografia: 21 tabelas exportadas e verificadas. Unitários cobrem centavos,
-inteiros grandes, JSON, datas, alterações, duplicatas e vínculos cruzados;
-integração cobre repetição, campos históricos, schema desconhecido e limite de
-registros. Nenhum dado real foi acessado. Runtime Firebase, recuperação, corte
-e medição de custo permanecem pendentes.
+Índices por dono/período evitam scans globais usuais; substring pode examinar os
+lançamentos do dono. A consulta do dashboard faz quatro pipelines e busca IDs
+relacionados; cada pedido autenticado também consulta sessão/usuário. Backup e
+migração têm limites explícitos. Paginação/agregados exatos e alertas operacionais
+seguem o crescimento do produto e #12/#43, sem cache que aceite sessão revogada.
+
+## Evidência
+
+- 130 unitários com cobertura, tipos e lint sem avisos.
+- 20 integrações Firebase: autenticação/isolamento, migração, replay,
+  restore, unicidade concorrente, valores/datas/referências e regras deny-all.
+- 78 jornadas Chromium/WebKit/mobile web contra build de produção.
+- Ensaio real Firestore → PostgreSQL com novas escritas e comparação completa.
+- 41 testes legados PostgreSQL/export/recovery; cobertura de migration aprovada.
+- Auditoria sem avisos de dependência não tratados; bundle web sem credenciais.
+- CI remota do PR #48 ainda deve comprovar esses checks e o build Android nativo.
+
+Dependências SQL foram retiradas de apps/next e das dependências de produção de
+packages/db. Permanecem como ferramentas de desenvolvimento para exportação e
+reversão, sem conexão ou import SQL no runtime.

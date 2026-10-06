@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { hashPassword } from './password';
-import { users, authAccounts, authSessions, eq, and, type Database } from '@ecofinance/db';
+import { type Database } from '@ecofinance/db';
 
 export function validateIdentity(email: string, password: string) {
   const normalized = email.trim().toLowerCase();
@@ -14,26 +14,27 @@ export async function provisionUser(database: Database, input: { email: string; 
   const password = await hashPassword(input.password);
   return database.transaction(async tx => {
     if (input.reset) {
-      const [user] = await tx.select().from(users).where(eq(users.email, email)).for('update');
+      const [user] = await tx.query('users', {where:[{field:'email',value:email}],limit:1});
       if (!user) throw new Error('Usuário não encontrado.');
-      const updated = await tx.update(authAccounts).set({ password, updatedAt: new Date() })
-        .where(and(eq(authAccounts.userId, user.id), eq(authAccounts.providerId, 'credential'))).returning();
-      if (updated.length !== 1) throw new Error('Conta de senha não encontrada.');
-      await tx.delete(authSessions).where(eq(authSessions.userId, user.id));
+      const accounts = await tx.query('authAccounts',{where:[{field:'userId',value:user.id},{field:'providerId',value:'credential'}]});
+      const sessions = await tx.query('authSessions',{where:[{field:'userId',value:user.id}]});
+      if (accounts.length !== 1) throw new Error('Conta de senha não encontrada.');
+      await tx.put('authAccounts',{...accounts[0]!,password,updatedAt:new Date()});
+      for (const session of sessions) await tx.remove('authSessions',session.id);
       return user.id;
     }
     let id = input.ownerId;
     if (id) {
-      const [owner] = await tx.select().from(users).where(eq(users.id, id)).for('update');
+      const owner = await tx.get('users', id);
       if (!owner || owner.email !== null) throw new Error('Proprietário inexistente ou já associado.');
-      await tx.update(users).set({ email, emailVerified: true, updatedAt: new Date() }).where(eq(users.id, id));
+      await tx.put('users',{...owner,email,emailVerified:true,updatedAt:new Date()});
     } else {
       const name = input.name?.trim();
       if (!name || name.length > 120) throw new Error('Nome deve ter de 1 a 120 caracteres.');
       id = randomUUID();
-      await tx.insert(users).values({ id, displayName: name, email, emailVerified: true });
+      await tx.put('users',{id,displayName:name,email,emailVerified:true,image:null,createdAt:new Date(),updatedAt:new Date()},true);
     }
-    await tx.insert(authAccounts).values({ userId: id, accountId: id, providerId: 'credential', password });
+    await tx.put('authAccounts',{id:randomUUID(),userId:id,accountId:id,providerId:'credential',password,accessToken:null,refreshToken:null,idToken:null,scope:null,accessTokenExpiresAt:null,refreshTokenExpiresAt:null,createdAt:new Date(),updatedAt:new Date()},true);
     return id;
   });
 }

@@ -11,17 +11,15 @@
     "auth:user": "tsx scripts/user.ts"
   },
   "dependencies": {
-    "@better-auth/drizzle-adapter": "1.7.7",
+    "@better-auth/core": "1.7.7",
     "@ecofinance/db": "workspace:*",
     "@ecofinance/shared": "workspace:*",
     "@node-rs/argon2": "^2.2.1",
     "better-auth": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.49.0",
     "next": "^16.3.7",
-    "postgres": "^3.4.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-pluggy-connect": "^2.12.0",

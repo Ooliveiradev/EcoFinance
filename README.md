@@ -1,14 +1,17 @@
 # EcoFinance
 
-Gerenciador financeiro pessoal em evolução, com web Next.js, Expo e PostgreSQL/PostGIS. O [plano de refatoração](docs/refatoracao/plano.md) acompanha os critérios de cada entrega.
+Gerenciador financeiro pessoal em evolução, com web Next.js, Expo e Cloud Firestore. O [plano de refatoração](docs/refatoracao/plano.md) acompanha os critérios de cada entrega.
 
-A [migração para Firebase (#47)](docs/refatoracao/firebase-migration.md) está em preparação para `ecofinance-912de`. O runtime ainda usa PostgreSQL; a exportação verificável pode ser ensaiada localmente.
+A [migração para Firebase (#47)](docs/refatoracao/firebase-migration.md) usa Firestore Enterprise no projeto `ecofinance-912de`, banco `ecofinance`, em São Paulo. O runtime web e a autenticação persistem no Firebase; PostgreSQL permanece como ferramenta de exportação/reversão.
 
 ## Estado da implementação
 
 - Modelo financeiro por proprietário, dinheiro exato, datas civis e migration aditiva com backfill auditado.
+
 - Autenticação local por email/senha, sessões revogáveis por dispositivo e isolamento de dashboard/contas/lançamentos.
+
 - Login web com cookie protegido; Expo com sessão no SecureStore; recuperação de acesso pelo operador sem serviço pago obrigatório.
+
 - CI com tipos, lint, domínio, migrações/backup, E2E, builds, bundles e verificações de segurança.
 
 Cadastro manual completo, planejamento, cartões, staging de importação multiformato e métricas finais seguem as próximas issues. As telas antigas ainda não comprovam esses fluxos. Os números atuais de saldo são snapshots legados; não equivalem ao novo saldo derivado de movimentos. O Expo conserva telas demonstrativas até a paridade financeira.
@@ -17,18 +20,18 @@ A ingestão imediata antiga (notificações, Uber, Pluggy, seed e OFX) está des
 
 ## Executar a instalação pessoal
 
-Node >=22.13, pnpm 9.15, PostgreSQL com PostGIS. Consulte [.env.example](.env.example); mantenha os segredos somente no servidor.
+Node >=22.13, pnpm 9.15 e acesso ADC ao projeto Firebase (ou Java 21 para o emulador). Consulte [.env.example](.env.example); mantenha os segredos somente no servidor.
 
 ```sh
 pnpm install --frozen-lockfile
-docker compose up -d
-pnpm db:migrate
+gcloud auth application-default login --project ecofinance-912de
+pnpm db:firebase init-empty
 pnpm dev
 ```
 
 Configure AUTH_URL como a URL canônica da instalação e AUTH_SECRET aleatório de pelo menos 32 caracteres. Use HTTPS fora de localhost/emulador. O acesso público não permite cadastro automático. Provisione o primeiro login e eventual proprietário legado pelo [procedimento de autenticação](docs/refatoracao/autenticacao.md).
 
-Não use db:push como release. Antes de migrar dados reais, faça backup e restauração isolada; forneça titularidade e fuso explícitos no backfill. [Migração do modelo](docs/refatoracao/modelo-financeiro.md).
+A base real foi confirmada vazia e inicializada. Antes de qualquer importação futura, ensaie backup, restauração e reversão conforme o [runbook Firebase](docs/refatoracao/firebase-migration.md). O [modelo SQL histórico](docs/refatoracao/modelo-financeiro.md) permanece congelado para recuperação.
 
 No Expo, informe servidor/email/senha no login. A URL do servidor pode vir de EXPO_PUBLIC_API_URL; essa variável não contém senha nem token. Captura automática está desativada nesta transição. Bundles JS não comprovam execução nativa ou testes em aparelhos.
 
@@ -44,7 +47,13 @@ pnpm security:audit
 pnpm mobile:check
 ```
 
-PostgreSQL descartável: TEST_DATABASE_URL para pnpm test:integration. E2E: TEST_E2E_DATABASE_URL para um banco local ecofinance_ci ou ecofinance_e2e_*; execute build web antes de pnpm test:e2e. Os testes usam fixtures sintéticas.
+As fixtures são sintéticas. Java 21 e o emulador Firestore são necessários:
+
+```sh
+npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofinance "pnpm test:firebase && pnpm test:e2e"
+```
+
+Execute o build web antes do E2E. PostgreSQL/PostGIS descartável com TEST_DATABASE_URL é usado somente por pnpm test:integration e pelo ensaio pnpm test:rollback executado dentro do emulador. Os testes recusam destinos de produção.
 
 [CI e gates](docs/ci-quality.md), [baseline](docs/refatoracao/baseline.md), [autenticação/recuperação](docs/refatoracao/autenticacao.md).
 
@@ -55,7 +64,7 @@ PostgreSQL descartável: TEST_DATABASE_URL para pnpm test:integration. E2E: TEST
 | apps/next | Web, API, autorização e serviços de aplicação |
 | apps/expo | Interface nativa e sessão segura |
 | packages/shared | Contratos, dinheiro/calendário e regras puras |
-| packages/db | Schema, constraints e migrations versionadas |
+| packages/db | Persistência Firestore, validações e ferramentas de exportação/recuperação |
 
 Issues concluídas são vinculadas no PR com Closes #N. Uma entrega parcial mantém a issue aberta. O checklist e a evidência, incluindo limites de validação, determinam o encerramento.
 

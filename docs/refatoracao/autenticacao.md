@@ -1,10 +1,10 @@
 # Autenticação, senhas e isolamento — EF-03 / SEG-02 / SEG-11
 
-Decisão e validação em 05/10/2026. Nenhum dado real foi migrado. Este documento cobre #3, #29 e #36; não certifica produção nem encerra as demais issues de segurança.
+Decisão em 05/10/2026; persistência atualizada para Firebase em 06/10/2026. Nenhum dado real foi migrado. Este documento cobre #3, #29 e #36; não certifica produção nem encerra as demais issues de segurança.
 
 ## ADR: biblioteca e operação
 
-Escolha: Better Auth 1.7.7, adaptador Drizzle/PostgreSQL e plugin Bearer com assinatura obrigatória. MIT, self-hostable, sem provedor pago. A biblioteca realiza login, validação das credenciais, cookies, sessões persistidas, troca de senha e revogação. O gateway restringe os endpoints publicados e os corpos de requisição.
+Escolha: Better Auth 1.7.7, adaptador Firestore baseado na fábrica oficial e plugin Bearer com assinatura obrigatória. MIT, self-hostable, sem provedor pago. A biblioteca realiza login, validação das credenciais, cookies, sessões persistidas, troca de senha e revogação. O gateway restringe os endpoints publicados e os corpos de requisição.
 
 Alternativas consideradas:
 
@@ -20,14 +20,22 @@ Fontes: [Drizzle](https://better-auth.com/docs/adapters/drizzle), [Bearer](https
 
 ## Política de sessão
 
-- Expiração absoluta: **seis horas a partir do login**, validada no PostgreSQL em cada consulta.
+- Expiração absoluta: **seis horas a partir do login**, validada no Firestore em cada consulta.
+
 - Renovação automática e cache de cookie desativados. A atividade não prolonga a sessão. Não há prazo adicional de inatividade nesta instalação pessoal; reavaliar no gate de segurança para ambientes compartilhados.
+
 - Cada login cria uma sessão distinta. O logout invalida a sessão atual; a opção sair de todos os dispositivos revoga todas.
+
 - GET /api/sessions lista IDs, datas e identificação do dispositivo, sem tokens. DELETE /api/sessions recebe um ID; a exclusão exige simultaneamente ID e proprietário autenticado. Um ID de outro usuário responde 404.
+
 - Troca de senha força revokeOtherSessions no servidor, independentemente do valor enviado pelo cliente. Recuperação pelo operador revoga todas as sessões em uma transação.
+
 - Web: cookie HttpOnly, SameSite=Strict, Secure com AUTH_URL HTTPS. Senhas/tokens de sessão não aparecem no JSON público. O navegador não recebe set-auth-token.
+
 - Expo: token assinado individual, obtido após email/senha, no SecureStore WHEN_UNLOCKED_THIS_DEVICE_ONLY; nunca AsyncStorage ou variável pública. A configuração antiga é apagada no upgrade.
+
 - O app não segue redirects com credenciais. Um 401 apaga apenas a sessão correspondente, volta ao login e não reenvia mutações. Uma resposta antiga não apaga um login mais recente: leituras, comparação/exclusão e gravação no SecureStore são serializadas; logout conserva a identidade capturada no início. Falha de rede no logout não anuncia revogação e permite retry.
+
 - A exclusão de sessão ocorre imediatamente no banco; não existe janela de cookie cache aceitando token revogado. Respostas privadas usam Cache-Control: private, no-store.
 
 ## Fronteiras de autorização
@@ -38,7 +46,7 @@ Authorization presente remove Cookie antes da validação. Credencial inválida 
 
 Os endpoints antigos de seed, Pluggy, notificações, Uber, nearby, importação OFX e sessão global respondem 401 sem sessão e 410 após autenticação. Não leem uploads nem escrevem dados: limite de upload efetivo zero até o staging EF-08. O chat legado responde 503 após autorização e não envia mensagens/dados a terceiros; assistência opt-in pertence à EF-11.
 
-Login aceita no máximo 16 KiB reais, contando UTF-8 e corpos chunked. Cinco tentativas por minuto compartilham um contador transacional no PostgreSQL, inclusive entre processos/réplicas. Spoofing de X-Forwarded-For não altera o bucket. A instalação pessoal privilegia falhar fechado; o limite global pode reduzir disponibilidade para vários usuários. Ingress confiável pode acrescentar limites por IP. Não se registram corpo, endereço IP, senha, token ou informação financeira nos novos handlers. Eventos/auditoria de segurança completa seguem #39.
+Login aceita no máximo 16 KiB reais, contando UTF-8 e corpos chunked. Cinco tentativas por minuto compartilham um contador transacional no Firestore, inclusive entre processos/réplicas. Spoofing de X-Forwarded-For não altera o bucket. A instalação pessoal privilegia falhar fechado; o limite global pode reduzir disponibilidade para vários usuários. Ingress confiável pode acrescentar limites por IP. Não se registram corpo, endereço IP, senha, token ou informação financeira nos novos handlers. Eventos/auditoria de segurança completa seguem #39.
 
 ## Inventário de senha e parâmetros
 
@@ -50,8 +58,10 @@ Hash: biblioteca mantida @node-rs/argon2, algoritmo Argon2id v=19, memória 19.4
 
 ## Provisionamento e recuperação
 
-1. Configure DATABASE_URL, AUTH_URL (URL canônica HTTPS; localhost/emulador HTTP apenas para desenvolvimento) e AUTH_SECRET aleatório com pelo menos 32 caracteres, exclusivo do servidor.
-2. Faça backup, restaure e confira uma cópia isolada antes de migrar dados reais. Execute pnpm db:migrate. Migrações anteriores não foram editadas.
+1. Configure FIREBASE_PROJECT_ID, FIRESTORE_DATABASE_ID e ADC no servidor; configure AUTH_URL (URL canônica HTTPS; localhost/emulador HTTP apenas para desenvolvimento) e AUTH_SECRET aleatório com pelo menos 32 caracteres, exclusivo do servidor.
+
+2. Faça backup, restaure e confira uma cópia isolada antes de migrar dados reais. Inicialize/importa o destino vazio com pnpm db:firebase conforme o runbook da #47. Migrações SQL anteriores permanecem congeladas para recuperação.
+
 3. Provisione com JSON em stdin. Exemplo PowerShell que solicita senha sem ecoá-la nem gravá-la no histórico:
 
 ```powershell
@@ -93,11 +103,10 @@ pnpm security:audit
 node scripts/security/build-with-canaries.mjs web
 pnpm mobile:check
 node scripts/security/build-with-canaries.mjs mobile
-$env:TEST_E2E_DATABASE_URL='postgresql://postgres@127.0.0.1:5432/ecofinance_e2e_ef03'
-pnpm test:e2e
+npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofinance "pnpm test:firebase && pnpm test:e2e"
 ```
 
-A suíte PostgreSQL cria e remove bancos próprios. E2E exige um banco local descartável com nome ecofinance_ci ou ecofinance_e2e_*; nunca apontar para dados reais. O global setup carrega/provisiona apenas a fixture sintética.
+A suíte PostgreSQL cria e remove bancos próprios para legado/reversão. Auth e E2E exigem o emulador Firestore local com projeto demo-ecofinance; o setup recusa projeto real e provisiona somente fixtures sintéticas.
 
 Casos cobertos: dois proprietários e IDs/filtros cruzados; credenciais ausentes/globais; cookie/Bearer e prioridade; expiração/replay/revogação/recuperação; CSRF; signup bloqueado; contador concorrente e corpo excedido; salt/hash/senha incorreta; storage seguro e redirects; ausência de replay no app. Builds Expo verificam bundles Android/iOS; validação nativa/aparelhos permanece na EF-13/EF-16. Resultados finais e commit ficam no PR.
 
@@ -108,10 +117,10 @@ Casos cobertos: dois proprietários e IDs/filtros cruzados; credenciais ausentes
 | #3 — biblioteca, sessão e credenciais por dispositivo | auth.ts, auth-schema.ts e este ADR; integração cria dois logins distintos e verifica assinatura |
 | #3 — todas as leituras/mutações e IDOR | proxy.ts, session.ts, owned-queries.ts e consultas SSR; testes cruzam usuários/IDs/contas/filtros. Uploads, conectores e chat legados negam acesso antes de ler o corpo; não há exportação/arquivo financeiro publicado |
 | #3 — cookie, CSRF, storage e remoção da chave global | access-policy.ts, gateway e backend-config.ts; integração HTTPS/CSRF e testes SecureStore; canários nos bundles web/Android/iOS |
-| #3 — limites, logout e logs | request-body.ts e contador PostgreSQL concorrente; uploads desativados; revogação imediata. Novos handlers não registram payloads/credenciais/dados financeiros |
+| #3 — limites, logout e logs | request-body.ts e contador Firestore concorrente; uploads desativados; revogação imediata. Novos handlers não registram payloads/credenciais/dados financeiros |
 | #3 — expiração sem envio duplicado e recuperação gratuita | testes de expiração e backendFetch sem replay; procedimento de operador acima. Onboarding leva ao login sem exigir banco/permissões |
 | #29 — revisão e inventário de todos os fluxos | criação, associação, recuperação e troca de senha descritas acima; antiga credencial global removida da autenticação |
-| #29 — hash adaptativo, salt e parâmetros | password.ts e password.test.ts; teste PostgreSQL verifica Argon2id armazenado, sem texto puro |
+| #29 — hash adaptativo, salt e parâmetros | password.ts e password.test.ts; teste Firestore verifica Argon2id armazenado, sem texto puro |
 | #29 — ausência em respostas/logs/configuração e fixtures reais | logger desativado, CLI stdin sem eco de input, gateway remove tokens; testes verificam JSON sem senha/token. Fixtures são exclusivamente sintéticas; hashes no backup SQL têm proteção operacional documentada |
 | #29 — decisão e validação | ADR, referências, procedimento de recuperação e suítes sintéticas neste documento e no PR |
 | #36 — revisão, prazo, inatividade e renovação | política explícita de seis horas, sem renovação e sem prazo adicional de inatividade; teste compara prazo antes/depois de uma consulta |
@@ -119,4 +128,4 @@ Casos cobertos: dois proprietários e IDs/filtros cruzados; credenciais ausentes
 | #36 — cookie, storage, expiração e retorno ao login | cookie HTTPS seguro, SecureStore por aparelho, evento de expiração; testes de rede/replay e resposta antiga após novo login |
 | #36 — decisão, procedimento e evidência | política, recuperação e rollback acima; testes usam bancos descartáveis, sem certificação de produção |
 
-Resultados locais: 50 testes unitários, 31 testes PostgreSQL e 66 E2E aprovados. A cobertura das políticas de acesso, limites de corpo e contratos de consulta é 100% de linhas e branches; a cobertura unitária global é 98,68% de linhas / 92,48% de branches. O fechamento depende também de todos os jobs obrigatórios da CI do PR aprovados.
+Resultados da entrega original #3: 50 testes unitários, 31 testes PostgreSQL e 66 E2E aprovados. Após #47: 20 testes Firebase, 78 E2E e reversão PostgreSQL aprovados, conforme firebase-migration.md. A cobertura das políticas de acesso, limites de corpo e contratos de consulta é 100% de linhas e branches; a cobertura unitária global é 98,68% de linhas / 92,48% de branches. O fechamento depende também de todos os jobs obrigatórios da CI do PR aprovados.

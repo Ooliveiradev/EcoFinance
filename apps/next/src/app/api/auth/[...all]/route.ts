@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { db, sql } from '@ecofinance/db';
+import { db } from '@ecofinance/db';
 import { getAuth } from '../../../../lib/auth';
 import { PRIVATE_CACHE } from '../../../../lib/access-policy';
 import { readJson } from '../../../../lib/request-body';
@@ -35,14 +35,8 @@ export async function handleAuth(request: Request) {
   // Personal installations can add per-IP limits at a trusted ingress.
   if (path === '/sign-in/email') {
     const key = createHash('sha256').update('ecofinance-login-v1').digest('hex');
-    const [bucket] = await db.execute<{ count: number }>(sql`
-      INSERT INTO auth_rate_limits(key,count,last_request) VALUES(${key},1,(extract(epoch from now())*1000)::bigint)
-      ON CONFLICT(key) DO UPDATE SET
-        count=CASE WHEN auth_rate_limits.last_request < (extract(epoch from now())*1000)::bigint-60000 THEN 1 ELSE auth_rate_limits.count+1 END,
-        last_request=CASE WHEN auth_rate_limits.last_request < (extract(epoch from now())*1000)::bigint-60000 THEN (extract(epoch from now())*1000)::bigint ELSE auth_rate_limits.last_request END
-      RETURNING count
-    `);
-    if (bucket!.count > 5) return Response.json({ error: 'RATE_LIMITED' }, {
+    const count = await db.loginAttempt(key);
+    if (count > 5) return Response.json({ error: 'RATE_LIMITED' }, {
       status: 429, headers: { 'Retry-After': '60', 'Cache-Control': PRIVATE_CACHE },
     });
   }

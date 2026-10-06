@@ -21,7 +21,10 @@
     "clean": "turbo clean",
     "security:audit": "node scripts/security/audit.mjs",
     "db:verify-recovery": "tsx packages/db/scripts/verify-recovery.ts",
-    "auth:user": "pnpm --filter @ecofinance/next auth:user"
+    "auth:user": "pnpm --filter @ecofinance/next auth:user",
+    "db:firebase": "tsx packages/db/scripts/firebase.ts",
+    "test:firebase": "vitest run --config vitest.firebase.config.ts",
+    "test:rollback": "vitest run --config vitest.rollback.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

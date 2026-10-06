@@ -19,6 +19,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:3000/api/health',
     reuseExistingServer: false,
     timeout: 120000,
-    env: { AUTH_SECRET: TEST_AUTH_SECRET, AUTH_URL: 'http://127.0.0.1:3000', DATABASE_URL: process.env.TEST_E2E_DATABASE_URL ?? '', NEXT_TELEMETRY_DISABLED: '1' },
+    env: { AUTH_SECRET: TEST_AUTH_SECRET, AUTH_URL: 'http://127.0.0.1:3000', FIREBASE_PROJECT_ID:'demo-ecofinance', FIRESTORE_DATABASE_ID:'ecofinance', FIRESTORE_EMULATOR_HOST:process.env.FIRESTORE_EMULATOR_HOST??'', NEXT_TELEMETRY_DISABLED: '1' },
   },
 });

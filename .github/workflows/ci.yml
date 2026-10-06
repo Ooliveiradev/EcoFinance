@@ -96,7 +96,12 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: pnpm test:integration --coverage
+      - run: npx --yes firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofinance "pnpm test:rollback"
       - run: pnpm db:migrate
       - name: Repeat migration without changes
         run: pnpm db:migrate
@@ -127,20 +132,9 @@ jobs:
     name: Production web, bundle privacy and E2E
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4-alpine
-        env:
-          POSTGRES_DB: ecofinance_ci
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres -d ecofinance_ci"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci
-      TEST_E2E_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci
+      FIREBASE_PROJECT_ID: demo-ecofinance
+      FIRESTORE_DATABASE_ID: ecofinance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -151,15 +145,14 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm db:migrate
-      - name: Load synthetic E2E fixture
-        env:
-          CONTAINER_ID: ${{ job.services.postgres.id }}
-        run: docker exec -i "$CONTAINER_ID" psql -U postgres -d ecofinance_ci -v ON_ERROR_STOP=1 < packages/db/tests/fixtures/recovery.sql
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
       - name: Build with synthetic canaries and scan client artifacts
         run: node scripts/security/build-with-canaries.mjs web
       - run: pnpm exec playwright install --with-deps chromium webkit
-      - run: pnpm test:e2e
+      - run: npx --yes firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofinance "pnpm test:firebase && pnpm test:e2e"
       - name: playwright evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

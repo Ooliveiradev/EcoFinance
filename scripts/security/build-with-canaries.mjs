@@ -9,8 +9,9 @@ for (const name of [...serverCredentials, 'EXPO_PUBLIC_API_SECRET']) {
   // Synthetic canaries, never production credentials. Keep DATABASE_URL for disposable E2E DB.
   if (name !== 'DATABASE_URL') env[name] = `ecofinance_ci_${name}_${randomBytes(16).toString('hex')}`;
 }
-env.DATABASE_URL = process.env.CI ? process.env.DATABASE_URL : 'postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci';
-if (!env.DATABASE_URL) throw new Error('CI requires a disposable DATABASE_URL');
+env.DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci';
+env.FIREBASE_PROJECT_ID = 'demo-ecofinance';
+env.FIRESTORE_DATABASE_ID = 'ecofinance';
 env.NEXT_TELEMETRY_DISABLED = '1';
 env.EXPO_NO_TELEMETRY = '1';
 env.EXPO_NO_DOTENV = '1';

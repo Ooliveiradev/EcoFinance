@@ -1,7 +1,7 @@
 # Revisão das issues em 06/10/2026
 
 Base: `origin/main` em `83df5f3`, PR #46 integrado. GitHub consultado nesta data:
-nenhum PR aberto; #1, #2, #3, #4, #29 e #36 já encerradas. #18 é agregadora.
+PR #48 em andamento; #1, #2, #3, #4, #29 e #36 já encerradas. #18 é agregadora.
 A prioridade indicada pelo mantenedor é #47 antes da retomada das demais issues.
 
 Modelo/tela existente não equivale a um fluxo completo. A revisão abaixo registra
@@ -39,16 +39,11 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #42 | Significado de PMP ainda depende da confirmação registrada no ticket |
 | #43 | Health endpoint não comprova métricas, alertas e simulações de incidentes |
 | #44 | Restauração sintética existe; RPO/RTO, responsáveis e runbook de incidente completos ainda pendentes |
-| #47 | Inventário/exportação em preparação; acesso/edição Firebase, persistência, importer e recuperação ainda pendentes |
+| #47 | Firebase Enterprise em São Paulo provisionado, runtime e autenticação migrados; 20 testes Firebase, 78 jornadas e reversão PostgreSQL passaram. Aguarda CI do PR #48 e integração |
 
-CI da main: [run aprovado](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37328249239)
-e [run posterior com falha](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37349559532)
-no mesmo SHA. No segundo, tipos/lint, unitários, PostgreSQL/recuperação, web/E2E,
-dependências, segredos, CodeQL, React Doctor e workflows passaram; empacotamento
-Android `:app:packageDebug` falhou. O log disponível não aponta a causa raiz;
-exige diagnóstico/reexecução, sem declarar build Android atual aprovado.
+CI da main: o [run reexecutado](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37349559532) passou em todos os grupos, incluindo Android nativo, no SHA `83df5f3`. O CI do PR #48 precisa validar a migração completa.
 
 Nenhuma das 31 issues abertas teve todos os seus critérios comprovados nesta
 revisão. Assim, não houve novo encerramento por conveniência. #18 deve refletir
 #4 concluída pelo PR #46. Novas entregas devem vincular apenas issues integralmente
-atendidas com `Closes #N`; #47 permanece aberta durante sua preparação.
+atendidas com `Closes #N`; #47 permanece aberta até validar e integrar o PR #48.
