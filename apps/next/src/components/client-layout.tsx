@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils';
 import { usePreferences } from '@/lib/preferences-context';
 import { Button } from '@/components/ui/button';
 import { AddExpenseModal } from '@/components/add-expense-modal';
+import { loadEntryReferences } from '@/lib/finance-client';
+import type { EntryReference } from '@/components/entry-dialog';
 
 interface NavItem {
   href: string;
@@ -44,6 +46,15 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const { preferences, setTheme, resolvedTheme } = usePreferences();
+  const quickRequest=useRef<AbortController|null>(null);
+  const [quickData,setQuickData]=useState<{accounts:EntryReference[];categories:EntryReference[]}|null>(null),[quickError,setQuickError]=useState('');
+  function closeQuickExpense() {quickRequest.current?.abort();setIsAddExpenseOpen(false);}
+  async function openQuickExpense() {
+    quickRequest.current?.abort();const controller=new AbortController();quickRequest.current=controller;
+    setQuickData(null);setQuickError('');setIsAddExpenseOpen(true);
+    try {const data=await loadEntryReferences(controller.signal);if(!controller.signal.aborted)setQuickData(data);}
+    catch(error){if(!controller.signal.aborted)setQuickError(error instanceof Error?error.message:'Falha ao carregar.');}
+  }
 
   const isLinkActive = (item: NavItem) => {
     if (item.exact) return pathname === item.href;
@@ -125,7 +136,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           <Button
             variant="default"
             className="w-full flex items-center justify-center gap-2 py-2.5 h-11 text-sm font-bold shadow-sm"
-            onClick={(event) => { event.currentTarget.focus(); setIsAddExpenseOpen(true); }}
+            onClick={(event) => { event.currentTarget.focus(); void openQuickExpense(); }}
           >
             <Plus className="w-4 h-4" />
             Adicionar gasto
@@ -213,7 +224,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             className="w-full flex items-center justify-center gap-2 py-2.5 h-11 text-sm font-bold shadow-sm"
             onClick={() => {
               setSidebarOpen(false);
-              setIsAddExpenseOpen(true);
+              void openQuickExpense();
             }}
           >
             <Plus className="w-4 h-4" />
@@ -282,7 +293,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={(event) => { event.currentTarget.focus(); setIsAddExpenseOpen(true); }}
+          onClick={(event) => { event.currentTarget.focus(); void openQuickExpense(); }}
           aria-label="Adicionar gasto rápido"
           className="h-10 w-10 text-primary"
         >
@@ -301,13 +312,32 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation Bar (WCAG compliant touch targets >= 44px) */}
+      <BottomNavigation isActive={isLinkActive}/>
+
+      {/* Quick Add Expense Modal */}
+      <AddExpenseModal
+        isOpen={isAddExpenseOpen}
+        onClose={closeQuickExpense}
+        loading={!quickData && !quickError}
+        error={quickError}
+        accounts={quickData?.accounts}
+        categories={quickData?.categories}
+        onSuccess={() => {
+          if (typeof window !== 'undefined') window.location.reload();
+        }}
+      />
+    </div>
+  );
+}
+
+function BottomNavigation({isActive}:{isActive:(item:NavItem)=>boolean}) {
+  return (
       <nav
         aria-label="Navegação inferior mobile"
         className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 bg-surface/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1"
       >
         {primaryNavItems.slice(0, 5).map((item) => {
-          const active = isLinkActive(item);
+          const active = isActive(item);
           return (
             <Link
               key={item.href}
@@ -326,15 +356,5 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
-
-      {/* Quick Add Expense Modal */}
-      <AddExpenseModal
-        isOpen={isAddExpenseOpen}
-        onClose={() => setIsAddExpenseOpen(false)}
-        onSuccess={() => {
-          if (typeof window !== 'undefined') window.location.reload();
-        }}
-      />
-    </div>
   );
 }

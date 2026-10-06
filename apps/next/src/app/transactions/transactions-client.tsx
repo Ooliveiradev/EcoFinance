@@ -1,413 +1,54 @@
 'use client';
-
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import {
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  ArrowUpDown,
-  X,
-  FileText,
-  Upload,
-  Plus,
-} from 'lucide-react';
-import {
-  TRANSACTION_CATEGORY_OPTIONS,
-  TRANSACTION_CATEGORY_LABELS,
-  type TransactionCategory,
-} from '@ecofinance/shared';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { useRef,useState,useTransition,type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { formatCents,moneyToCents,type ManualAccountRecord,type ManualCategoryRecord,type ManualEntryRecord,type ManualList } from '@ecofinance/shared';
+import { EntryDialog } from '@/components/entry-dialog';
 import { Button } from '@/components/ui/button';
-import { buttonVariants } from '@/components/ui/button-variants';
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/components/ui/table';
-import { cn, formatBRL, formatDate } from '@/lib/utils';
-import { AddExpenseModal } from '@/components/add-expense-modal';
-
-export interface DBTransaction {
-  id: string;
-  date: string; // ISO string
-  description: string;
-  category: TransactionCategory;
-  amount: string; // numeric in DB
-  source: string;
-  latitude: number | null;
-  longitude: number | null;
+import { Input } from '@/components/ui/input';
+import { saveFinance } from '@/lib/finance-client';
+export default function TransactionsClient({initialData,query,hasMore,accounts,categories}:{initialData:ManualEntryRecord[];query:ManualList;hasMore:boolean;accounts:ManualAccountRecord[];categories:ManualCategoryRecord[]}) {
+  const router=useRouter(),keys=useRef(new Map<string,string>());
+  const [editing,setEditing]=useState<ManualEntryRecord|null|undefined>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[undo,setUndo]=useState<{id:string;revision:string}|null>(null),[navigating,startTransition]=useTransition();
+  function navigate(values:Record<string,unknown>) {
+    const params=new URLSearchParams();
+    for(const [key,value]of Object.entries(values))if(value!==undefined && value!=='')params.set(key,String(value));
+    startTransition(()=>router.push('/transactions?'+params));
+  }
+  function filter(event:FormEvent<HTMLFormElement>) {event.preventDefault();navigate({...Object.fromEntries(new FormData(event.currentTarget)),page:1});}
+  async function archive(row:{id:string;revision:string},restore=false) {
+    const identity=row.id+row.revision+String(restore);
+    if(!keys.current.has(identity))keys.current.set(identity,crypto.randomUUID());
+    setBusy(true);setError('');
+    try {const result=await saveFinance('/api/entries/'+row.id,restore?'POST':'DELETE',{action:restore?'restore':'archive'},keys.current.get(identity)!,row.revision);setUndo(restore?null:result);router.refresh();}
+    catch(e){setError(e instanceof Error?e.message:'Falha ao salvar.');}finally{setBusy(false);}
+  }
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">Lançamentos</h1><p className="text-sm text-muted">Receitas, despesas e transferências entre suas contas.</p></div><Button onClick={()=>setEditing(null)}>Novo lançamento</Button></div>
+    {error && <p role="alert" className="text-danger">{error}</p>}
+    {undo && <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"><span>Lançamento excluído. O histórico foi preservado.</span><Button variant="outline" disabled={busy} onClick={()=>archive(undo,true)}>Desfazer exclusão</Button></div>}
+    <EntryFilters accounts={accounts} categories={categories} query={query} navigating={navigating} onSubmit={filter} onClear={()=>navigate({})}/>
+    <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-left text-sm"><caption className="sr-only">Lançamentos financeiros da página {query.page}</caption><thead className="bg-surface-muted"><tr><th className="p-3">Compra</th><th className="p-3">Descrição</th><th className="p-3">Conta e categoria</th><th className="p-3">Tipo e status</th><th className="p-3">Valor</th><th className="p-3">Ações</th></tr></thead><tbody>
+      {initialData.length===0 && <tr><td colSpan={6} className="p-8 text-muted">Nenhum lançamento neste filtro.</td></tr>}
+      {initialData.map(row=><tr key={row.id} className="border-t border-border"><td className="p-3 whitespace-nowrap">{row.purchaseDate.split('-').reverse().join('/')}</td><td className="p-3"><p className="font-medium">{row.description}</p>{row.notes && <p className="mt-1 max-w-xs text-xs text-muted break-words">{row.notes}</p>}</td><td className="p-3"><p>{row.accountName}</p><p className="text-xs text-muted">{row.categoryName}</p></td><td className="p-3"><p>{{income:'Receita',expense:'Despesa',transfer:'Transferência',refund:'Estorno',adjustment:'Ajuste',unclassified:'A classificar'}[row.kind]??row.kind}</p><p className="text-xs text-muted">{{planned:'Previsto',recorded:'Registrado',settled:'Liquidado',cancelled:'Cancelado'}[row.status]}</p></td><td className="p-3 font-semibold whitespace-nowrap">{formatCents(moneyToCents(row.amount))}</td><td className="p-3"><div className="flex gap-2">{row.archivedAt?<Button variant="outline" disabled={busy} onClick={()=>archive(row,true)}>Restaurar {row.description}</Button>:<><Button variant="outline" onClick={()=>setEditing(row)}>Editar {row.description}</Button><Button variant="ghost" disabled={busy} onClick={()=>archive(row)}>Excluir {row.description}</Button></>}</div></td></tr>)}
+    </tbody></table></div>
+    <nav aria-label="Paginação de lançamentos" className="flex items-center justify-between gap-3"><Button variant="outline" disabled={query.page===1 || navigating} onClick={()=>navigate({...query,page:query.page-1})}>Anterior</Button><span>Página {query.page}</span><Button variant="outline" disabled={!hasMore || navigating} onClick={()=>navigate({...query,page:query.page+1})}>Próxima</Button></nav>
+    {editing!==undefined && <EntryDialog accounts={accounts} categories={categories} initial={editing??undefined} onClose={()=>setEditing(undefined)} onSaved={()=>{setEditing(undefined);setUndo(null);router.refresh();}}/>}
+  </div>;
 }
 
-const sourceColors: Record<string, string> = {
-  pluggy: 'bg-info-soft text-info border-info/30',
-  notification: 'bg-success-soft text-success border-success/30',
-  ofx: 'bg-warning-soft text-warning border-warning/30',
-  uber: 'bg-surface-muted text-muted border-border',
-  manual: 'bg-surface-raised text-foreground border-border',
-  csv: 'bg-warning-soft text-warning border-warning/30',
-};
 
-const PAGE_SIZE = 10;
-
-export default function TransactionsClient({ initialData }: { initialData: DBTransaction[] }) {
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [sortField, setSortField] = useState<'date' | 'amount' | 'description'>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [page, setPage] = useState(1);
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-
-  const hasFilters = Boolean(search || categoryFilter || dateFrom || dateTo);
-
-  const filtered = useMemo(() => {
-    let data = [...initialData];
-
-    if (search) {
-      const q = search.toLowerCase();
-      data = data.filter((t) => t.description.toLowerCase().includes(q));
-    }
-    if (categoryFilter) {
-      data = data.filter((t) => t.category === categoryFilter);
-    }
-    if (dateFrom) {
-      data = data.filter((t) => t.date >= dateFrom);
-    }
-    if (dateTo) {
-      const toDate = `${dateTo}T23:59:59`;
-      data = data.filter((t) => t.date <= toDate);
-    }
-
-    data.sort((a, b) => {
-      let cmp = 0;
-      if (sortField === 'date') cmp = a.date.localeCompare(b.date);
-      else if (sortField === 'amount') cmp = Number(a.amount) - Number(b.amount);
-      else cmp = a.description.localeCompare(b.description);
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-
-    return data;
-  }, [initialData, search, categoryFilter, dateFrom, dateTo, sortField, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  function toggleSort(field: typeof sortField) {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('desc');
-    }
-    setPage(1);
-  }
-
-  function clearFilters() {
-    setSearch('');
-    setCategoryFilter('');
-    setDateFrom('');
-    setDateTo('');
-    setPage(1);
-  }
-
+function EntryFilters({query,navigating,onSubmit,onClear,accounts,categories}:{accounts:ManualAccountRecord[];categories:ManualCategoryRecord[];query:ManualList;navigating:boolean;onSubmit:(event:FormEvent<HTMLFormElement>)=>void;onClear:()=>void}) {
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl tracking-tight">
-            Lançamentos
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            {filtered.length} lançamento{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            size="sm"
-            onClick={(event) => { event.currentTarget.focus(); setIsAddExpenseOpen(true); }}
-            className="touch-target"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Adicionar gasto
-          </Button>
-          <Link
-            href="/imports"
-            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'touch-target')}
-          >
-            <Upload className="w-4 h-4 mr-1.5" />
-            Importar arquivo
-          </Link>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-            <div className="space-y-1">
-              <label htmlFor="transaction-search" className="text-xs font-semibold text-muted">
-                Buscar por descrição
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                <Input
-                  id="transaction-search"
-                  placeholder="Ex: Mercado, Uber..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="transaction-category" className="text-xs font-semibold text-muted">
-                Categoria
-              </label>
-              <select
-                id="transaction-category"
-                aria-label="Filtrar por categoria"
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full h-10 px-3 rounded-xl border border-border bg-surface text-sm text-foreground focus-visible:outline-none cursor-pointer"
-              >
-                <option value="">Todas as categorias</option>
-                {TRANSACTION_CATEGORY_OPTIONS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="date-from" className="text-xs font-semibold text-muted">
-                Data início
-              </label>
-              <Input
-                id="date-from"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
-                  setPage(1);
-                }}
-              />
-            </div>
-
-            <div className="space-y-1 flex items-end gap-2">
-              <div className="flex-1">
-                <label htmlFor="date-to" className="text-xs font-semibold text-muted">
-                  Data fim
-                </label>
-                <Input
-                  id="date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => {
-                    setDateTo(e.target.value);
-                    setPage(1);
-                  }}
-                />
-              </div>
-              {hasFilters && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={clearFilters}
-                  className="h-10 w-10 text-muted hover:text-foreground shrink-0"
-                  title="Limpar filtros"
-                  aria-label="Limpar filtros"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Table */}
-      <Card>
-        <TransactionsTable paginated={paginated} hasFilters={hasFilters} clearFilters={clearFilters} toggleSort={toggleSort} onAddExpense={() => setIsAddExpenseOpen(true)} />
-
-        {/* Pagination */}
-        {filtered.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-border">
-            <p className="text-xs text-muted">
-              Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de{' '}
-              {filtered.length} lançamentos
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="touch-target"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Anterior
-              </Button>
-              <span className="text-xs font-semibold text-foreground px-2">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="touch-target"
-              >
-                Próximo
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      <AddExpenseModal
-        isOpen={isAddExpenseOpen}
-        onClose={() => setIsAddExpenseOpen(false)}
-      />
-    </div>
-  );
-}
-
-function TransactionsTable({paginated, hasFilters, clearFilters, toggleSort, onAddExpense}: {paginated: DBTransaction[]; hasFilters: boolean; clearFilters: () => void; toggleSort: (field: 'date' | 'amount' | 'description') => void; onAddExpense: () => void}) {
-  return (
-        <CardContent className="p-0">
-          {paginated.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-surface-muted text-muted flex items-center justify-center mb-3">
-                <FileText className="w-7 h-7" />
-              </div>
-              <p className="text-base font-semibold text-foreground">
-                Nenhum lançamento encontrado
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                {hasFilters ? 'Tente ajustar ou limpar os filtros de busca' : 'Registre seu primeiro gasto ou importe um extrato'}
-              </p>
-              {hasFilters ? (
-                <Button variant="outline" size="sm" onClick={clearFilters} className="mt-4 touch-target">
-                  Limpar filtros
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={(event) => { event.currentTarget.focus(); onAddExpense(); }}
-                  className="mt-4 touch-target"
-                >
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Adicionar gasto
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <button
-                        onClick={() => toggleSort('date')}
-                        className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition-colors cursor-pointer"
-                      >
-                        Data <ArrowUpDown className="w-3.5 h-3.5" />
-                      </button>
-                    </TableHead>
-                    <TableHead>
-                      <button
-                        onClick={() => toggleSort('description')}
-                        className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition-colors cursor-pointer"
-                      >
-                        Descrição <ArrowUpDown className="w-3.5 h-3.5" />
-                      </button>
-                    </TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead className="text-right">
-                      <button
-                        onClick={() => toggleSort('amount')}
-                        className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition-colors cursor-pointer ml-auto"
-                      >
-                        Valor <ArrowUpDown className="w-3.5 h-3.5" />
-                      </button>
-                    </TableHead>
-                    <TableHead className="hidden md:table-cell">Origem</TableHead>
-                    <TableHead className="hidden lg:table-cell text-center">Localização</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginated.map((tx) => {
-                    const isPositive = Number(tx.amount) >= 0;
-                    const catLabel = TRANSACTION_CATEGORY_LABELS[tx.category] ?? tx.category;
-                    const sourceInfo = sourceColors[tx.source] ?? 'bg-surface-muted text-muted border-border';
-
-                    return (
-                      <TableRow key={tx.id}>
-                        <TableCell className="text-xs text-muted whitespace-nowrap">
-                          {formatDate(tx.date)}
-                        </TableCell>
-                        <TableCell className="text-xs font-semibold text-foreground max-w-[240px] truncate">
-                          {tx.description}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={tx.category} className="text-[10px]">
-                            {catLabel}
-                          </Badge>
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            'text-xs font-bold text-right whitespace-nowrap',
-                            isPositive ? 'text-success' : 'text-danger',
-                          )}
-                        >
-                          {isPositive ? '+' : ''}
-                          {formatBRL(Number(tx.amount))}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span
-                            className={cn(
-                              'inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase',
-                              sourceInfo,
-                            )}
-                          >
-                            {tx.source}
-                          </span>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-center">
-                          {tx.latitude && tx.longitude ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-primary">
-                              <MapPin className="w-3.5 h-3.5" />
-                              GPS
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
+    <form key={JSON.stringify(query)} onSubmit={onSubmit} className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Filtros de lançamentos">
+      <label className="text-sm">Descrição<Input name="description" defaultValue={query.description??''} maxLength={120}/></label>
+      <label className="text-sm">Conta<select name="accountId" defaultValue={query.accountId??''} className="w-full rounded-xl border border-border bg-surface p-2"><option value="">Todas as contas</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+      <label className="text-sm">Categoria<select name="categoryId" defaultValue={query.categoryId??''} className="w-full rounded-xl border border-border bg-surface p-2"><option value="">Todas as categorias</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+      <label className="text-sm">Tipo<select name="kind" defaultValue={query.kind??''} className="w-full rounded-xl border border-border bg-surface p-2"><option value="">Todos os tipos</option><option value="income">Receita</option><option value="expense">Despesa</option><option value="transfer">Transferência</option><option value="refund">Estorno</option><option value="adjustment">Ajuste</option><option value="unclassified">A classificar</option></select></label>
+      <label className="text-sm">Status<select name="status" defaultValue={query.status??''} className="w-full rounded-xl border border-border bg-surface p-2"><option value="">Todos os status</option><option value="planned">Previsto</option><option value="recorded">Registrado</option><option value="settled">Liquidado</option><option value="cancelled">Cancelado</option></select></label>
+      <label className="text-sm">Compra desde<Input name="startDate" type="date" defaultValue={query.startDate??''}/></label><label className="text-sm">Compra até<Input name="endDate" type="date" defaultValue={query.endDate??''}/></label>
+      <label className="text-sm">Competência<Input name="competenceMonth" type="month" defaultValue={query.competenceMonth?.slice(0,7)??''}/></label>
+      <label className="text-sm">Exibição<select name="archived" defaultValue={query.archived} className="w-full rounded-xl border border-border bg-surface p-2"><option value="false">Ativos</option><option value="true">Excluídos</option></select></label>
+      <input type="hidden" name="limit" value={query.limit}/><div className="flex items-end gap-2"><Button type="submit" disabled={navigating}>Aplicar filtros</Button><Button type="button" variant="outline" onClick={onClear} disabled={navigating}>Limpar</Button></div>
+    </form>
   );
 }

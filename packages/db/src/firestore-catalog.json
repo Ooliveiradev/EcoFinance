@@ -65,6 +65,21 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "color",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "sortOrder",
+        "type": "integer",
+        "nullable": true
+      },
+      {
+        "key": "revision",
+        "type": "uuid",
+        "nullable": true
       }
     ],
     "unique": [
@@ -361,6 +376,11 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "revision",
+        "type": "uuid",
+        "nullable": true
       }
     ],
     "unique": [
@@ -1370,6 +1390,21 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "notes",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "transferId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "revision",
+        "type": "uuid",
+        "nullable": true
       }
     ],
     "unique": [
@@ -1774,5 +1809,56 @@
     ],
     "unique": [],
     "refs": []
+  },
+  "operations": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "action",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "hash",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "result",
+        "type": "jsonb",
+        "nullable": false
+      },
+      {
+        "key": "createdAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ]
+    ],
+    "refs": [
+      {
+        "fields": [
+          "ownerId"
+        ],
+        "collection": "users",
+        "target": [
+          "id"
+        ]
+      }
+    ]
   }
 }

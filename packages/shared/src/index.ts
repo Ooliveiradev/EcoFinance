@@ -12,3 +12,5 @@ export * from './trend';
 export * from './preferences';
 export * from './category-labels';
 export * from './access';
+export * from './manual-finance';
+export { ZodError } from 'zod';

@@ -189,8 +189,12 @@ seguem o crescimento do produto e #12/#43, sem cache que aceite sessão revogada
 - Ensaio real Firestore → PostgreSQL com novas escritas e comparação completa.
 - 41 testes legados PostgreSQL/export/recovery; cobertura de migration aprovada.
 - Auditoria sem avisos de dependência não tratados; bundle web sem credenciais.
-- CI remota do PR #48 ainda deve comprovar esses checks e o build Android nativo.
+- [PR #48 integrado](https://github.com/Ooliveiradev/EcoFinance/pull/48), issue #47 encerrada. A [CI completa](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37478780725) passou, incluindo o build Android nativo.
 
 Dependências SQL foram retiradas de apps/next e das dependências de produção de
 packages/db. Permanecem como ferramentas de desenvolvimento para exportação e
 reversão, sem conexão ou import SQL no runtime.
+
+## Evolução após a migração
+
+A #5 acrescenta revisão de registros, notas, cores/ordem de contas, vínculo de transferência e a coleção `operations` (22 coleções de aplicação). O backup nativo Firebase inclui todos esses campos e recibos idempotentes. A reversão SQL acima se aplica ao schema histórico entregue na #47. Exportar uma base com campos novos ou operações para aquele SQL é recusado explicitamente: não há descarte silencioso de dados. Após utilizar o cadastro manual, recupere com backup/restore nativo e código compatível. Uma futura reversão SQL precisa de um destino e mapeamento versionados que suportem esse schema. Consulte [cadastro manual](cadastro-manual.md).
