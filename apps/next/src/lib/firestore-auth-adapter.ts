@@ -40,7 +40,7 @@ export function firestoreAuthAdapter(database: Database): (options: BetterAuthOp
         },
         updateMany: async ({model,where,update}) => database.transaction(async tx => {
           const rows = await tx.query(collection(model),{where});
-          for (const row of rows) await tx.put(collection(model), {...row,...clean(update)} as never);
+          await tx.putMany(collection(model), rows.map(row => ({...row,...clean(update)})) as never);
           return rows.length;
         }),
         delete: async ({model,where}) => database.transaction(async tx => {
@@ -50,7 +50,7 @@ export function firestoreAuthAdapter(database: Database): (options: BetterAuthOp
         }),
         deleteMany: async ({model,where}) => database.transaction(async tx => {
           const rows = await tx.query(collection(model),{where});
-          for (const row of rows) await tx.remove(collection(model),row.id);
+          await tx.removeMany(collection(model), rows.map(row => row.id));
           return rows.length;
         }),
         consumeOne: async <T>({model,where}: {model:string;where:Predicate[]}) => database.transaction(async tx => {

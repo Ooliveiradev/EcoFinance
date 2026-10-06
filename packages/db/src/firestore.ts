@@ -141,6 +141,16 @@ export class DocumentStore {
     for (const key of uniqueKeys(collection, row as unknown as Record<string, unknown>)) this.pending.set(`_unique/${key}`, null);
     this.pending.set(this.ref(collection, id).path, null);
   }
+  async putMany<K extends Collection>(collection: K, rows: Models[K][]): Promise<void> {
+    if (!this.tx) return this.transaction(tx => tx.putMany(collection, rows));
+    // Each write can acquire/release unique claims used by the next write.
+    // Keep the shared transaction buffer ordered to prevent claim races.
+    for (const row of rows) await this.put(collection, row);
+  }
+  async removeMany(collection: Collection, ids: string[]): Promise<void> {
+    if (!this.tx) return this.transaction(tx => tx.removeMany(collection, ids));
+    for (const id of ids) await this.remove(collection, id);
+  }
   async loginAttempt(key: string): Promise<number> {
     if(!/^[0-9a-f]{64}$/.test(key))throw new Error('Invalid rate-limit key.');
     const id=`${key.slice(0,8)}-${key.slice(8,12)}-5${key.slice(13,16)}-a${key.slice(17,20)}-${key.slice(20,32)}`;

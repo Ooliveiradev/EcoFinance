@@ -20,7 +20,7 @@ export async function provisionUser(database: Database, input: { email: string; 
       const sessions = await tx.query('authSessions',{where:[{field:'userId',value:user.id}]});
       if (accounts.length !== 1) throw new Error('Conta de senha não encontrada.');
       await tx.put('authAccounts',{...accounts[0]!,password,updatedAt:new Date()});
-      for (const session of sessions) await tx.remove('authSessions',session.id);
+      await tx.removeMany('authSessions',sessions.map(session => session.id));
       return user.id;
     }
     let id = input.ownerId;

@@ -52,6 +52,8 @@ it('checks unique business keys atomically under concurrent writes',async()=> {
   const rows=await Promise.allSettled(Array.from({length:4},()=>source.put('budgets',{...budget,id:randomUUID(),competenceMonth:'2026-10-01'},true)));
   expect(rows.filter(r=>r.status==='fulfilled')).toHaveLength(1);
   expect(rows.filter(r=>r.status==='rejected')).toHaveLength(3);
+  await expect(source.putMany('budgets',Array.from({length:2},()=>({...budget,id:randomUUID(),competenceMonth:'2026-11-01'})))).rejects.toThrow('unique');
+  expect(await source.query('budgets',{where:[{field:'competenceMonth',value:'2026-11-01'}]})).toEqual([]);
 });
 it('refuses JSON numbers and counters that would silently lose source precision',()=> {
   expect(()=>portableDocument('preferences',{id:'synthetic',settings:'{"large":9007199254740993}'})).toThrow('exactly');
