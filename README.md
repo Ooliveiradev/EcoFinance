@@ -2,6 +2,8 @@
 
 Gerenciador financeiro pessoal em evolução, com web Next.js, Expo e PostgreSQL/PostGIS. O [plano de refatoração](docs/refatoracao/plano.md) acompanha os critérios de cada entrega.
 
+A [migração para Firebase (#47)](docs/refatoracao/firebase-migration.md) está em preparação para `ecofinance-912de`. O runtime ainda usa PostgreSQL; a exportação verificável pode ser ensaiada localmente.
+
 ## Estado da implementação
 
 - Modelo financeiro por proprietário, dinheiro exato, datas civis e migration aditiva com backfill auditado.

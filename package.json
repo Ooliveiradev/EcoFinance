@@ -15,6 +15,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "mobile:check": "turbo check --filter=@ecofinance/expo",
     "db:migrate": "pnpm --filter @ecofinance/db db:migrate",
+    "db:snapshot": "tsx packages/db/scripts/portable-snapshot.ts",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
     "clean": "turbo clean",

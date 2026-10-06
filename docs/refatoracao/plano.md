@@ -1,5 +1,7 @@
 # Plano de implementação do EcoFinance
 
+> Atualização em 06/10/2026: #1–#4 e #29/#36 estão concluídas; PRs #20/#27/#45/#46 já foram integrados. A prioridade atual é a [migração Firebase #47](firebase-migration.md), solicitada posteriormente e que substitui a decisão histórica de manter PostgreSQL. Depois dela, retomar #5 e as demais entregas conforme os critérios. Consultar a [revisão do backlog](estado-issues.md).
+
 > Atualização em 05/10/2026: EF-01 (#1) concluída após os PRs #20/#27 integrados e CI remota aprovada; EF-02 (#2) já concluída. A entrega atual implementa EF-03 (#3), hash de senhas (#29) e expiração/revogação (#36); consulte [autenticação e evidências](autenticacao.md). Vincular issues completas no PR com Closes #N; somente o merge conclui as vinculadas. EF-04/EF-05 são as próximas entregas financeiras de interface. Os critérios anteriores e observações abaixo registram o diagnóstico histórico da base.
 
 Data da revisão: 02/10/2026. Base local: `f0e085a`; árvore de trabalho limpa antes deste documento.
