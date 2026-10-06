@@ -71,3 +71,5 @@ npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofin
 ```
 
 Checks não garantem código perfeito. A autenticação individual e o isolamento seguem os critérios/evidências da EF-03; iOS nativo, aparelhos, integrações reais e novas jornadas precisam de validação específica antes de release. As demais issues de segurança exigem seus próprios critérios completos: scanners/auditoria não substituem MFA, rotação, ensaio operacional, monitoramento ou política de incidentes. A refatoração não commitada do checkout original foi preservada em separado.
+
+A auditoria da #5 identificou uma nova entrada crítica para `shell-quote` 1.9.0, trazida por react-devtools-core. O override restrito a versões afetadas usa 1.12.0, já presente no lockfile via Expo CLI, incluindo a correção upstream publicada em 1.11.0 ([GHSA-pqg4-j6r4-53mv](https://github.com/advisories/GHSA-pqg4-j6r4-53mv)). Nenhum advisory adicional é ignorado; o build nativo e os demais gates validam a resolução atualizada.

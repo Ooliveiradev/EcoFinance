@@ -1,22 +1,22 @@
 # Revisão das issues em 06/10/2026
 
-Base: `origin/main` em `83df5f3`, PR #46 integrado. GitHub consultado nesta data:
-PR #48 em andamento; #1, #2, #3, #4, #29 e #36 já encerradas. #18 é agregadora.
-A prioridade indicada pelo mantenedor é #47 antes da retomada das demais issues.
+Base: `origin/main` em `910e043`, PR #48 integrado e #47 encerrada.
+#1, #2, #3, #4, #29 e #36 já estavam encerradas. #18 é agregadora.
+A entrega atual implementa #5; o trabalho será interrompido após sua integração.
 
 Modelo/tela existente não equivale a um fluxo completo. A revisão abaixo registra
 as lacunas que impedem novos fechamentos; não certifica a implantação em produção.
 
 | Issue | Evidência e critério ainda pendente |
 | --- | --- |
-| #5 | Contas/lançamentos têm APIs GET; faltam cadastro/edição/exclusão, categorias e idempotência |
+| #5 | CRUD manual web, contas/categorias, transferências atômicas, paginação/filtros e desfazer implementados; integração depende dos gates do PR correspondente |
 | #6 | Tabelas e leitura de planejamento existem; faltam CRUD, geração/pagamento e fluxo de orçamento |
 | #7 | Modelo de cartão/fatura/parcela existe; faltam operações e conciliação completas |
 | #8 | Modelo de lote/item existe; falta upload/revisão/confirmar/reverter; ingestão antiga desativada |
 | #9 | Parser OFX e testes existem; faltam corpus/diagnóstico e suporte completo CSV/TSV/XLS/XLSX/QFX |
 | #10 | Não há pipeline PDF/OCR com evidência por item |
 | #11 | Chat externo desativado; faltam adapters e assistência opt-in/local |
-| #12 | Dashboard mensal existe; métricas ainda usam sinal e snapshots legados, sem serviço financeiro final |
+| #12 | #5 corrige saldo derivado e totais por competência/tipo; projeções, métricas completas e critérios finais da issue permanecem pendentes |
 | #13 | Expo possui login seguro; telas financeiras demonstrativas não comprovam paridade |
 | #14 | CI ensaia dump/restore operacional; exportação/restore do produto e controle dos dados incompletos |
 | #15 | Ingestão antiga desativada; SDKs/código/permissões legados e substitutos ainda pendentes |
@@ -39,11 +39,6 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #42 | Significado de PMP ainda depende da confirmação registrada no ticket |
 | #43 | Health endpoint não comprova métricas, alertas e simulações de incidentes |
 | #44 | Restauração sintética existe; RPO/RTO, responsáveis e runbook de incidente completos ainda pendentes |
-| #47 | Firebase Enterprise em São Paulo provisionado, runtime e autenticação migrados; 20 testes Firebase, 78 jornadas e reversão PostgreSQL passaram. Aguarda CI do PR #48 e integração |
+| #47 | Concluída no PR #48, com Firestore Enterprise em São Paulo, runtime/autenticação, regras, backup/reversão e CI incluindo Android nativo |
 
-CI da main: o [run reexecutado](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37349559532) passou em todos os grupos, incluindo Android nativo, no SHA `83df5f3`. O CI do PR #48 precisa validar a migração completa.
-
-Nenhuma das 31 issues abertas teve todos os seus critérios comprovados nesta
-revisão. Assim, não houve novo encerramento por conveniência. #18 deve refletir
-#4 concluída pelo PR #46. Novas entregas devem vincular apenas issues integralmente
-atendidas com `Closes #N`; #47 permanece aberta até validar e integrar o PR #48.
+A [CI do PR #48](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37478780725) passou em todos os grupos. A auditoria preservou abertas as issues com lacunas reais; #47 foi encerrada após a integração. #5 será vinculada com `Closes #5` e encerrada somente após seus próprios gates. #18 permanece aberta acompanhando as demais entregas. Nenhuma implantação do site em hospedagem externa foi comprovada nesta revisão.

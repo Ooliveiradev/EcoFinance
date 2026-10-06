@@ -14,7 +14,7 @@ A [migração para Firebase (#47)](docs/refatoracao/firebase-migration.md) usa F
 
 - CI com tipos, lint, domínio, migrações/backup, E2E, builds, bundles e verificações de segurança.
 
-Cadastro manual completo, planejamento, cartões, staging de importação multiformato e métricas finais seguem as próximas issues. As telas antigas ainda não comprovam esses fluxos. Os números atuais de saldo são snapshots legados; não equivalem ao novo saldo derivado de movimentos. O Expo conserva telas demonstrativas até a paridade financeira.
+O [cadastro manual web (#5)](docs/refatoracao/cadastro-manual.md) permite manter contas, categorias, receitas, despesas e transferências, com exclusão reversível e saldos derivados de movimentos liquidados. Contas legadas sem data de saldo inicial exibem saldo incompleto. Planejamento, cartões, staging de importação multiformato e métricas finais permanecem nas próximas issues. O Expo conserva telas demonstrativas até a paridade financeira.
 
 A ingestão imediata antiga (notificações, Uber, Pluggy, seed e OFX) está desativada. O chat externo está desativado até haver opt-in explícito e contratos autorizados. Nenhuma chave de Open Finance, IA externa ou conta paga é necessária para login, migrações e testes.
 

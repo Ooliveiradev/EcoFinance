@@ -6,7 +6,7 @@ import type { Collection, Models, OwnedCollection } from './models';
 
 export interface Predicate { field: string; op?: 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'in' | 'not_in' | 'contains' | 'starts_with' | 'ends_with'; value: unknown; connector?: 'AND' | 'OR'; mode?: 'sensitive' | 'insensitive' }
 export interface QueryOptions { where?: Predicate[]; order?: { field: string; direction: 'asc' | 'desc' }[]; limit?: number; offset?: number }
-export const collections: Collection[] = ['users','categories','accounts','uberTripsMetadata','transactions','recurrenceRules','recurrenceOccurrences','budgets','budgetCategories','cards','invoices','installmentGroups','installments','importBatches','importItems','preferences','financialMigrationAudits','authSessions','authAccounts','authVerifications','authRateLimits'];
+export const collections: Collection[] = ['users','categories','accounts','uberTripsMetadata','transactions','recurrenceRules','recurrenceOccurrences','budgets','budgetCategories','cards','invoices','installmentGroups','installments','importBatches','importItems','preferences','financialMigrationAudits','authSessions','authAccounts','authVerifications','authRateLimits','operations'];
 const MAX_ROWS = 10000;
 export function decode(value: unknown): unknown {
   if (value instanceof Timestamp) return value.toDate();

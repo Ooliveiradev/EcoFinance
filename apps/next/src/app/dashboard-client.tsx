@@ -22,6 +22,8 @@ import {
 import {
   monthLabel,
   formatBRL,
+  formatCents,
+  moneyToCents,
   TRANSACTION_CATEGORY_LABELS,
   type TransactionCategory,
   type TrendDescription,
@@ -60,12 +62,15 @@ const CategoryChart = dynamic(() => import('./category-chart'), {
 export type UpcomingBillItem = UpcomingBill;
 
 export interface CategoryData {
+  id?: string;
+  formatted?: string;
   name: string;
   value: number;
   color: string;
 }
 
 export interface TransactionItem {
+  categoryName?: string;
   id: string;
   date: string;
   description: string;
@@ -80,13 +85,16 @@ export interface DashboardClientProps {
   monthValid?: boolean;
   error?: string;
   totalBalance: number;
-  income: { value: number; trend: TrendDescription };
-  expenses: { value: number; trend: TrendDescription };
+  totalBalanceFormatted?: string;
+  totalBalanceExact?: string|null;
+  income: { value: number; formatted?: string; exact?: string; trend: TrendDescription };
+  expenses: { value: number; formatted?: string; exact?: string; trend: TrendDescription };
   transactionsCount: { value: number; trend: TrendDescription };
   categoryData: CategoryData[];
   recentTransactions: TransactionItem[];
   upcomingBills?: UpcomingBillItem[];
   accounts?: Array<{ id: string; name: string }>;
+  categories?: Array<{ id: string; name: string }>;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -121,6 +129,7 @@ export default function DashboardClient({
   monthValid = true,
   error,
   totalBalance,
+  totalBalanceFormatted,
   income,
   expenses,
   transactionsCount,
@@ -128,12 +137,13 @@ export default function DashboardClient({
   recentTransactions,
   upcomingBills = EMPTY_BILLS,
   accounts = EMPTY_ACCOUNTS,
+  categories = EMPTY_ACCOUNTS,
 }: DashboardClientProps) {
   const router = useRouter();
   const { preferences } = usePreferences();
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
 
-  const totalExpenses = categoryData.reduce((s, c) => s + c.value, 0);
+  const totalExpenses = expenses.value;
   const formattedMonth = monthLabel(month);
 
   // Determine card rendering order and visibility based on user preferences
@@ -146,6 +156,7 @@ export default function DashboardClient({
       id: 'balance',
       title: 'Saldo Total',
       value: totalBalance,
+      formatted: totalBalanceFormatted,
       icon: DollarSign,
       trend: null as TrendDescription | null,
       trendLabel: 'Consolidado de todas as contas',
@@ -155,6 +166,7 @@ export default function DashboardClient({
       id: 'income',
       title: `Receitas (${formattedMonth})`,
       value: income.value,
+      formatted: income.formatted,
       icon: TrendingUp,
       trend: income.trend,
       trendLabel: income.trend.label,
@@ -170,6 +182,7 @@ export default function DashboardClient({
       id: 'expenses',
       title: `Despesas (${formattedMonth})`,
       value: expenses.value,
+      formatted: expenses.formatted,
       icon: TrendingDown,
       trend: expenses.trend,
       trendLabel: expenses.trend.label,
@@ -205,7 +218,7 @@ export default function DashboardClient({
   );
 
   const renderMonthSummaryCard = () => <MonthSummaryCard stats={stats} />;
-  const renderCategoriesCard = () => <CategoriesCard categoryData={categoryData} formattedMonth={formattedMonth} totalExpenses={totalExpenses} />;
+  const renderCategoriesCard = () => <CategoriesCard categoryData={categoryData} formattedMonth={formattedMonth} totalExpenses={totalExpenses} formattedTotal={expenses.formatted} />;
   const renderRecentEntriesCard = () => <RecentEntriesCard recentTransactions={recentTransactions} formattedMonth={formattedMonth} onAddExpense={() => setIsAddExpenseOpen(true)} />;
   /* ------------------------------------------------------------------ */
   /*  Card Map for Dynamic Ordering                                     */
@@ -316,12 +329,13 @@ export default function DashboardClient({
         onClose={() => setIsAddExpenseOpen(false)}
         onSuccess={() => router.refresh()}
         accounts={accounts}
+        categories={categories}
       />
     </div>
   );
 }
 
-interface DashboardStat { id: string; title: string; value: number; icon: React.ComponentType<{className?: string}>; trend: TrendDescription | null; trendLabel: string; isCurrency: boolean; trendColor?: string; }
+interface DashboardStat { formatted?: string; id: string; title: string; value: number; icon: React.ComponentType<{className?: string}>; trend: TrendDescription | null; trendLabel: string; isCurrency: boolean; trendColor?: string; }
 function MonthSummaryCard({ stats }: { stats: DashboardStat[] }) {
   return (
     <section key="month-summary" aria-labelledby="month-summary-title">
@@ -351,7 +365,7 @@ function MonthSummaryCard({ stats }: { stats: DashboardStat[] }) {
                 </div>
 
                 <p className="text-2xl font-bold text-foreground tracking-tight">
-                  {stat.isCurrency ? formatBRL(stat.value) : stat.value}
+                  {stat.isCurrency ? (stat.formatted ?? formatBRL(stat.value)) : stat.value}
                 </p>
 
                 <div className="mt-3 flex items-center gap-2">
@@ -393,7 +407,7 @@ function MonthSummaryCard({ stats }: { stats: DashboardStat[] }) {
 
 }
 
-function CategoriesCard({ categoryData, formattedMonth, totalExpenses }: { categoryData: CategoryData[]; formattedMonth: string; totalExpenses: number }) {
+function CategoriesCard({ categoryData, formattedMonth, totalExpenses, formattedTotal }: { categoryData: CategoryData[]; formattedMonth: string; totalExpenses: number; formattedTotal?: string }) {
   return (
     <section key="categories" aria-labelledby="categories-chart-title">
       <Card>
@@ -406,7 +420,7 @@ function CategoriesCard({ categoryData, formattedMonth, totalExpenses }: { categ
           </div>
           {categoryData.length > 0 && (
             <Badge variant="outline" className="text-xs font-semibold">
-              Total: {formatBRL(totalExpenses)}
+              Total: {formattedTotal ?? formatBRL(totalExpenses)}
             </Badge>
           )}
         </CardHeader>
@@ -436,7 +450,7 @@ function CategoriesCard({ categoryData, formattedMonth, totalExpenses }: { categ
                     Total
                   </span>
                   <span className="text-lg font-bold text-foreground">
-                    {formatBRL(totalExpenses)}
+                    {formattedTotal ?? formatBRL(totalExpenses)}
                   </span>
                 </div>
               </div>
@@ -461,11 +475,11 @@ function CategoriesCard({ categoryData, formattedMonth, totalExpenses }: { categ
                     <TableBody>
                       {categoryData.map((cat) => {
                         const pct = totalExpenses > 0 ? (cat.value / totalExpenses) * 100 : 0;
-                        const label = TRANSACTION_CATEGORY_LABELS[cat.name as TransactionCategory] ?? cat.name;
-                        const color = CATEGORY_COLORS[cat.name] ?? CATEGORY_COLORS.desconhecido;
+                        const label = cat.id ? cat.name : TRANSACTION_CATEGORY_LABELS[cat.name as TransactionCategory] ?? cat.name;
+                        const color = cat.color || CATEGORY_COLORS[cat.name] || CATEGORY_COLORS.desconhecido;
 
                         return (
-                          <TableRow key={cat.name}>
+                          <TableRow key={cat.id ?? cat.name}>
                             <TableCell className="text-xs font-medium text-foreground">
                               <div className="flex items-center gap-2">
                                 <span
@@ -477,7 +491,7 @@ function CategoriesCard({ categoryData, formattedMonth, totalExpenses }: { categ
                               </div>
                             </TableCell>
                             <TableCell className="text-xs font-semibold text-foreground text-right">
-                              {formatBRL(cat.value)}
+                              {cat.formatted ?? formatBRL(cat.value)}
                             </TableCell>
                             <TableCell className="text-xs text-muted text-right">
                               {pct.toFixed(1).replace('.', ',')}%
@@ -564,7 +578,7 @@ function RecentEntriesCard({ recentTransactions, formattedMonth, onAddExpense }:
                 <TableBody>
                   {recentTransactions.map((tx) => {
                     const isPositive = Number(tx.amount) >= 0;
-                    const catLabel = TRANSACTION_CATEGORY_LABELS[tx.category] ?? tx.category;
+                    const catLabel = tx.categoryName ?? TRANSACTION_CATEGORY_LABELS[tx.category] ?? tx.category;
                     const sourceInfo = SOURCE_BADGES[tx.source] ?? {
                       label: tx.source,
                       className: 'bg-surface-muted text-muted border-border',
@@ -590,7 +604,7 @@ function RecentEntriesCard({ recentTransactions, formattedMonth, onAddExpense }:
                           )}
                         >
                           {isPositive ? '+' : ''}
-                          {formatBRL(Number(tx.amount))}
+                          {formatCents(moneyToCents(tx.amount))}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
                           <span

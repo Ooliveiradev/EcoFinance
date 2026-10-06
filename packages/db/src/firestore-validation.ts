@@ -26,6 +26,10 @@ export function validateDocument(collection:Collection,row:Record<string,unknown
   for(const key of days)requireValue(Number(row[key])>=1 && Number(row[key])<=31);
   if(collection==='categories')requireValue(typeof row.name==='string' && row.name.trim().length>=1 && row.name.trim().length<=120 && /^#[0-9a-f]{6}$/i.test(String(row.color)));
   if(collection==='accounts')requireValue(['banco','carteira'].includes(String(row.type)));
+  if(collection==='accounts' && row.color!=null)requireValue(/^#[0-9a-f]{6}$/i.test(String(row.color)));
+  if(['accounts','categories'].includes(collection) && row.sortOrder!=null)requireValue(Number(row.sortOrder)>=0);
+  if(collection==='transactions' && row.notes!=null)requireValue(typeof row.notes==='string' && row.notes.length<=2000);
+  if(collection==='operations')requireValue(typeof row.action==='string' && row.action.length<=80 && /^[0-9a-f]{64}$/.test(String(row.hash)));
   if(collection==='transactions') {
     requireValue(['income','expense','transfer','refund','adjustment','unclassified'].includes(String(row.kind)) && ['planned','recorded','settled','cancelled'].includes(String(row.status)));
     const amount=Number(row.amount);

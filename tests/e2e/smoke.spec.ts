@@ -35,7 +35,7 @@ test('expense dialog retains edits, traps keyboard focus and restores the trigge
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Descrição do gasto *', { exact: true }).fill('Teste de foco');
   await dialog.getByLabel('Valor (R$) *', { exact: true }).fill('10,00');
-  await dialog.getByLabel('Categoria', { exact: true }).selectOption('transporte');
+  await dialog.getByLabel('Categoria', { exact: true }).selectOption({index:1});
   await expect(dialog.getByLabel('Descrição do gasto *', { exact: true })).toHaveValue('Teste de foco');
   for (let index = 0; index < 12; index++) {
     await page.keyboard.press('Tab');
@@ -80,7 +80,7 @@ test('two users never see each other in SSR, APIs or forged filters',async({page
     await expect(other.getByRole('main')).toBeVisible();
     await expect(other.getByText('Recorrente', { exact: true })).toHaveCount(0);
     for(const query of ['', '?accountId=00000000-0000-4000-8000-000000000001','?id=00000000-0000-4000-8000-000000000002']) {
-      const response=await other.request.get('/api/entries'+query); expect(response.status()).toBe(200); expect(await response.json()).toEqual({entries:[]});
+      const response=await other.request.get('/api/entries'+query); expect(response.status()).toBe(200); expect((await response.json()).entries).toEqual([]);
     }
     expect((await other.request.get('/api/entries?ownerId=10000000-0000-4000-8000-000000000001')).status()).toBe(400);
     const response=await other.request.get('/api/accounts'); expect(JSON.stringify(await response.json())).not.toContain('Backup sintético');
@@ -165,7 +165,7 @@ for(const path of ['/api/session','/api/seed','/api/pluggy/sync','/api/pluggy/we
 }
 test('health exposes no private data and every other private API fails closed',async({request,page})=>{
   expect((await request.get('/api/health')).status()).toBe(200);
-  for(const path of ['/api/accounts','/api/entries','/api/sessions','/api/pluggy/token','/api/transactions/nearby']) expect((await request.get(path)).status()).toBe(401);
+  for(const path of ['/api/accounts','/api/categories','/api/months/2026-10/summary','/api/entries','/api/sessions','/api/pluggy/token','/api/transactions/nearby']) expect((await request.get(path)).status()).toBe(401);
   await page.goto('/accounts'); await expect(page).toHaveURL(/\/login$/); await expect(page.getByText('Backup sintético',{exact:true})).toHaveCount(0);
   for (const path of ['/', '/planning', '/imports', '/settings']) {
     await page.goto(path); await expect(page).toHaveURL(/\/login$/);

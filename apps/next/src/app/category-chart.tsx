@@ -4,6 +4,8 @@ import React, { lazy, Suspense } from 'react';
 import { formatBRL } from '@ecofinance/shared';
 
 interface CategoryItem {
+  id?: string;
+  formatted?: string;
   name: string;
   value: number;
   color: string;
@@ -11,7 +13,7 @@ interface CategoryItem {
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{ name: string; value: number; payload: { color: string } }>;
+  payload?: Array<{ name: string; value: number; payload: { color: string; formatted?: string } }>;
 }
 
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
@@ -21,7 +23,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   return (
     <div className="bg-surface text-foreground border border-border rounded-xl px-3 py-2 shadow-lg text-xs">
       <p className="font-semibold text-muted mb-0.5">{data.name}</p>
-      <p className="font-bold text-foreground">{formatBRL(data.value)}</p>
+      <p className="font-bold text-foreground">{data.payload.formatted ?? formatBRL(data.value)}</p>
     </div>
   );
 }
@@ -52,8 +54,8 @@ const Chart = lazy(async () => {
           >
             {categoryData.map((entry) => (
               <Cell
-                key={entry.name}
-                fill={CATEGORY_COLORS[entry.name] || 'var(--color-muted)'}
+                key={entry.id ?? entry.name}
+                fill={entry.color || CATEGORY_COLORS[entry.name] || 'var(--color-muted)'}
                 className="transition-opacity hover:opacity-85"
               />
             ))}
