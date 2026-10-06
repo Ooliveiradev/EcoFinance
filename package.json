@@ -15,12 +15,16 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "mobile:check": "turbo check --filter=@ecofinance/expo",
     "db:migrate": "pnpm --filter @ecofinance/db db:migrate",
+    "db:snapshot": "tsx packages/db/scripts/portable-snapshot.ts",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
     "clean": "turbo clean",
     "security:audit": "node scripts/security/audit.mjs",
     "db:verify-recovery": "tsx packages/db/scripts/verify-recovery.ts",
-    "auth:user": "pnpm --filter @ecofinance/next auth:user"
+    "auth:user": "pnpm --filter @ecofinance/next auth:user",
+    "db:firebase": "tsx packages/db/scripts/firebase.ts",
+    "test:firebase": "vitest run --config vitest.firebase.config.ts",
+    "test:rollback": "vitest run --config vitest.rollback.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -46,6 +50,8 @@
   },
   "pnpm": {
     "overrides": {
+      "source-map-js@<1.2.2": "1.2.2",
+      "compression@<1.8.2": "1.8.2",
       "brace-expansion@<2": "1.1.21",
       "brace-expansion@>=2 <3": "2.1.7",
       "nanoid@<4": "3.3.18",

@@ -1,4 +1,4 @@
-import { db, accounts, importBatches, desc, eq } from '@ecofinance/db';
+import { db } from '@ecofinance/db';
 import { requirePageUser } from '@/lib/session';
 import ImportsClient, { type ImportBatchItem } from './imports-client';
 
@@ -8,29 +8,11 @@ export const revalidate = 0;
 export default async function ImportsPage() {
   const userId = await requirePageUser();
   try {
-    const accountList = await db
-      .select({
-        id: accounts.id,
-        name: accounts.name,
-        balance: accounts.balance,
-      })
-      .from(accounts)
-      .where(eq(accounts.ownerId, userId))
-      .orderBy(accounts.name);
+    const accountList = await db.owned('accounts', userId, {order:[{field:'name',direction:'asc'}]});
 
     let batches: ImportBatchItem[] = [];
     try {
-      const batchResult = await db
-        .select({
-          id: importBatches.id,
-          source: importBatches.source,
-          state: importBatches.state,
-          createdAt: importBatches.createdAt,
-        })
-        .from(importBatches)
-        .where(eq(importBatches.ownerId, userId))
-        .orderBy(desc(importBatches.createdAt))
-        .limit(10);
+      const batchResult = await db.owned('importBatches', userId, {order:[{field:'createdAt',direction:'desc'}],limit:10});
 
       batches = batchResult.map((b) => ({
         id: b.id,
@@ -52,12 +34,12 @@ export default async function ImportsPage() {
         recentBatches={batches}
       />
     );
-  } catch (error) {
+  } catch {
     return (
       <ImportsClient
         accounts={[]}
         recentBatches={[]}
-        error={error instanceof Error ? error.message : 'Falha ao carregar contas para importação.'}
+        error={'Falha ao carregar contas para importação.'}
       />
     );
   }

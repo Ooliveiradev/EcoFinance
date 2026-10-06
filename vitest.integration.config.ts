@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./apps/next/src', import.meta.url)) } },
   test: {
     include: ['packages/**/*.integration.test.ts', 'apps/**/*.integration.test.ts', 'packages/db/src/migrations.test.ts'],
+    exclude: ['apps/next/src/lib/auth.integration.test.ts'],
     allowOnly: !process.env.CI,
     fileParallelism: false,
     testTimeout: 30000,

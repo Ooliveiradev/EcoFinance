@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['packages/**/*.test.ts', 'apps/**/*.test.ts'],
-    exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
+    exclude: ['**/*.integration.test.ts', '**/*.firebase.test.ts', '**/*.rollback.test.ts', '**/node_modules/**'],
     allowOnly: !process.env.CI,
     coverage: {
       provider: 'v8',

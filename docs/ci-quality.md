@@ -6,8 +6,8 @@ O workflow roda em todos os PRs, inclusive rascunhos/forks, pushes na main, merg
 | --- | --- |
 | Tipos e lint | TypeScript nos workspaces e ferramentas; ESLint sem erros nem avisos. |
 | Unitários | Por arquivo: 90% de linhas/statements/funções, 85% de branches. Validação, OFX, migrações, sessão e transporte mobile; controles negativos dos scanners. |
-| Banco | PostgreSQL/PostGIS descartável: concorrência, legado, preservação financeira, repetição, rollback, checksum, deduplicação, dump/restore e objetos espaciais. |
-| Web | Produção, canários e scan dos arquivos públicos; Playwright Chromium/WebKit/mobile com dados sintéticos. Sessão, acesso anônimo, CSRF, páginas, navegação, fixtures e APIs. |
+| Banco | Reversão Firestore → PostgreSQL com novas escritas; PostgreSQL/PostGIS descartável: concorrência, legado, preservação financeira, repetição, rollback, checksum, deduplicação, dump/restore e objetos espaciais. |
+| Web | Emulador Firestore Enterprise: autenticação, migração/restore e regras deny-all. Produção, canários e scan dos arquivos públicos; Playwright Chromium/WebKit/mobile com dados sintéticos. Sessão, acesso anônimo, CSRF, páginas, navegação, fixtures e APIs. |
 | Mobile | Compatibilidade Expo, exportação Android/iOS com cache limpo e canários, compilação e lint nativos Android. Sem credenciais de produção ou assinatura release. |
 | Dependências | Produção e desenvolvimento: todos os advisories sem correção bloqueiam, inclusive moderados/baixos. Registro indisponível/relatório incompleto também bloqueia. |
 | Segredos | Gitleaks no histórico alcançável e árvore limpa antes de instalar dependências, saída redigida; arquivos sensíveis e fronteira cliente/servidor. |
@@ -19,6 +19,16 @@ O workflow roda em todos os PRs, inclusive rascunhos/forks, pushes na main, merg
 Artifacts de cobertura, Playwright e SARIF duram sete dias. Bancos, dumps e bundles não são publicados. Dependabot propõe atualizações semanais, sem merge automático.
 
 ## Correções auditáveis
+
+Em 06/10/2026, a auditoria do PR de preparação da migração Firebase detectou
+duas vulnerabilidades altas já presentes no lockfile da main: source-map-js
+1.2.1 via magicast/coverage e compression 1.8.1 via Expo CLI. Overrides limitados
+às versões afetadas adotam as correções upstream source-map-js 1.2.2
+([GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q)) e
+compression 1.8.2
+([GHSA-vc2v-76pw-4v95](https://github.com/advisories/GHSA-vc2v-76pw-4v95)).
+Não há exceção de auditoria para esses advisories; instalação reproduzível,
+auditoria, cobertura e builds devem validar o lockfile corrigido.
 
 Atualizações corrigem Next, Drizzle, Expo e dependências transitivas. Overrides ficam no package.json/lockfile. Expo passou de SDK 52 para SDK 57; arquivos Android foram adaptados em separado, preservando recursos nativos. Releases precisam de assinatura própria.
 
@@ -53,9 +63,11 @@ node scripts/security/build-with-canaries.mjs web
 node scripts/security/build-with-canaries.mjs mobile
 # Banco descartável PostGIS com CREATE DATABASE:
 TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci pnpm test:integration --coverage
-# E2E exige banco local descartável; global setup migra/provisiona a fixture:
+# Java 21 e Firestore Enterprise descartável (build web antes do E2E):
 pnpm exec playwright install chromium webkit
-TEST_E2E_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/ecofinance_ci pnpm test:e2e
+npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofinance "pnpm test:firebase && pnpm test:e2e"
+# No mesmo emulador, TEST_DATABASE_URL aponta para PostgreSQL isolado:
+npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofinance "pnpm test:rollback"
 ```
 
 Checks não garantem código perfeito. A autenticação individual e o isolamento seguem os critérios/evidências da EF-03; iOS nativo, aparelhos, integrações reais e novas jornadas precisam de validação específica antes de release. As demais issues de segurança exigem seus próprios critérios completos: scanners/auditoria não substituem MFA, rotação, ensaio operacional, monitoramento ou política de incidentes. A refatoração não commitada do checkout original foi preservada em separado.

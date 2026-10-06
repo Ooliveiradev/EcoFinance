@@ -1,19 +1,14 @@
 import { beforeAll, afterAll, beforeEach, describe, it, expect, vi } from 'vitest';
-import postgres, { type Sql } from 'postgres';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { migrate, readMigrations } from '../../../../packages/db/src/migrations';
+import { clearTestCollections } from '../../../../packages/db/tests/firestore-fixture';
+import { migrateToFirebase } from '../../../../packages/db/src/firebase-migration';
 
-const adminUrl = process.env.TEST_DATABASE_URL;
-if (!adminUrl) throw new Error('TEST_DATABASE_URL is required');
-const admin = postgres(adminUrl, { max: 1, prepare: false, onnotice: () => {} });
-const databaseName = 'ecofinance_auth_' + randomBytes(8).toString('hex');
+const databaseName='auth-'+randomBytes(8).toString('hex');
 const origin = 'http://127.0.0.1:3000';
 const ownerA = '10000000-0000-4000-8000-000000000001';
 const ownerB = '20000000-0000-4000-8000-000000000001';
 const password = 'ef03-synthetic-password';
-let connection: Sql;
 let gateway: typeof import('../app/api/auth/[...all]/route');
 let sessions: typeof import('./session');
 let provision: typeof import('./provision-user');
@@ -21,15 +16,12 @@ let queries: typeof import('./owned-queries');
 let data: typeof import('@ecofinance/db');
 
 beforeAll(async () => {
-  await admin`CREATE DATABASE ${admin(databaseName)}`;
-  const url = new URL(adminUrl); url.pathname = '/' + databaseName;
-  connection = postgres(url.toString(), { max: 1, prepare: false, onnotice: () => {} });
-  await migrate(connection, await readMigrations(fileURLToPath(new URL('../../../../packages/db/migrations', import.meta.url))));
-  await connection.unsafe(await readFile(new URL('../../../../packages/db/tests/fixtures/recovery.sql', import.meta.url), 'utf8'));
-  vi.stubEnv('DATABASE_URL', url.toString());
+  vi.stubEnv('FIREBASE_PROJECT_ID','demo-ecofinance');
+  vi.stubEnv('FIRESTORE_DATABASE_ID',databaseName);
   vi.stubEnv('AUTH_URL', origin);
   vi.stubEnv('AUTH_SECRET', 'synthetic-auth-secret'.repeat(4));
   data = await import('@ecofinance/db');
+  await migrateToFirebase(data.db, JSON.parse(await readFile('packages/db/tests/fixtures/portable-synthetic.json','utf8')));
   provision = await import('./provision-user');
   gateway = await import('../app/api/auth/[...all]/route');
   sessions = await import('./session');
@@ -38,15 +30,11 @@ beforeAll(async () => {
   await provision.provisionUser(data.db, { email: 'b@example.test', password, ownerId: ownerB });
 });
 beforeEach(async () => {
-  await connection`DELETE FROM auth_sessions`;
-  await connection`DELETE FROM auth_rate_limits`;
+  await clearTestCollections(data.db, ['authSessions','authRateLimits']);
 });
 afterAll(async () => {
   vi.unstubAllEnvs();
-  await data?.closeDatabase();
-  await connection?.end();
-  await admin`DROP DATABASE IF EXISTS ${admin(databaseName)}`;
-  await admin.end();
+  if(data) { await clearTestCollections(data.db); await data.closeDatabase(); }
 });
 function authRequest(path: string, body?: unknown, headers: Record<string, string> = {}) {
   return new Request(origin + '/api/auth' + path, {
@@ -60,19 +48,19 @@ async function login(email = 'a@example.test', web = false) {
   expect(response.status).toBe(200);
   return response;
 }
-describe('real PostgreSQL authentication and ownership', () => {
+describe('real Firestore authentication and ownership', () => {
   it('maps existing financial owner without changing balances or history', async () => {
     const response = await login();
     const body = await response.json();
     expect(body.user.id).toBe(ownerA);
     expect(body.token).toBeUndefined();
-    const [stored]=await connection`SELECT password FROM auth_accounts WHERE user_id=${ownerA}`;
+    const [stored]=await data.db.query('authAccounts',{where:[{field:'userId',value:ownerA}]});
     expect(stored!.password).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
     expect(stored!.password).not.toContain(password);
-    expect(await connection`SELECT amount::text FROM transactions ORDER BY id`).toEqual([{amount:'-42.90'},{amount:'10.00'}]);
-    expect(await connection`SELECT count(*)::int AS count FROM auth_accounts`).toEqual([{count:2}]);
+    expect((await data.db.query('transactions',{order:[{field:'id',direction:'asc'}]})).map(({amount})=>({amount}))).toEqual([{amount:'-42.90'},{amount:'10.00'}]);
+    expect(await data.db.query('authAccounts')).toHaveLength(2);
     await expect(provision.provisionUser(data.db, {email:'new@example.test',password,ownerId:ownerA})).rejects.toThrow('associado');
-    expect(await connection`SELECT count(*)::int AS count FROM auth_accounts`).toEqual([{count:2}]);
+    expect(await data.db.query('authAccounts')).toHaveLength(2);
   });
   it('creates distinct signed per-device tokens and rejects unsigned or tampered tokens', async () => {
     const first = await login(); const second = await login();
@@ -116,7 +104,7 @@ describe('real PostgreSQL authentication and ownership', () => {
   });
   it('rejects expired sessions, global credentials and anonymous retired uploads before reading the body', async () => {
     const token = (await login()).headers.get('set-auth-token')!;
-    await connection`UPDATE auth_sessions SET expires_at=now()-interval '1 second'`;
+    for (const session of await data.db.query('authSessions')) await data.db.put('authSessions',{...session,expiresAt:new Date(Date.now()-1000)});
     expect(await sessions.requestSession(new Request(origin,{headers:{authorization:'Bearer '+token}}))).toBeNull();
     expect((await sessions.retiredEndpoint(new Request(origin,{headers:{'x-api-secret-key':'synthetic'}}))).status).toBe(401);
     expect((await sessions.retiredEndpoint(new Request(origin))).status).toBe(401);
@@ -129,21 +117,21 @@ describe('real PostgreSQL authentication and ownership', () => {
     expect((await gateway.POST(huge)).status).toBe(413);
     expect((await gateway.POST(authRequest('/sign-in/email',{email:'a@example.test',password:'wrong'}))).status).toBe(401);
   });
-  it('throttles concurrent login attempts in PostgreSQL even with spoofed forwarded addresses', async () => {
+  it('throttles concurrent login attempts in Firestore even with spoofed forwarded addresses', async () => {
     const attempts = await Promise.all(Array.from({length:8},(_,n) => gateway.POST(authRequest('/sign-in/email',{email:'missing@example.test',password},{'x-forwarded-for':'192.0.2.'+n}))));
     expect(attempts.filter(r=>r.status===429)).toHaveLength(3);
-    const [bucket] = await connection`SELECT count FROM auth_rate_limits WHERE length(key)=64`;
+    const [bucket] = (await data.db.query('authRateLimits')).filter(row=>row.key.length===64);
     expect(bucket!.count).toBe(8);
   });
   it('enforces absolute six-hour expiry without renewing an active session', async () => {
     const token = (await login()).headers.get('set-auth-token')!;
-    const [created] = await connection`SELECT extract(epoch FROM expires_at-created_at)::int AS lifetime FROM auth_sessions`;
-    expect(created!.lifetime).toBe(21600);
-    await connection`UPDATE auth_sessions SET updated_at=now()-interval '2 days',expires_at=now()+interval '10 minutes'`;
-    const [before] = await connection`SELECT expires_at FROM auth_sessions`;
+    const [created] = await data.db.query('authSessions');
+    expect((created!.expiresAt.getTime()-created!.createdAt.getTime())/1000).toBeCloseTo(21600,0);
+    await data.db.put('authSessions',{...created!,updatedAt:new Date(Date.now()-172800000),expiresAt:new Date(Date.now()+600000)});
+    const [before] = await data.db.query('authSessions');
     expect(await sessions.requestSession(new Request(origin,{headers:{authorization:'Bearer '+token}}))).not.toBeNull();
-    const [after] = await connection`SELECT expires_at FROM auth_sessions`;
-    expect(after!.expires_at).toEqual(before!.expires_at);
+    const [after] = await data.db.query('authSessions');
+    expect(after!.expiresAt).toEqual(before!.expiresAt);
   });
   it('forces revocation after password change even when the caller opts out', async () => {
     const one=(await login('b@example.test')).headers.get('set-auth-token')!;

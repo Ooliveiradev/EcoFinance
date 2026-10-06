@@ -1,9 +1,10 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { TEST_PASSWORD } from './credentials';
 import { e2eDatabase } from './database';
+import { clearTestCollections } from '../../packages/db/tests/firestore-fixture';
 const database=e2eDatabase();
-test.afterAll(async()=>{await database.end();});
-test.beforeEach(async()=>{await database`DELETE FROM auth_rate_limits`;});
+test.afterAll(async()=>{await database.firestore.terminate();});
+test.beforeEach(async()=>{await clearTestCollections(database,['authRateLimits']);});
 async function authenticate(request: APIRequestContext,email='a@example.test') {
   const response=await request.post('/api/auth/sign-in/email',{headers:{origin:'http://127.0.0.1:3000'},data:{email,password:TEST_PASSWORD}});
   expect(response.status()).toBe(200); return response;
@@ -103,7 +104,7 @@ test('SSR and APIs use Bearer identity consistently even when another cookie is 
 });
 test('expired cookie returns to login and a new login resumes read access',async({page})=>{
   await authenticate(page.request);
-  await database`UPDATE auth_sessions SET expires_at=now()-interval '1 second' WHERE user_id='10000000-0000-4000-8000-000000000001'`;
+  for(const session of await database.query('authSessions',{where:[{field:'userId',value:'10000000-0000-4000-8000-000000000001'}]})) await database.put('authSessions',{...session,expiresAt:new Date(Date.now()-1000)});
   expect((await page.request.get('/api/entries')).status()).toBe(401);
   await page.goto('/accounts'); await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel('Email',{exact:true}).fill('a@example.test');
