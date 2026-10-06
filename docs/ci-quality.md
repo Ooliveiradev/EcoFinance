@@ -20,6 +20,16 @@ Artifacts de cobertura, Playwright e SARIF duram sete dias. Bancos, dumps e bund
 
 ## Correções auditáveis
 
+Em 06/10/2026, a auditoria do PR de preparação da migração Firebase detectou
+duas vulnerabilidades altas já presentes no lockfile da main: source-map-js
+1.2.1 via magicast/coverage e compression 1.8.1 via Expo CLI. Overrides limitados
+às versões afetadas adotam as correções upstream source-map-js 1.2.2
+([GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q)) e
+compression 1.8.2
+([GHSA-vc2v-76pw-4v95](https://github.com/advisories/GHSA-vc2v-76pw-4v95)).
+Não há exceção de auditoria para esses advisories; instalação reproduzível,
+auditoria, cobertura e builds devem validar o lockfile corrigido.
+
 Atualizações corrigem Next, Drizzle, Expo e dependências transitivas. Overrides ficam no package.json/lockfile. Expo passou de SDK 52 para SDK 57; arquivos Android foram adaptados em separado, preservando recursos nativos. Releases precisam de assinatura própria.
 
 node-forge@1.4.0 não publicou correção para [CVE-2026-85393](https://github.com/digitalbazaar/forge/issues/1149). O patch versionado exige um ou dois elementos no DigestAlgorithm ASN.1, eliminando a folga usada pela assinatura malformada. O teste reproduz a aceitação na versão original, rejeita na versão corrigida e aceita uma assinatura normal. O CI verifica SHA-256 do arquivo instalado e das cópias resolvíveis, além do teste público RSA. Somente GHSA-86w9-cpqp-85rv nessa versão e com esses bytes comprovados é reconhecido como corrigido localmente. Qualquer outro advisory ou patch ausente bloqueia. Uma release upstream exige revisar/remover o patch e a reconciliação, mantendo a regressão.

@@ -47,6 +47,8 @@
   },
   "pnpm": {
     "overrides": {
+      "source-map-js@<1.2.2": "1.2.2",
+      "compression@<1.8.2": "1.8.2",
       "brace-expansion@<2": "1.1.21",
       "brace-expansion@>=2 <3": "2.1.7",
       "nanoid@<4": "3.3.18",
