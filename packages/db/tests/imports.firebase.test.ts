@@ -193,3 +193,21 @@ it('an explicit link never restores a transaction archived after its review or c
   expect((await db.get('transactions', entry.id))!.archivedAt).not.toBeNull();
   expect((await loadImport(db, owner, linked.id)).state).toBe('review');
 });
+it('keeps import staging separate from metrics and refreshes confirmed reports and balances after commit and undo', async () => {
+  const { loadReport } = await import('../../../apps/next/src/lib/metrics-read');
+  const report = () => loadReport(owner, { from: '2026-10', to: '2026-10', basis: 'competence' }, new Date('2026-10-31T15:00:00Z'), db);
+  const initial = await report();
+  const batch = await reviewed(await staged(csv('2026-10-01;Mercado;-10.25\n2026-10-02;Salário;20')));
+  expect(batch.preview).toEqual([{ month: '2026-10', income: '20.00', expenses: '10.25', balance: '9.75' }]);
+  expect((await report()).report.totals).toEqual(initial.report.totals);
+  expect((await report()).projection.balance).toBe('1000.00');
+  await confirm(batch);
+  const committed = await report();
+  expect(committed.report.totals).toMatchObject({ income: '20.00', expenses: '10.25', net: '9.75', count: 2 });
+  expect(committed.projection.balance).toBe('1009.75');
+  const current = await loadImport(db, owner, batch.id);
+  await undoImport(db, owner, randomUUID(), current.id, current.revision, { confirmed: true });
+  const reverted = await report();
+  expect(reverted.report.totals).toEqual(initial.report.totals);
+  expect(reverted.projection.balance).toBe('1000.00');
+});
