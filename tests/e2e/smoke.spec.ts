@@ -156,7 +156,7 @@ test('login limit is enforced and public signup is disabled',async({request})=>{
   expect(limited.status()).toBe(429); expect(limited.headers()['retry-after']).toBe('60');
   expect((await request.post('/api/auth/sign-up/email',{data:{}})).status()).toBe(404);
 });
-for(const path of ['/api/session','/api/seed','/api/pluggy/sync','/api/pluggy/webhook','/api/transactions/notification','/api/transactions/import-ofx','/api/transactions/uber-webhook']) {
+for(const path of ['/api/session','/api/seed','/api/pluggy/sync','/api/pluggy/webhook','/api/transactions/notification','/api/transactions/uber-webhook']) {
   test(`retires ${path} and rejects the former global key`,async({request})=>{
     expect((await request.post(path,{headers:{'x-api-secret-key':'ci'.repeat(32)},data:{}})).status()).toBe(401);
     await authenticate(request);

@@ -1,8 +1,8 @@
-# Revisão das issues em 06/10/2026
+# Revisão das issues em 07/10/2026
 
-Base: `origin/main` em `1f12822`, PRs #48/#49/#50 integrados e #47/#5/#6 encerradas.
+Base: `origin/main` em `7809164`, PRs #48/#49/#50/#51 integrados e #47/#5/#6/#7 encerradas.
 #1, #2, #3, #4, #29 e #36 já estavam encerradas. #18 é agregadora.
-A entrega de #6 está no [PR #50](https://github.com/Ooliveiradev/EcoFinance/pull/50), com CI completa aprovada. Este incremento entrega [cartões e faturas #7](cartoes.md); seu PR registra os gates e o estado da integração.
+A entrega de #6 está no [PR #50](https://github.com/Ooliveiradev/EcoFinance/pull/50), com CI completa aprovada. Cartões e faturas #7 foram integrados no [PR #51](https://github.com/Ooliveiradev/EcoFinance/pull/51), com CI completa aprovada. Este incremento entrega [importação unificada #8](importacoes.md).
 
 Modelo/tela existente não equivale a um fluxo completo. A revisão abaixo registra
 as lacunas que impedem novos fechamentos; não certifica a implantação em produção.
@@ -11,8 +11,8 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | --- | --- |
 | #5 | Concluída no PR #49, com CRUD, transferências, exclusão reversível e CI completa |
 | #6 | Recorrências versionadas, geração/pagamento/adiar/pausar, orçamento/cópia revisada, conciliação e meses fechados entregues no PR #50; evidências em planejamento.md e no PR |
-| #7 | Cadastro de cartões, faturas/parcelas confirmadas, pagamento separado do gasto, estornos/encargos/créditos/saldo anterior, divergência e conciliação auditável implementados; integração exige a CI completa deste incremento |
-| #8 | Modelo de lote/item existe; falta upload/revisão/confirmar/reverter; ingestão antiga desativada |
+| #7 | Cadastro de cartões, faturas/parcelas confirmadas, pagamento separado do gasto, estornos/encargos/créditos/saldo anterior, divergência e conciliação auditável implementados; entregues no PR #51 com CI completa aprovada |
+| #8 | Upload múltiplo, registro extensível/detecção, staging/revisão/prévia, confirmação atômica/idempotente, duplicidades, cancelamento/repetição/desfazer protegido implementados; evidência em importacoes.md e integração condicionada ao gate completo do PR |
 | #9 | Parser OFX e testes existem; faltam corpus/diagnóstico e suporte completo CSV/TSV/XLS/XLSX/QFX |
 | #10 | Não há pipeline PDF/OCR com evidência por item |
 | #11 | Chat externo desativado; faltam adapters e assistência opt-in/local |
@@ -22,7 +22,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #15 | Ingestão antiga desativada; SDKs/código/permissões legados e substitutos ainda pendentes |
 | #16 | Gates e jornadas básicas existem; release/jornadas completas/mobile ainda pendentes |
 | #17 | README atualizado; faltam capturas reais dos fluxos finais entregues |
-| #18 | #1–#6 completas; cartões #7 neste incremento e demais critérios permanecem nas respectivas issues |
+| #18 | #1–#7 completas; importação #8 neste incremento e demais critérios permanecem nas respectivas issues |
 | #19 | Captura automática desativada; faltam opt-in, staging, provas nativas e conector de email |
 | #28 | URLs/cookies seguros e exceções locais definidas; falta comprovar transporte/redirects da implantação |
 | #30 | MFA não implementado |

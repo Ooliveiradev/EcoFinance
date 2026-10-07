@@ -1,4 +1,4 @@
-import type { RecurrenceSchedule, ScheduleVersion,CardEntryType } from '@ecofinance/shared';
+import type { RecurrenceSchedule, ScheduleVersion,CardEntryType, ImportCandidate } from '@ecofinance/shared';
 // Compile-time aliases to the frozen SQL schema retained for export/rollback.
 import type * as finance from './schema';
 import type * as auth from './auth-schema';
@@ -7,7 +7,7 @@ export interface Models {
   categories: typeof finance.categories.$inferSelect & {revision?:string};
   accounts: typeof finance.accounts.$inferSelect & {color?:string; sortOrder?:number; revision?:string};
   uberTripsMetadata: typeof finance.uberTripsMetadata.$inferSelect;
-  transactions: typeof finance.transactions.$inferSelect & {notes?:string|null; transferId?:string|null; revision?:string;cardEntryType?:CardEntryType;refundOfId?:string|null;reconciledIntoId?:string|null;cardOriginal?:{kind:string;status:string;paidDate:string|null;competenceMonth:string}};
+  transactions: typeof finance.transactions.$inferSelect & {importReferences?:string[]; importUndoBatchId?:string|null; importUndoRevision?:string|null; notes?:string|null; transferId?:string|null; revision?:string;cardEntryType?:CardEntryType;refundOfId?:string|null;reconciledIntoId?:string|null;cardOriginal?:{kind:string;status:string;paidDate:string|null;competenceMonth:string}};
   recurrenceRules: typeof finance.recurrenceRules.$inferSelect & {versions?:ScheduleVersion[]; revision?:string};
   recurrenceOccurrences: typeof finance.recurrenceOccurrences.$inferSelect & {snapshot?:RecurrenceSchedule; overridden?:boolean; transactionId?:string|null; revision?:string};
   budgets: typeof finance.budgets.$inferSelect & {revision?:string};
@@ -16,8 +16,8 @@ export interface Models {
   invoices: typeof finance.invoices.$inferSelect & {revision?:string;previousBalance?:string;paymentAccountId?:string;closed?:boolean};
   installmentGroups: typeof finance.installmentGroups.$inferSelect;
   installments: typeof finance.installments.$inferSelect;
-  importBatches: typeof finance.importBatches.$inferSelect;
-  importItems: typeof finance.importItems.$inferSelect;
+  importBatches: typeof finance.importBatches.$inferSelect & {revision?:string;filename?:string;mime?:string;payload?:string|null;format?:string;error?:string|null;accountHint?:string|null;processId?:string|null};
+  importItems: typeof finance.importItems.$inferSelect & {revision?:string;externalId?:string|null;selected?:boolean;resolution?:'new'|'link'|'exclude';duplicateId?:string|null;candidates?:ImportCandidate[];createdTransaction?:boolean;committedRevision?:string|null;undoReason?:string|null};
   preferences: typeof finance.preferences.$inferSelect;
   financialMigrationAudits: typeof finance.financialMigrationAudits.$inferSelect;
   authSessions: typeof auth.authSessions.$inferSelect;

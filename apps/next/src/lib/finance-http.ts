@@ -19,7 +19,7 @@ export async function financeWrite(request:Request,callback:(ownerId:string,requ
     return Response.json(await callback(access.userId,requestId,input,expected),{status,headers:{'Cache-Control':PRIVATE_CACHE}});
   } catch(error) {return financeError(error);}
 }
-function financeError(error:unknown) {
+export function financeError(error:unknown) {
   const data=error instanceof FinanceError?{status:error.status,code:error.code,message:error.message}:error instanceof ZodError?{status:400,code:'INVALID_INPUT',message:'Confira os campos informados.'}:{status:503,code:'UNAVAILABLE',message:'Não foi possível acessar seus dados. Tente novamente.'};
   return Response.json({error:data.code,message:data.message},{status:data.status,headers:{'Cache-Control':PRIVATE_CACHE}});
 }

@@ -1,3 +1,4 @@
-import { retiredEndpoint } from '@/lib/session';
+import { db } from '@ecofinance/db';
+import { uploadImports } from '@/lib/import-upload';
 export const dynamic = 'force-dynamic';
-export const POST = retiredEndpoint;
+export async function POST(request: Request) { return uploadImports(db, request); }

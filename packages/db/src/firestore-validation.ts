@@ -1,4 +1,4 @@
-import { scheduleSchema,planningMonthSchema } from '@ecofinance/shared';
+import { scheduleSchema,planningMonthSchema,IMPORT_LIMITS,importReviewSchema } from '@ecofinance/shared';
 import catalog from './firestore-catalog.json';
 import { Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
@@ -32,6 +32,8 @@ export function validateDocument(collection:Collection,row:Record<string,unknown
   if(collection==='transactions' && row.notes!=null)requireValue(typeof row.notes==='string' && row.notes.length<=2000);
   if(collection==='operations')requireValue(typeof row.action==='string' && row.action.length<=80 && /^[0-9a-f]{64}$/.test(String(row.hash)));
   if(collection==='transactions') {
+    if(row.importReferences!=null)requireValue(Array.isArray(row.importReferences) && row.importReferences.length<=100 && new Set(row.importReferences).size===row.importReferences.length && row.importReferences.every(value=>typeof value==='string' && uuid.test(value)));
+    if(row.importUndoBatchId!=null)requireValue(typeof row.importUndoBatchId==='string' && uuid.test(row.importUndoBatchId) && typeof row.importUndoRevision==='string');
     requireValue(['income','expense','transfer','refund','adjustment','unclassified'].includes(String(row.kind)) && ['planned','recorded','settled','cancelled'].includes(String(row.status)));
     const amount=Number(row.amount);
     requireValue(row.kind==='unclassified'?row.reviewRequired===true:amount!==0 && (row.kind!=='expense'||amount<0) && (!['income','refund'].includes(String(row.kind))||amount>0));
@@ -57,6 +59,17 @@ export function validateDocument(collection:Collection,row:Record<string,unknown
   if(collection==='invoices') {requireValue(['open','closed','partial','paid'].includes(String(row.status)));if(row.closed!=null)requireValue(String(row.dueDate)>String(row.closingDate));}
   if(collection==='importBatches')requireValue(['received','processing','review','confirmed','failed','cancelled','reverted'].includes(String(row.state)));
   if(collection==='importItems')requireValue(Number(row.position)>0 && ['pending','valid','invalid','excluded','committed'].includes(String(row.state)));
+  if(collection==='importBatches' && row.filename!=null) {
+    requireValue(typeof row.filename==='string' && row.filename.length<=200 && typeof row.mime==='string' && row.mime.length<=120);
+    requireValue(row.accountId!=null && typeof row.fileHash==='string' && /^[0-9a-f]{64}$/.test(row.fileHash));
+    if(row.payload!=null)requireValue(typeof row.payload==='string' && row.payload.length<=Math.ceil(IMPORT_LIMITS.bytes/3)*4);
+    if(['cancelled','confirmed','reverted'].includes(String(row.state)))requireValue(row.payload==null);
+  }
+  if(collection==='importItems' && row.selected!=null) {
+    requireValue(Number(row.position)<=IMPORT_LIMITS.rows && typeof row.selected==='boolean' && ['new','link','exclude'].includes(String(row.resolution)));
+    if(['valid','committed'].includes(String(row.state)))importReviewSchema.parse({description:row.description,amount:row.amount,purchaseDate:row.purchaseDate,competenceMonth:row.competenceMonth,categoryId:row.categoryId,selected:row.selected,resolution:row.resolution,duplicateId:row.duplicateId??null});
+    if(row.state==='committed')requireValue(row.transactionId!=null && typeof row.createdTransaction==='boolean' && typeof row.committedRevision==='string');
+  }
   if(collection==='budgets')for(const key of ['limit','expectedIncome','reserve'])requireValue(Number(row[key])>=0);
   if(collection==='budgetCategories')requireValue(Number(row.limit)>=0);
   if(collection==='installmentGroups')requireValue(Number(row.count)>=1 && Number(row.count)<=600 && Number(row.totalAmount)>0);
