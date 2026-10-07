@@ -1,4 +1,4 @@
-import { resolveMonthParam, monthBounds } from '@ecofinance/shared';
+import { resolveMonthParam } from '@ecofinance/shared';
 import { requirePageUser } from '@/lib/session';
 import { loadDashboardData } from '@/lib/dashboard-data';
 import DashboardClient from './dashboard-client';
@@ -8,6 +8,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   const userId = await requirePageUser();
   const params = searchParams ? await searchParams : {};
   const resolved = resolveMonthParam(typeof params.mes === 'string' ? params.mes : null, new Date());
-  const data = await loadDashboardData(userId, resolved, monthBounds(resolved.month)!);
+  const data = await loadDashboardData(userId, resolved);
   return <DashboardClient {...data} />;
 }

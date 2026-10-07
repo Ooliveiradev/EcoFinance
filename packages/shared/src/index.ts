@@ -9,6 +9,7 @@ export * from './finance';
 export * from './month';
 export * from './bills';
 export * from './trend';
+export * from './metrics';
 export * from './preferences';
 export * from './category-labels';
 export * from './access';
