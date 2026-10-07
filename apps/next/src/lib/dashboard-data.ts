@@ -1,5 +1,5 @@
 import { db } from '@ecofinance/db';
-import { resolveMonthParam, monthBounds, shiftMonth, percentChange, describeTrend, accountBalances,monthTotals,civilToday,formatCents,decimalCents } from '@ecofinance/shared';
+import { resolveMonthParam, monthBounds, shiftMonth, percentChange, describeTrend, accountBalances,monthTotals,civilToday,formatCents,decimalCents,invoiceTotals } from '@ecofinance/shared';
 import { exactCents, displayMoney, ownedReferences } from './financial-read';
 import type { DashboardClientProps } from '@/app/dashboard-client';
 export async function loadDashboardData(userId:string,resolved:ReturnType<typeof resolveMonthParam>,bounds:NonNullable<ReturnType<typeof monthBounds>>):Promise<DashboardClientProps> {
@@ -39,7 +39,7 @@ export async function loadDashboardData(userId:string,resolved:ReturnType<typeof
       recentTransactions:current.toSorted((a,b)=>b.purchaseDate.localeCompare(a.purchaseDate)||b.id.localeCompare(a.id)).slice(0,10).map(tx=>({id:tx.id,date:tx.purchaseDate,description:tx.description,category:tx.category,categoryName:categoryMap.get(tx.categoryId)?.name,amount:tx.amount,source:tx.source})),
       upcomingBills:[
         ...occurrences.filter(o=>o.status!=='cancelled').map(o=>({id:o.id,description:o.snapshot?.description??rules.get(o.ruleId)!.description,amount:Math.abs(displayMoney(exactCents(o.amount))),dueDate:o.dueDate,category:'Recorrente',isPaid:o.status==='paid'})),
-        ...invoices.map(i=>({id:i.id,description:'Fatura '+cards.get(i.cardId)!.name,amount:Math.abs(displayMoney(exactCents(i.statedTotal??'0'))),dueDate:i.dueDate,category:'Cartão de crédito',isPaid:i.status==='paid'})),
+        ...invoices.map(i=>{const totals=invoiceTotals(rows.filter(r=>r.invoiceId===i.id),i.previousBalance??'0.00',i.statedTotal);const balance=BigInt(totals.remaining.replace('.',''));return {id:i.id,description:'Fatura '+cards.get(i.cardId)!.name,amount:displayMoney(balance>0n?balance:0n),dueDate:i.dueDate,category:'Cartão de crédito',isPaid:i.status==='paid'};}),
       ],
       accounts:active.map(({id,name})=>({id,name})),categories:categories.filter(c=>!c.archivedAt).map(({id,name})=>({id,name})),
     };

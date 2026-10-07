@@ -37,6 +37,7 @@ const primaryNavItems: NavItem[] = [
   { href: '/transactions', label: 'Lançamentos', icon: ArrowLeftRight },
   { href: '/planning', label: 'Planejamento', icon: Target },
   { href: '/accounts', label: 'Contas e cartões', icon: WalletCards },
+  { href: '/cards', label: 'Cartões e faturas', icon: WalletCards },
   { href: '/imports', label: 'Importações', icon: FileSpreadsheet },
   { href: '/settings', label: 'Configurações', icon: Settings },
 ];

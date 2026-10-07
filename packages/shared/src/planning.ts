@@ -24,7 +24,7 @@ export const copyPlanSchema=z.object({sourceMonth:planningMonthSchema,sourceRevi
 export type RecurrenceSchedule=z.infer<typeof scheduleSchema>;
 export interface ScheduleVersion {fromMonth:string;schedule:RecurrenceSchedule}
 export interface PlanningRule extends RecurrenceSchedule {id:string;revision:string;fromMonth:string}
-export interface PlanningOccurrence {id:string;ruleId:string;competenceMonth:string;dueDate:string;amount:string;status:'pending'|'paid'|'postponed'|'cancelled';description:string;accountId:string;categoryId:string;estimated:boolean;reminderDays:number|null;revision:string;overridden:boolean;transactionId:string|null}
+export interface PlanningOccurrence {id:string;ruleId:string;competenceMonth:string;dueDate:string;amount:string;status:'pending'|'paid'|'postponed'|'cancelled';description:string;accountId:string;categoryId:string;estimated:boolean;reminderDays:number|null;revision:string;overridden:boolean;transactionId:string|null;invoiceId?:string|null}
 export type BudgetPlan=z.infer<typeof budgetPlanSchema>;
 export interface PlanningView {
   month:string;closed:boolean;monthRevision:string;rules:PlanningRule[];occurrences:PlanningOccurrence[];

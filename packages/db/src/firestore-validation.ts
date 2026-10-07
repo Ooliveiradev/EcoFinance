@@ -38,6 +38,13 @@ export function validateDocument(collection:Collection,row:Record<string,unknown
     requireValue(row.status!=='settled'||row.paidDate!=null);
     requireValue(['comida','transporte','assinaturas','lazer','saude','educacao','moradia','salario','investimento','transferencia','desconhecido'].includes(String(row.category)));
     requireValue(['notification','pluggy','ofx','manual','uber','csv','spreadsheet','document','email'].includes(String(row.source)));
+    if(row.cardEntryType!=null) {
+      requireValue(row.invoiceId!=null && ['purchase','interest','fee','credit','refund','payment'].includes(String(row.cardEntryType)));
+      requireValue(row.cardEntryType==='payment'?row.kind==='adjustment'&&amount<0&&row.status==='settled':row.status==='recorded'&&row.paidDate==null);
+      requireValue(['credit','refund'].includes(String(row.cardEntryType))?row.kind==='refund':row.cardEntryType==='payment'||row.kind==='expense');
+      requireValue((row.cardEntryType==='refund')===(row.refundOfId!=null));
+    }
+    if(row.reconciledIntoId!=null)requireValue(row.archivedAt!=null && row.reconciledIntoId!==row.id);
   }
   if(collection==='recurrenceRules' && row.versions!=null) {
     requireValue(Array.isArray(row.versions) && row.versions.length>0 && row.versions.length<=120);
@@ -47,7 +54,7 @@ export function validateDocument(collection:Collection,row:Record<string,unknown
   if(collection==='recurrenceOccurrences' && row.snapshot!=null)scheduleSchema.parse(row.snapshot);
   if(collection==='recurrenceRules')requireValue(row.endDate==null||String(row.endDate)>=String(row.startDate));
   if(collection==='recurrenceOccurrences')requireValue(['pending','paid','postponed','cancelled'].includes(String(row.status)));
-  if(collection==='invoices')requireValue(['open','closed','partial','paid'].includes(String(row.status)));
+  if(collection==='invoices') {requireValue(['open','closed','partial','paid'].includes(String(row.status)));if(row.closed!=null)requireValue(String(row.dueDate)>String(row.closingDate));}
   if(collection==='importBatches')requireValue(['received','processing','review','confirmed','failed','cancelled','reverted'].includes(String(row.state)));
   if(collection==='importItems')requireValue(Number(row.position)>0 && ['pending','valid','invalid','excluded','committed'].includes(String(row.state)));
   if(collection==='budgets')for(const key of ['limit','expectedIncome','reserve'])requireValue(Number(row[key])>=0);
