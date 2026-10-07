@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'lcov'],
-      include: ['packages/shared/src/**/*.ts', 'apps/next/src/lib/ofx-parser.ts', 'apps/next/src/lib/access-policy.ts', 'apps/next/src/lib/request-body.ts'],
+      include: ['packages/shared/src/**/*.ts', 'apps/next/src/lib/ofx-parser.ts', 'apps/next/src/lib/import-parsers.ts', 'apps/next/src/lib/access-policy.ts', 'apps/next/src/lib/cors.ts', 'apps/next/src/lib/request-body.ts'],
       exclude: ['**/*.test.ts', '**/types.ts', '**/index.ts'],
       thresholds: { lines: 90, statements: 90, functions: 90, branches: 85, perFile: true },
     },
