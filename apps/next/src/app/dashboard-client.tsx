@@ -18,6 +18,7 @@ import {
   Inbox,
   ArrowRight,
   RefreshCw,
+  BarChart3,
 } from 'lucide-react';
 import {
   monthLabel,
@@ -28,6 +29,7 @@ import {
   type TransactionCategory,
   type TrendDescription,
   type DashboardCardId,
+  type MonthProjection,
 } from '@ecofinance/shared';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -79,11 +81,7 @@ export interface TransactionItem {
   source: string;
 }
 
-export interface DashboardClientProps {
-  month: string;
-  isCurrentMonth: boolean;
-  monthValid?: boolean;
-  error?: string;
+interface DashboardMetrics {
   totalBalance: number;
   totalBalanceFormatted?: string;
   totalBalanceExact?: string|null;
@@ -95,7 +93,11 @@ export interface DashboardClientProps {
   upcomingBills?: UpcomingBillItem[];
   accounts?: Array<{ id: string; name: string }>;
   categories?: Array<{ id: string; name: string }>;
+  projection?: MonthProjection;
 }
+interface DashboardBase { month: string; isCurrentMonth: boolean; monthValid?: boolean }
+/** A failed read carries no numbers, so the page cannot present zeros as real totals. */
+export type DashboardClientProps = DashboardBase & ((DashboardMetrics & { error?: undefined }) | { error: string });
 
 const CATEGORY_COLORS: Record<string, string> = {
   comida: '#f97316',
@@ -123,113 +125,13 @@ const SOURCE_BADGES: Record<string, { label: string; className: string }> = {
 const EMPTY_BILLS: UpcomingBillItem[] = [];
 const EMPTY_ACCOUNTS: Array<{ id: string; name: string }> = [];
 
-export default function DashboardClient({
-  month,
-  isCurrentMonth,
-  monthValid = true,
-  error,
-  totalBalance,
-  totalBalanceFormatted,
-  income,
-  expenses,
-  transactionsCount,
-  categoryData,
-  recentTransactions,
-  upcomingBills = EMPTY_BILLS,
-  accounts = EMPTY_ACCOUNTS,
-  categories = EMPTY_ACCOUNTS,
-}: DashboardClientProps) {
+export default function DashboardClient(props: DashboardClientProps) {
+  const { month, isCurrentMonth, monthValid = true, error } = props;
   const router = useRouter();
-  const { preferences } = usePreferences();
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-
-  const totalExpenses = expenses.value;
   const formattedMonth = monthLabel(month);
-
-  // Determine card rendering order and visibility based on user preferences
-  const activeCardIds: DashboardCardId[] = preferences.dashboardCards
-    .filter((card) => card.visible)
-    .map((card) => card.id);
-
-  const stats = [
-    {
-      id: 'balance',
-      title: 'Saldo Total',
-      value: totalBalance,
-      formatted: totalBalanceFormatted,
-      icon: DollarSign,
-      trend: null as TrendDescription | null,
-      trendLabel: 'Consolidado de todas as contas',
-      isCurrency: true,
-    },
-    {
-      id: 'income',
-      title: `Receitas (${formattedMonth})`,
-      value: income.value,
-      formatted: income.formatted,
-      icon: TrendingUp,
-      trend: income.trend,
-      trendLabel: income.trend.label,
-      isCurrency: true,
-      trendColor:
-        income.trend.direction === 'up'
-          ? 'text-success bg-success-soft'
-          : income.trend.direction === 'down'
-          ? 'text-danger bg-danger-soft'
-          : 'text-muted bg-surface-muted',
-    },
-    {
-      id: 'expenses',
-      title: `Despesas (${formattedMonth})`,
-      value: expenses.value,
-      formatted: expenses.formatted,
-      icon: TrendingDown,
-      trend: expenses.trend,
-      trendLabel: expenses.trend.label,
-      isCurrency: true,
-      // For expenses: going down is good (green), going up is bad (red)
-      trendColor:
-        expenses.trend.direction === 'down'
-          ? 'text-success bg-success-soft'
-          : expenses.trend.direction === 'up'
-          ? 'text-danger bg-danger-soft'
-          : 'text-muted bg-surface-muted',
-    },
-    {
-      id: 'count',
-      title: `Transações (${formattedMonth})`,
-      value: transactionsCount.value,
-      icon: Activity,
-      trend: transactionsCount.trend,
-      trendLabel: transactionsCount.trend.label,
-      isCurrency: false,
-      trendColor: 'text-foreground bg-surface-muted',
-    },
-  ];
-
-  /* ------------------------------------------------------------------ */
-  /*  Render Card Components                                            */
-  /* ------------------------------------------------------------------ */
-
-  const renderUpcomingBillsCard = () => (
-    <section key="upcoming-bills" aria-labelledby="upcoming-bills-title">
-      <UpcomingBillsCard bills={upcomingBills} />
-    </section>
-  );
-
-  const renderMonthSummaryCard = () => <MonthSummaryCard stats={stats} />;
-  const renderCategoriesCard = () => <CategoriesCard categoryData={categoryData} formattedMonth={formattedMonth} totalExpenses={totalExpenses} formattedTotal={expenses.formatted} />;
-  const renderRecentEntriesCard = () => <RecentEntriesCard recentTransactions={recentTransactions} formattedMonth={formattedMonth} onAddExpense={() => setIsAddExpenseOpen(true)} />;
-  /* ------------------------------------------------------------------ */
-  /*  Card Map for Dynamic Ordering                                     */
-  /* ------------------------------------------------------------------ */
-
-  const cardRenderer: Record<DashboardCardId, () => React.JSX.Element> = {
-    'upcoming-bills': renderUpcomingBillsCard,
-    'month-summary': renderMonthSummaryCard,
-    categories: renderCategoriesCard,
-    'recent-entries': renderRecentEntriesCard,
-  };
+  const accounts = props.error === undefined ? props.accounts ?? EMPTY_ACCOUNTS : EMPTY_ACCOUNTS;
+  const categories = props.error === undefined ? props.categories ?? EMPTY_ACCOUNTS : EMPTY_ACCOUNTS;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -312,16 +214,24 @@ export default function DashboardClient({
             <Upload className="w-4 h-4 mr-1.5" />
             Importar arquivo
           </Link>
+
+          <Link
+            href={`/reports?de=${month}&ate=${month}`}
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'default' }),
+              'touch-target border-border text-foreground hover:bg-surface-muted',
+            )}
+          >
+            <BarChart3 className="w-4 h-4 mr-1.5" />
+            Relatórios
+          </Link>
         </div>
       </header>
 
       {/* Dynamic Cards Rendered in User Preferred Order & Visibility */}
-      <div className="space-y-6">
-        {activeCardIds.map((cardId) => {
-          const renderer = cardRenderer[cardId];
-          return renderer ? <React.Fragment key={cardId}>{renderer()}</React.Fragment> : null;
-        })}
-      </div>
+      {props.error === undefined && (
+        <DashboardCards {...props} formattedMonth={formattedMonth} onAddExpense={() => setIsAddExpenseOpen(true)} />
+      )}
 
       {/* Quick Add Expense Modal */}
       <AddExpenseModal
@@ -335,8 +245,119 @@ export default function DashboardClient({
   );
 }
 
+function DashboardCards({
+  formattedMonth,
+  onAddExpense,
+  totalBalance,
+  totalBalanceFormatted,
+  income,
+  expenses,
+  transactionsCount,
+  categoryData,
+  recentTransactions,
+  upcomingBills = EMPTY_BILLS,
+  projection,
+}: DashboardMetrics & { formattedMonth: string; onAddExpense: () => void }) {
+  const { preferences } = usePreferences();
+  const totalExpenses = expenses.value;
+
+  // Determine card rendering order and visibility based on user preferences
+  const activeCardIds: DashboardCardId[] = preferences.dashboardCards
+    .filter((card) => card.visible)
+    .map((card) => card.id);
+
+  const stats = [
+    {
+      id: 'balance',
+      title: 'Saldo Total',
+      value: totalBalance,
+      formatted: totalBalanceFormatted,
+      icon: DollarSign,
+      trend: null as TrendDescription | null,
+      trendLabel: 'Consolidado de todas as contas',
+      isCurrency: true,
+    },
+    {
+      id: 'income',
+      title: `Receitas (${formattedMonth})`,
+      value: income.value,
+      formatted: income.formatted,
+      icon: TrendingUp,
+      trend: income.trend,
+      trendLabel: income.trend.label,
+      isCurrency: true,
+      trendColor:
+        income.trend.direction === 'up'
+          ? 'text-success bg-success-soft'
+          : income.trend.direction === 'down'
+          ? 'text-danger bg-danger-soft'
+          : 'text-muted bg-surface-muted',
+    },
+    {
+      id: 'expenses',
+      title: `Despesas (${formattedMonth})`,
+      value: expenses.value,
+      formatted: expenses.formatted,
+      icon: TrendingDown,
+      trend: expenses.trend,
+      trendLabel: expenses.trend.label,
+      isCurrency: true,
+      // For expenses: going down is good (green), going up is bad (red)
+      trendColor:
+        expenses.trend.direction === 'down'
+          ? 'text-success bg-success-soft'
+          : expenses.trend.direction === 'up'
+          ? 'text-danger bg-danger-soft'
+          : 'text-muted bg-surface-muted',
+    },
+    {
+      id: 'count',
+      title: `Lançamentos (${formattedMonth})`,
+      value: transactionsCount.value,
+      icon: Activity,
+      trend: transactionsCount.trend,
+      trendLabel: transactionsCount.trend.label,
+      isCurrency: false,
+      trendColor: 'text-foreground bg-surface-muted',
+    },
+  ];
+
+  /* ------------------------------------------------------------------ */
+  /*  Render Card Components                                            */
+  /* ------------------------------------------------------------------ */
+
+  const renderUpcomingBillsCard = () => (
+    <section key="upcoming-bills" aria-labelledby="upcoming-bills-title">
+      <UpcomingBillsCard bills={upcomingBills} />
+    </section>
+  );
+
+  const renderMonthSummaryCard = () => <MonthSummaryCard stats={stats} projection={projection} />;
+  const renderCategoriesCard = () => <CategoriesCard categoryData={categoryData} formattedMonth={formattedMonth} totalExpenses={totalExpenses} formattedTotal={expenses.formatted} />;
+  const renderRecentEntriesCard = () => <RecentEntriesCard recentTransactions={recentTransactions} formattedMonth={formattedMonth} onAddExpense={onAddExpense} />;
+  /* ------------------------------------------------------------------ */
+  /*  Card Map for Dynamic Ordering                                     */
+  /* ------------------------------------------------------------------ */
+
+  const cardRenderer: Record<DashboardCardId, () => React.JSX.Element> = {
+    'upcoming-bills': renderUpcomingBillsCard,
+    'month-summary': renderMonthSummaryCard,
+    categories: renderCategoriesCard,
+    'recent-entries': renderRecentEntriesCard,
+  };
+
+  return (
+    <div className="space-y-6">
+      {activeCardIds.map((cardId) => {
+        const renderer = cardRenderer[cardId];
+        return renderer ? <React.Fragment key={cardId}>{renderer()}</React.Fragment> : null;
+      })}
+    </div>
+  );
+}
+
 interface DashboardStat { formatted?: string; id: string; title: string; value: number; icon: React.ComponentType<{className?: string}>; trend: TrendDescription | null; trendLabel: string; isCurrency: boolean; trendColor?: string; }
-function MonthSummaryCard({ stats }: { stats: DashboardStat[] }) {
+function MonthSummaryCard({ stats, projection }: { stats: DashboardStat[]; projection?: MonthProjection }) {
   return (
     <section key="month-summary" aria-labelledby="month-summary-title">
       <h2 id="month-summary-title" className="sr-only">
@@ -401,10 +422,45 @@ function MonthSummaryCard({ stats }: { stats: DashboardStat[] }) {
           );
         })}
       </div>
+      {projection && <ProjectionCard projection={projection} />}
     </section>
   );
+}
 
-
+const cents = (value: string) => formatCents(moneyToCents(value));
+/** Shows every term of the projected availability, so the result can be checked by hand. */
+function ProjectionCard({ projection }: { projection: MonthProjection }) {
+  const rows: Array<[string, string, string]> = [
+    ['Receita recebida', cents(projection.received), 'Receitas registradas na competência'],
+    ['Receita prevista', projection.expectedIncome === null ? 'Sem orçamento' : cents(projection.expectedIncome), 'Renda prevista no planejamento'],
+    ['Despesas realizadas', cents(projection.realized), 'Despesas menos estornos da competência'],
+    ['Compromissos restantes', cents(projection.commitments.total), `Recorrências ${cents(projection.commitments.recurring)} · previstos ${cents(projection.commitments.planned)} · faturas ${cents(projection.commitments.invoices)}`],
+  ];
+  return (
+    <Card className="mt-4" aria-labelledby="projection-title">
+      <CardHeader className="pb-2">
+        <CardTitle id="projection-title" className="text-base font-bold text-foreground">Disponibilidade projetada</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {rows.map(([label, value, hint]) => (
+            <div key={label} className="rounded-xl border border-border p-3">
+              <dt className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</dt>
+              <dd className="text-lg font-bold text-foreground">{value}</dd>
+              <dd className="text-xs text-muted">{hint}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-sm text-foreground" data-testid="projection-formula">
+          <span className="font-semibold">Fórmula: </span>
+          saldo atual {projection.balance === null ? 'indisponível' : cents(projection.balance)}
+          {' + '}a receber {projection.toReceive === null ? 'R$ 0,00 (sem orçamento)' : cents(projection.toReceive)}
+          {' − '}compromissos {cents(projection.commitments.total)}
+          {' = '}<strong>{projection.projected === null ? 'indisponível' : cents(projection.projected)}</strong>
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 function CategoriesCard({ categoryData, formattedMonth, totalExpenses, formattedTotal }: { categoryData: CategoryData[]; formattedMonth: string; totalExpenses: number; formattedTotal?: string }) {

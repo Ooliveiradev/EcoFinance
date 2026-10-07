@@ -16,7 +16,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #9 | Parser OFX e testes existem; faltam corpus/diagnóstico e suporte completo CSV/TSV/XLS/XLSX/QFX |
 | #10 | Não há pipeline PDF/OCR com evidência por item |
 | #11 | Chat externo desativado; faltam adapters e assistência opt-in/local |
-| #12 | #5 corrige saldo derivado e totais por competência/tipo; projeções, métricas completas e critérios finais da issue permanecem pendentes |
+| #12 | [Serviço único de métricas](metricas.md): competência/caixa, categorias, evolução, previsto×realizado, fixos×variáveis, disponibilidade projetada com fórmula, `/reports` e CSV coincidentes, erro real sem zeros; critérios ligados a lotes de importação aguardam #8/#9 |
 | #13 | Expo possui login seguro; telas financeiras demonstrativas não comprovam paridade |
 | #14 | CI ensaia dump/restore operacional; exportação/restore do produto e controle dos dados incompletos |
 | #15 | Ingestão antiga desativada; SDKs/código/permissões legados e substitutos ainda pendentes |
