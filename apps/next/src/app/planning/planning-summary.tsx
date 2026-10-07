@@ -1,0 +1,11 @@
+import { type PlanningView } from '@ecofinance/shared';
+import { Card,CardContent } from '@/components/ui/card';
+import type { PlanningReference } from './planning-client-utils';
+import { planningMoney } from './planning-client-utils';
+export function PlanningSummary({view,categories}:{view:PlanningView;categories:PlanningReference[]}) {
+  const {summary,plan}=view;
+  const metrics=[['Realizado',summary.realized,'Despesas e estornos lançados nesta competência.'],['Previsto a pagar',summary.pending,'Ocorrências pendentes ou adiadas.'],['Comprometido',summary.committed,'Realizado mais previsto a pagar.'],['Restante do teto',plan?summary.remaining:null,'Teto menos comprometido; negativo indica excesso.'],['Déficit previsto',plan?summary.deficit:null,'Quanto falta da renda prevista para despesas e reserva.'],['Após a reserva',plan?summary.afterReserve:null,'Renda prevista menos comprometido e reserva.']];
+  return <><section aria-label="Resumo do planejamento" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{metrics.map(([title,value,help])=><Card key={title}><CardContent className="p-5"><h2 className="text-sm font-semibold">{title}</h2><p className="text-2xl font-bold mt-2">{value===null?'Defina o orçamento':planningMoney(value!)}</p><p className="text-xs text-muted mt-2">{help}</p></CardContent></Card>)}</section>
+    {plan&&<section aria-label="Orçamento por categoria" className="rounded-xl border border-border p-5 space-y-3"><h2 className="font-semibold">Orçamento por categoria</h2><p className="text-sm">Teto {planningMoney(plan.limit)} · Renda prevista {planningMoney(plan.expectedIncome)} · Reserva {planningMoney(plan.reserve)}</p>{view.categoryTotals.length===0&&<p className="text-sm text-muted">Nenhum limite por categoria configurado.</p>}{view.categoryTotals.map(c=><div key={c.categoryId} className="border-t border-border pt-3 text-sm"><h3 className="font-semibold break-words">{categories.find(r=>r.id===c.categoryId)?.name??'Categoria histórica'}</h3><p>Realizado {planningMoney(c.realized)} · Previsto {planningMoney(c.pending)} · Comprometido {planningMoney(c.committed)}</p><p className={c.remaining.startsWith('-')?'text-danger':'text-muted'}>Restante {planningMoney(c.remaining)}{c.remaining.startsWith('-')?' · Limite excedido':''}</p></div>)}</section>}
+  </>;
+}

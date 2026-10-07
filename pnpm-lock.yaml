@@ -225,6 +225,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@ecofinance/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@google-cloud/firestore':
         specifier: 9.3.1
         version: 9.3.1

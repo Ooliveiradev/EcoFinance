@@ -198,3 +198,5 @@ reversão, sem conexão ou import SQL no runtime.
 ## Evolução após a migração
 
 A #5 acrescenta revisão de registros, notas, cores/ordem de contas, vínculo de transferência e a coleção `operations` (22 coleções de aplicação). O backup nativo Firebase inclui todos esses campos e recibos idempotentes. A reversão SQL acima se aplica ao schema histórico entregue na #47. Exportar uma base com campos novos ou operações para aquele SQL é recusado explicitamente: não há descarte silencioso de dados. Após utilizar o cadastro manual, recupere com backup/restore nativo e código compatível. Uma futura reversão SQL precisa de um destino e mapeamento versionados que suportem esse schema. Consulte [cadastro manual](cadastro-manual.md).
+
+A #6 acrescenta versões de recorrências, snapshots das ocorrências, vínculos de pagamento, revisão de orçamento e `planningMonths` (23 coleções). Esses metadados entram no backup nativo e também bloqueiam o exportador SQL histórico. Consulte [planejamento mensal](planejamento.md).

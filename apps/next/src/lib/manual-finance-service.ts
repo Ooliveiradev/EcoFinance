@@ -1,45 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { assertMonthOpen } from './planning-lock';
+import { randomUUID } from 'node:crypto';
 import { manualAccountSchema, manualCategorySchema, manualEntrySchema, manualListSchema, moneyToCents, centsToMoney, type ManualEntry } from '@ecofinance/shared';
-import type { Database, Models, OwnedCollection, Predicate } from '@ecofinance/db';
+import type { Database, Models, Predicate } from '@ecofinance/db';
 
-export class FinanceError extends Error {
-  constructor(public code:string, public status:number, message:string) {super(message);}
-}
-const fail=(code:string,status:number,message:string):never=>{throw new FinanceError(code,status,message);};
-function canonical(value:unknown):string {
-  if(value===null || typeof value!=='object')return JSON.stringify(value);
-  if(value instanceof Date)return JSON.stringify(value.toISOString());
-  if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
-  return '{'+Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>JSON.stringify(k)+':'+canonical(v)).join(',')+'}';
-}
-const hash=(value:unknown)=>createHash('sha256').update(canonical(value)).digest('hex');
-export function revision(row:{revision?:string}) {return row.revision??hash(row);}
-function operationId(ownerId:string,requestId:string) {
-  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId))fail('INVALID_REQUEST_ID',400,'Envio sem identificador válido.');
-  const h=hash([ownerId,requestId.toLowerCase()]);
-  return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`;
-}
-async function operation(database:Database,ownerId:string,requestId:string,action:string,input:unknown,callback:(tx:Database)=>Promise<Record<string,unknown>>) {
-  const id=operationId(ownerId,requestId), digest=hash([action,input]);
-  return database.transaction(async tx=> {
-    const previous=await tx.get('operations',id);
-    if(previous) {
-      if(previous.ownerId!==ownerId || previous.hash!==digest)fail('REQUEST_CONFLICT',409,'O mesmo envio já foi usado com outros dados.');
-      return previous.result;
-    }
-    const result=await callback(tx);
-    await tx.put('operations',{id,ownerId,action,hash:digest,result,createdAt:new Date()},true);
-    return result;
-  });
-}
-async function owned<K extends OwnedCollection>(tx:Database,collection:K,id:string,ownerId:string):Promise<Models[K]> {
-  const row=await tx.get(collection,id);
-  if(!row || row.ownerId!==ownerId)fail('NOT_FOUND',404,'Registro não encontrado.');
-  return row!;
-}
-function checkRevision(row:{revision?:string},expected:string) {
-  if(!expected || revision(row)!==expected)fail('REVISION_CONFLICT',409,'O registro foi alterado. Recarregue antes de salvar.');
-}
+import { operation,owned,checkRevision,revision,fail } from './finance-operation';
+export { FinanceError,revision } from './finance-operation';
 export async function saveAccount(database:Database,ownerId:string,requestId:string,input:unknown,id?:string,expected='') {
   const data=manualAccountSchema.parse(input);
   return operation(database,ownerId,requestId,'save-account',{data,id:id??null,expected},async tx=> {
@@ -97,7 +62,10 @@ export async function saveEntry(database:Database,ownerId:string,requestId:strin
       if(old.invoiceId || old.installmentId || old.recurrenceOccurrenceId)fail('LINKED_ENTRY',409,'Edite este vínculo pelo fluxo de cartão ou recorrência.');
       if((old.kind==='transfer')!==(data.kind==='transfer'))fail('KIND_CONFLICT',409,'Para mudar entre transferência e receita/despesa, exclua e crie outro lançamento.');
     }
+    await assertMonthOpen(tx,ownerId,data.competenceMonth.slice(0,7));
+    if(old)await assertMonthOpen(tx,ownerId,old.competenceMonth.slice(0,7));
     const rows=old?await pair(tx,ownerId,old):[];
+    await Promise.all(rows.map(row=>assertMonthOpen(tx,ownerId,row.competenceMonth.slice(0,7))));
     const originalOut=rows.find(r=>moneyToCents(r.amount)<0n)??old;
     const originalIn=rows.find(r=>moneyToCents(r.amount)>0n);
     await activeReference(tx,'accounts',data.accountId,ownerId,originalOut?.accountId);
@@ -116,7 +84,9 @@ export async function archiveEntry(database:Database,ownerId:string,requestId:st
   return operation(database,ownerId,requestId,'archive-entry',{id,expected,archived},async tx=> {
     const old=await owned(tx,'transactions',id,ownerId);checkRevision(old,expected);
     if(old.invoiceId || old.installmentId || old.recurrenceOccurrenceId)fail('LINKED_ENTRY',409,'Edite este vínculo pelo fluxo de cartão ou recorrência.');
+    await assertMonthOpen(tx,ownerId,old.competenceMonth.slice(0,7));
     const rows=await pair(tx,ownerId,old),now=new Date(),version=randomUUID();
+    await Promise.all(rows.map(row=>assertMonthOpen(tx,ownerId,row.competenceMonth.slice(0,7))));
     await tx.putMany('transactions',rows.map(row=>({...row,archivedAt:archived?now:null,updatedAt:now,revision:version})));
     return {id,ids:rows.map(r=>r.id),revision:version};
   });
