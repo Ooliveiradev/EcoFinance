@@ -9,7 +9,7 @@ async function authenticate(request: APIRequestContext,email='a@example.test') {
   const response=await request.post('/api/auth/sign-in/email',{headers:{origin:'http://127.0.0.1:3000'},data:{email,password:TEST_PASSWORD}});
   expect(response.status()).toBe(200); return response;
 }
-for(const path of ['/','/accounts','/transactions','/settings','/ai','/planning','/imports']) {
+for(const path of ['/','/accounts','/transactions','/settings','/ai','/planning','/cards','/imports']) {
   test(`renders ${path} with a user session and no browser errors`,async({page})=>{
     const errors:string[]=[]; page.on('pageerror',error=>errors.push(error.message));
     await authenticate(page.request); const response=await page.goto(path);
@@ -165,9 +165,9 @@ for(const path of ['/api/session','/api/seed','/api/pluggy/sync','/api/pluggy/we
 }
 test('health exposes no private data and every other private API fails closed',async({request,page})=>{
   expect((await request.get('/api/health')).status()).toBe(200);
-  for(const path of ['/api/accounts','/api/categories','/api/months/2026-10/summary','/api/entries','/api/sessions','/api/pluggy/token','/api/transactions/nearby']) expect((await request.get(path)).status()).toBe(401);
+  for(const path of ['/api/accounts','/api/cards','/api/categories','/api/months/2026-10/summary','/api/entries','/api/sessions','/api/pluggy/token','/api/transactions/nearby']) expect((await request.get(path)).status()).toBe(401);
   await page.goto('/accounts'); await expect(page).toHaveURL(/\/login$/); await expect(page.getByText('Backup sintético',{exact:true})).toHaveCount(0);
-  for (const path of ['/', '/planning', '/imports', '/settings']) {
+  for (const path of ['/', '/planning', '/cards', '/imports', '/settings']) {
     await page.goto(path); await expect(page).toHaveURL(/\/login$/);
   }
 });

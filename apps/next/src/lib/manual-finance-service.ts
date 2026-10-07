@@ -59,7 +59,7 @@ export async function saveEntry(database:Database,ownerId:string,requestId:strin
     if(old) {
       checkRevision(old,expected);
       if(old.archivedAt!==null)fail('ARCHIVED_ENTRY',409,'Restaure o lançamento antes de editar.');
-      if(old.invoiceId || old.installmentId || old.recurrenceOccurrenceId)fail('LINKED_ENTRY',409,'Edite este vínculo pelo fluxo de cartão ou recorrência.');
+      if(old.invoiceId || old.installmentId || old.recurrenceOccurrenceId || old.reconciledIntoId)fail('LINKED_ENTRY',409,'Edite este vínculo pelo fluxo de cartão ou recorrência.');
       if((old.kind==='transfer')!==(data.kind==='transfer'))fail('KIND_CONFLICT',409,'Para mudar entre transferência e receita/despesa, exclua e crie outro lançamento.');
     }
     await assertMonthOpen(tx,ownerId,data.competenceMonth.slice(0,7));
@@ -83,7 +83,7 @@ export async function saveEntry(database:Database,ownerId:string,requestId:strin
 export async function archiveEntry(database:Database,ownerId:string,requestId:string,id:string,expected:string,archived:boolean) {
   return operation(database,ownerId,requestId,'archive-entry',{id,expected,archived},async tx=> {
     const old=await owned(tx,'transactions',id,ownerId);checkRevision(old,expected);
-    if(old.invoiceId || old.installmentId || old.recurrenceOccurrenceId)fail('LINKED_ENTRY',409,'Edite este vínculo pelo fluxo de cartão ou recorrência.');
+    if(old.invoiceId || old.installmentId || old.recurrenceOccurrenceId || old.reconciledIntoId)fail('LINKED_ENTRY',409,'Edite este vínculo pelo fluxo de cartão ou recorrência.');
     await assertMonthOpen(tx,ownerId,old.competenceMonth.slice(0,7));
     const rows=await pair(tx,ownerId,old),now=new Date(),version=randomUUID();
     await Promise.all(rows.map(row=>assertMonthOpen(tx,ownerId,row.competenceMonth.slice(0,7))));

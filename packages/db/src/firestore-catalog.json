@@ -304,6 +304,11 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "revision",
+        "type": "text",
+        "nullable": true
       }
     ],
     "unique": [
@@ -984,6 +989,26 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "revision",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "previousBalance",
+        "type": "numeric(15, 2)",
+        "nullable": true
+      },
+      {
+        "key": "paymentAccountId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "closed",
+        "type": "boolean",
+        "nullable": true
       }
     ],
     "unique": [
@@ -1013,6 +1038,17 @@
           "ownerId",
           "cardId"
         ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "fields": [
+          "ownerId",
+          "paymentAccountId"
+        ],
+        "collection": "accounts",
         "target": [
           "ownerId",
           "id"
@@ -1456,6 +1492,26 @@
         "key": "revision",
         "type": "uuid",
         "nullable": true
+      },
+      {
+        "key": "cardEntryType",
+        "type": "text",
+        "nullable": true
+      },
+      {
+        "key": "refundOfId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "reconciledIntoId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "cardOriginal",
+        "type": "jsonb",
+        "nullable": true
       }
     ],
     "unique": [
@@ -1541,6 +1597,28 @@
           "ownerId",
           "recurrenceOccurrenceId"
         ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "fields": [
+          "ownerId",
+          "refundOfId"
+        ],
+        "collection": "transactions",
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "fields": [
+          "ownerId",
+          "reconciledIntoId"
+        ],
+        "collection": "transactions",
         "target": [
           "ownerId",
           "id"
