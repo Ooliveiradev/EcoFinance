@@ -43,8 +43,11 @@ export async function handleAuth(request: Request) {
   const headers = new Headers([...request.headers].filter(([key]) =>
     key !== 'content-length' && !(key === 'cookie' && request.headers.has('authorization'))));
   const response = await getAuth().handler(new Request(request.url, { method: request.method, headers, body }));
+  // The Bearer plugin exposes set-auth-token via Access-Control-Expose-Headers;
+  // CORS is decided only by the proxy policy, and browsers never get the token.
   const outputHeaders = new Headers([
-    ...[...response.headers].filter(([key]) => key !== 'cache-control' && !(key === 'set-auth-token' && origin !== null)),
+    ...[...response.headers].filter(([key]) => key !== 'cache-control' && !key.startsWith('access-control-') &&
+      !(key === 'set-auth-token' && origin !== null)),
     ['Cache-Control', PRIVATE_CACHE],
   ]);
   const payload = await response.json();

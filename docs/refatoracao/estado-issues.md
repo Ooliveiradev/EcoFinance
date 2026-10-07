@@ -32,7 +32,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #34 | Consultas parametrizadas existem; falta matriz explícita de entradas hostis e inventário de SQL indireto |
 | #35 | Migrations/backup existentes; falta runbook de rollback de código/configuração/dados e ensaio completo |
 | #37 | Segredos server-only e scanners existentes; faltam rotação/revogação e evidência operacional |
-| #38 | Política de origem/CSRF existe; falta inventário/preflight/CORS e prova de origens negadas |
+| #38 | Allowlist CORS exata (somente AUTH_URL), preflight e origem negada antes da autenticação, inventário de rotas e consumidores máquina a máquina em [cors.md](cors.md); testes unitários e E2E no PR da #38 |
 | #39 | Logs de auth desativados para evitar vazamentos; trilha de eventos/retencão/correlação não entregue |
 | #40 | SecureStore e hashes não comprovam criptografia de volumes, arquivos e backups |
 | #41 | Lockfile, patches, auditoria, Dependabot e Actions fixas existem; política de prazos/exceções e inventário formal incompletos |

@@ -38,6 +38,10 @@ export function createAuth(database: Database, origin: string, secret: string) {
   });
 }
 let instance: ReturnType<typeof createAuth> | undefined;
+// Canonical browser origin: the only member of the CORS allowlist (cors.ts).
+export function appOrigin() {
+  return backendOrigin(process.env.AUTH_URL ?? 'http://localhost:3000');
+}
 export function getAuth() {
-  return instance ??= createAuth(db, process.env.AUTH_URL ?? 'http://localhost:3000', process.env.AUTH_SECRET ?? '');
+  return instance ??= createAuth(db, appOrigin(), process.env.AUTH_SECRET ?? '');
 }
