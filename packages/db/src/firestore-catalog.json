@@ -126,6 +126,11 @@
         "key": "limit",
         "type": "numeric(15, 2)",
         "nullable": false
+      },
+      {
+        "key": "inactive",
+        "type": "boolean",
+        "nullable": true
       }
     ],
     "unique": [
@@ -219,6 +224,11 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "revision",
+        "type": "text",
+        "nullable": true
       }
     ],
     "unique": [
@@ -1105,6 +1115,26 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "snapshot",
+        "type": "jsonb",
+        "nullable": true
+      },
+      {
+        "key": "overridden",
+        "type": "boolean",
+        "nullable": true
+      },
+      {
+        "key": "transactionId",
+        "type": "uuid",
+        "nullable": true
+      },
+      {
+        "key": "revision",
+        "type": "text",
+        "nullable": true
       }
     ],
     "unique": [
@@ -1134,6 +1164,17 @@
           "ownerId",
           "ruleId"
         ],
+        "target": [
+          "ownerId",
+          "id"
+        ]
+      },
+      {
+        "fields": [
+          "ownerId",
+          "transactionId"
+        ],
+        "collection": "transactions",
         "target": [
           "ownerId",
           "id"
@@ -1212,6 +1253,16 @@
         "key": "updatedAt",
         "type": "timestamp with time zone",
         "nullable": false
+      },
+      {
+        "key": "versions",
+        "type": "jsonb",
+        "nullable": true
+      },
+      {
+        "key": "revision",
+        "type": "text",
+        "nullable": true
       }
     ],
     "unique": [
@@ -1847,6 +1898,61 @@
       [
         "ownerId",
         "id"
+      ]
+    ],
+    "refs": [
+      {
+        "fields": [
+          "ownerId"
+        ],
+        "collection": "users",
+        "target": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "planningMonths": {
+    "columns": [
+      {
+        "key": "id",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "ownerId",
+        "type": "uuid",
+        "nullable": false
+      },
+      {
+        "key": "competenceMonth",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "key": "closedAt",
+        "type": "timestamp with time zone",
+        "nullable": true
+      },
+      {
+        "key": "revision",
+        "type": "text",
+        "nullable": false
+      },
+      {
+        "key": "updatedAt",
+        "type": "timestamp with time zone",
+        "nullable": false
+      }
+    ],
+    "unique": [
+      [
+        "ownerId",
+        "id"
+      ],
+      [
+        "ownerId",
+        "competenceMonth"
       ]
     ],
     "refs": [

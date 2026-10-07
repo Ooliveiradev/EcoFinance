@@ -38,7 +38,7 @@ export async function loadDashboardData(userId:string,resolved:ReturnType<typeof
       categoryData:[...grouped].map(([id,value])=>({id,name:categoryMap.get(id)?.name??'Categoria histórica',value:chart(value),formatted:formatCents(value),color:categoryMap.get(id)?.color??'#64748b'})),
       recentTransactions:current.toSorted((a,b)=>b.purchaseDate.localeCompare(a.purchaseDate)||b.id.localeCompare(a.id)).slice(0,10).map(tx=>({id:tx.id,date:tx.purchaseDate,description:tx.description,category:tx.category,categoryName:categoryMap.get(tx.categoryId)?.name,amount:tx.amount,source:tx.source})),
       upcomingBills:[
-        ...occurrences.map(o=>({id:o.id,description:rules.get(o.ruleId)!.description,amount:Math.abs(displayMoney(exactCents(o.amount))),dueDate:o.dueDate,category:'Recorrente',isPaid:o.status==='paid'})),
+        ...occurrences.filter(o=>o.status!=='cancelled').map(o=>({id:o.id,description:o.snapshot?.description??rules.get(o.ruleId)!.description,amount:Math.abs(displayMoney(exactCents(o.amount))),dueDate:o.dueDate,category:'Recorrente',isPaid:o.status==='paid'})),
         ...invoices.map(i=>({id:i.id,description:'Fatura '+cards.get(i.cardId)!.name,amount:Math.abs(displayMoney(exactCents(i.statedTotal??'0'))),dueDate:i.dueDate,category:'Cartão de crédito',isPaid:i.status==='paid'})),
       ],
       accounts:active.map(({id,name})=>({id,name})),categories:categories.filter(c=>!c.archivedAt).map(({id,name})=>({id,name})),

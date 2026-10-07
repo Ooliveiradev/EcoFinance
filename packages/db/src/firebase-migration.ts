@@ -147,7 +147,7 @@ export async function restoreFirebase(store:DocumentStore,input:unknown) {
 // Current writes are included: this is not a return to an old source snapshot.
 export async function exportPortableFirebase(store:DocumentStore):Promise<PortableSnapshot> {
   const records=await readRecords(store);
-  if(records.some(r=>r.path.startsWith('operations/')))throw new Error('Database uses manual-finance schema v2; use native Firebase backup. Legacy SQL export would lose operation history.');
+  if(records.some(r=>r.path.startsWith('operations/') || r.path.startsWith('planningMonths/')))throw new Error('Database uses manual-finance schema v2; use native Firebase backup. Legacy SQL export would lose operation history.');
   const rows:Record<string,PortableRow[]>={};
   for(const mapping of mappings) {
     const catalog=snapshotCatalog.find(t=>t.name===mapping.table)!;

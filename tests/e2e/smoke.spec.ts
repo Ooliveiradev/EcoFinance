@@ -66,7 +66,7 @@ test('two users never see each other in SSR, APIs or forged filters',async({page
   const context=await browser.newContext(); const other:Page=await context.newPage();
   try {
     await authenticate(other.request,'b@example.test');
-    await other.goto('/accounts'); await expect(other.getByText('Conta B',{exact:true})).toBeVisible();
+    await other.goto('/accounts'); await expect(other.getByRole('heading',{name:'Conta B',exact:true}).filter({visible:true})).toBeVisible();
     await expect(other.getByText('Backup sintético',{exact:true})).toHaveCount(0);
     await other.goto('/transactions'); await expect(other.getByText('Compra sintética',{exact:true})).toHaveCount(0);
     await other.goto('/?mes=2026-09');

@@ -1,3 +1,4 @@
+import { scheduleSchema,planningMonthSchema } from '@ecofinance/shared';
 import catalog from './firestore-catalog.json';
 import { Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
@@ -38,6 +39,12 @@ export function validateDocument(collection:Collection,row:Record<string,unknown
     requireValue(['comida','transporte','assinaturas','lazer','saude','educacao','moradia','salario','investimento','transferencia','desconhecido'].includes(String(row.category)));
     requireValue(['notification','pluggy','ofx','manual','uber','csv','spreadsheet','document','email'].includes(String(row.source)));
   }
+  if(collection==='recurrenceRules' && row.versions!=null) {
+    requireValue(Array.isArray(row.versions) && row.versions.length>0 && row.versions.length<=120);
+    let previous='';
+    for(const version of row.versions as {fromMonth:string;schedule:unknown}[]) {planningMonthSchema.parse(version.fromMonth);requireValue(version.fromMonth>previous);previous=version.fromMonth;scheduleSchema.parse(version.schedule);}
+  }
+  if(collection==='recurrenceOccurrences' && row.snapshot!=null)scheduleSchema.parse(row.snapshot);
   if(collection==='recurrenceRules')requireValue(row.endDate==null||String(row.endDate)>=String(row.startDate));
   if(collection==='recurrenceOccurrences')requireValue(['pending','paid','postponed','cancelled'].includes(String(row.status)));
   if(collection==='invoices')requireValue(['open','closed','partial','paid'].includes(String(row.status)));
