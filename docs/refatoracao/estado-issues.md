@@ -2,7 +2,7 @@
 
 Base: `origin/main` em `696366a`, PRs #48/#49 integrados e #47/#5 encerradas.
 #1, #2, #3, #4, #29 e #36 já estavam encerradas. #18 é agregadora.
-A retomada implementa #6; integração e encerramento dependem dos gates do PR.
+A retomada entrega #6 no [PR #50](https://github.com/Ooliveiradev/EcoFinance/pull/50). O PR registra os gates e o estado da integração.
 
 Modelo/tela existente não equivale a um fluxo completo. A revisão abaixo registra
 as lacunas que impedem novos fechamentos; não certifica a implantação em produção.
@@ -10,7 +10,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | Issue | Evidência e critério ainda pendente |
 | --- | --- |
 | #5 | Concluída no PR #49, com CRUD, transferências, exclusão reversível e CI completa |
-| #6 | Recorrências versionadas, geração/pagamento/adiar/pausar, orçamento/cópia revisada, conciliação e meses fechados implementados; aguarda integração após os gates do PR |
+| #6 | Recorrências versionadas, geração/pagamento/adiar/pausar, orçamento/cópia revisada, conciliação e meses fechados entregues no PR #50; evidências em planejamento.md e no PR |
 | #7 | Modelo de cartão/fatura/parcela existe; faltam operações e conciliação completas |
 | #8 | Modelo de lote/item existe; falta upload/revisão/confirmar/reverter; ingestão antiga desativada |
 | #9 | Parser OFX e testes existem; faltam corpus/diagnóstico e suporte completo CSV/TSV/XLS/XLSX/QFX |
@@ -22,7 +22,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #15 | Ingestão antiga desativada; SDKs/código/permissões legados e substitutos ainda pendentes |
 | #16 | Gates e jornadas básicas existem; release/jornadas completas/mobile ainda pendentes |
 | #17 | README atualizado; faltam capturas reais dos fluxos finais entregues |
-| #18 | #1–#5 completas; #6 em integração e restante do escopo permanece aberto |
+| #18 | #1–#5 completas; planejamento #6 neste incremento e demais critérios permanecem nas respectivas issues |
 | #19 | Captura automática desativada; faltam opt-in, staging, provas nativas e conector de email |
 | #28 | URLs/cookies seguros e exceções locais definidas; falta comprovar transporte/redirects da implantação |
 | #30 | MFA não implementado |
@@ -41,4 +41,4 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #44 | Restauração sintética existe; RPO/RTO, responsáveis e runbook de incidente completos ainda pendentes |
 | #47 | Concluída no PR #48, com Firestore Enterprise em São Paulo, runtime/autenticação, regras, backup/reversão e CI incluindo Android nativo |
 
-A [CI do PR #48](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37478780725) passou em todos os grupos. A auditoria preservou abertas as issues com lacunas reais; #47 foi encerrada após a integração. A [CI do PR #49](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37547524052) também passou; #5 foi encerrada após a integração. #6 será encerrada somente após seus próprios gates. #18 permanece aberta acompanhando as demais entregas. Nenhuma implantação do site em hospedagem externa foi comprovada nesta revisão.
+A [CI do PR #48](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37478780725) passou em todos os grupos. A auditoria preservou abertas as issues com lacunas reais; #47 foi encerrada após a integração. A [CI do PR #49](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37547524052) também passou; #5 foi encerrada após a integração. O encerramento de #6 também exige sua própria CI completa. #18 permanece aberta acompanhando as demais entregas. Nenhuma implantação do site em hospedagem externa foi comprovada nesta revisão.

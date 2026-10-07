@@ -1,6 +1,6 @@
 # Plano de implementação do EcoFinance
 
-> Atualização em 06/10/2026: #1–#5, #29/#36 e #47 estão concluídas. PR #48 migrou o runtime para Firebase; PR #49 entregou o cadastro manual, ambos com CI completa aprovada. A retomada implementa o [planejamento mensal #6](planejamento.md), cuja integração e encerramento dependem dos gates do PR. Consultar a [revisão do backlog](estado-issues.md).
+> Atualização em 06/10/2026: #1–#5, #29/#36 e #47 estão concluídas. PR #48 migrou o runtime para Firebase; PR #49 entregou o cadastro manual, ambos com CI completa aprovada. A retomada entrega o [planejamento mensal #6](planejamento.md) no [PR #50](https://github.com/Ooliveiradev/EcoFinance/pull/50), com critérios e validação registrados no PR. Consultar a [revisão do backlog](estado-issues.md).
 
 > Atualização em 05/10/2026: EF-01 (#1) concluída após os PRs #20/#27 integrados e CI remota aprovada; EF-02 (#2) já concluída. A entrega atual implementa EF-03 (#3), hash de senhas (#29) e expiração/revogação (#36); consulte [autenticação e evidências](autenticacao.md). Vincular issues completas no PR com Closes #N; somente o merge conclui as vinculadas. EF-04/EF-05 são as próximas entregas financeiras de interface. Os critérios anteriores e observações abaixo registram o diagnóstico histórico da base.
 
