@@ -17,8 +17,14 @@ async function refs(request: APIRequestContext, name: string) {
 test('uploads multiple files, corrects an invalid line, previews and commits selected items, then undoes after reload', async ({ page }, info) => {
   await login(page.request); const name = 'Import ' + info.project.name + ' ' + Date.now(), { account, category } = await refs(page.request, name);
   const filename = 'revisar-' + info.project.name + '.csv';
-  await page.goto('/imports'); await page.getByLabel('Conta ou cartão de destino', { exact: true }).selectOption('account:' + account);
-  await page.getByLabel('Arquivos para revisão', { exact: true }).setInputFiles([
+  await page.goto('/imports');
+  // Streamed HTML can retain a hidden copy outside main while React hydrates.
+  const upload = page.getByRole('main');
+  const destination = upload.getByRole('combobox', { name: 'Conta ou cartão de destino', exact: true });
+  await expect(destination).toHaveCount(1);
+  await destination.selectOption('account:' + account);
+  await expect(destination).toHaveValue('account:' + account);
+  await upload.getByLabel('Arquivos para revisão', { exact: true }).setInputFiles([
     { name: filename, mimeType: 'text/csv', buffer: Buffer.from('data;descricao;valor\n2026-10-01;Compra;-10.25\ninvalid;;bad') },
     { name: 'segundo.tsv', mimeType: 'text/tab-separated-values', buffer: Buffer.from('data\tdescricao\tvalor\n2026-10-02\tSalário\t100.00') },
   ]);
