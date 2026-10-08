@@ -75,7 +75,7 @@ Rotas de importação que a #8 vier a criar sob `/api/` herdam a mesma política
 
 ## Procedimento
 
-1. Defina `AUTH_URL` com a origem canônica exata servida ao navegador, por exemplo `https://financas.exemplo`. Ela é ao mesmo tempo a allowlist CORS, a origem confiável de CSRF e a `baseURL` do Better Auth. Um valor inválido derruba a requisição com 503.
+1. Defina `AUTH_URL` com a origem canônica exata servida ao navegador, por exemplo `https://financas.exemplo`. Ela é ao mesmo tempo a allowlist CORS, a origem confiável de CSRF e a `baseURL` do Better Auth. Um valor inválido derruba a requisição com 503. No Cloud Run, use a URL determinística `https://ecofinance-<PROJECT_NUMBER>.southamerica-east1.run.app` ou o domínio próprio. As outras URLs do serviço (legada e de tag) continuam fora da allowlist ([deploy/cloud-run.md](../deploy/cloud-run.md#auth_url-cors-e-as-urls-do-cloud-run)).
 2. Com um proxy reverso ou ingress, mantenha o host público igual a `AUTH_URL` e **não** acrescente headers `Access-Control-*` no ingress, porque eles se sobreporiam à política da aplicação.
 3. Para validar uma instalação, use apenas dados sintéticos:
 

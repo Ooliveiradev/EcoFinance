@@ -163,6 +163,50 @@ jobs:
             test-results/
           retention-days: 7
 
+  container:
+    name: Production container (Cloud Run image)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build production image
+        run: docker build --tag ecofinance-web:ci .
+      - name: Verify non-root user and minimal contents
+        run: |
+          user="$(docker image inspect --format '{{.Config.User}}' ecofinance-web:ci)"
+          uid="$(docker run --rm --entrypoint id ecofinance-web:ci -u)"
+          if [ "$user" != node ] || [ "$uid" = 0 ]; then echo "::error::image must run as non-root (user=$user uid=$uid)"; exit 1; fi
+          docker run --rm --entrypoint sh ecofinance-web:ci -c '
+            set -e
+            test -f apps/next/server.js && test -d apps/next/.next/static && test -d apps/next/public
+            for path in .env apps/next/.env apps/next/src packages/db/scripts apps/expo; do
+              if [ -e "$path" ]; then echo "unexpected $path"; exit 1; fi
+            done
+            if command -v npm || command -v corepack; then echo "package managers must not ship"; exit 1; fi
+            ! touch apps/next/server.js 2>/dev/null'
+          docker run --rm -w /app/apps/next --entrypoint node ecofinance-web:ci -e \
+            "require('firebase-admin/app'); require('@node-rs/argon2').hash('synthetic').then(() => console.log('native modules ok'))"
+      - name: Start container and require healthy /api/health
+        run: |
+          docker run --detach --name web --publish 8080:8080 --health-interval 2s \
+            --env AUTH_URL=http://localhost:8080 --env AUTH_SECRET="$(openssl rand -hex 32)" \
+            --env FIREBASE_PROJECT_ID=demo-ecofinance --env FIRESTORE_DATABASE_ID=ecofinance \
+            --env FIRESTORE_EMULATOR_HOST=127.0.0.1:1 ecofinance-web:ci
+          for _ in $(seq 1 30); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' web)" = healthy ] && break
+            sleep 2
+          done
+          [ "$(docker inspect --format '{{.State.Health.Status}}' web)" = healthy ] || { docker logs web; exit 1; }
+          curl --fail --silent --show-error http://localhost:8080/api/health
+          curl --fail --silent --show-error --output /dev/null http://localhost:8080/login
+          code="$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Origin: https://hostile.example' http://localhost:8080/api/health)"
+          [ "$code" = 403 ] || { echo "::error::foreign Origin returned $code"; exit 1; }
+      - name: Container logs
+        if: failure()
+        run: docker logs web || true
+
   mobile:
     name: Expo compatibility, Android native and Android/iOS privacy
     runs-on: ubuntu-24.04
@@ -312,7 +356,7 @@ jobs:
   gate:
     name: PR quality gate
     if: always()
-    needs: [quality, unit, database, web, mobile, dependencies, secrets, codeql, react, workflows]
+    needs: [quality, unit, database, web, container, mobile, dependencies, secrets, codeql, react, workflows]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -323,5 +367,5 @@ jobs:
           node --input-type=module -e '
             const checks = Object.entries(JSON.parse(process.env.RESULTS));
             for (const [name, check] of checks) console.log(name + ": " + check.result);
-            if (checks.length !== 10 || checks.some(([, check]) => check.result !== "success")) process.exit(1);
+            if (checks.length !== 11 || checks.some(([, check]) => check.result !== "success")) process.exit(1);
           '

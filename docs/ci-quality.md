@@ -8,13 +8,14 @@ O workflow roda em todos os PRs, inclusive rascunhos/forks, pushes na main, merg
 | Unitários | Por arquivo: 90% de linhas/statements/funções, 85% de branches. Validação, OFX, migrações, sessão e transporte mobile; controles negativos dos scanners. |
 | Banco | Reversão Firestore → PostgreSQL com novas escritas; PostgreSQL/PostGIS descartável: concorrência, legado, preservação financeira, repetição, rollback, checksum, deduplicação, dump/restore e objetos espaciais. |
 | Web | Emulador Firestore Enterprise: autenticação, migração/restore e regras deny-all. Produção, canários e scan dos arquivos públicos; Playwright Chromium/WebKit/mobile com dados sintéticos. Sessão, acesso anônimo, CSRF, páginas, navegação, fixtures e APIs. |
+| Container | Imagem de produção do Cloud Run (`Dockerfile`): build com canários, usuário não-root, sem npm/corepack/fontes/.env, healthcheck `/api/health` saudável e origem estranha recusada. Roteiro em [deploy/cloud-run.md](deploy/cloud-run.md). |
 | Mobile | Compatibilidade Expo, exportação Android/iOS com cache limpo e canários, compilação e lint nativos Android. Sem credenciais de produção ou assinatura release. |
 | Dependências | Produção e desenvolvimento: todos os advisories sem correção bloqueiam, inclusive moderados/baixos. Registro indisponível/relatório incompleto também bloqueia. |
 | Segredos | Gitleaks no histórico alcançável e árvore limpa antes de instalar dependências, saída redigida; arquivos sensíveis e fronteira cliente/servidor. |
 | CodeQL | security-extended e security-and-quality; qualquer resultado SARIF, inclusive suprimido, ou relatório incompleto bloqueia. |
 | React Doctor | Varredura completa dos dois apps, zero erros/avisos; resultado completo também fora de PR. |
 | Workflows | actionlint e ShellCheck no Linux. |
-| **PR quality gate** | Os dez grupos devem ser success. Falhas, cancelamentos e jobs pulados bloqueiam. |
+| **PR quality gate** | Os onze grupos devem ser success. Falhas, cancelamentos e jobs pulados bloqueiam. |
 
 Artifacts de cobertura, Playwright e SARIF duram sete dias. Bancos, dumps e bundles não são publicados. Dependabot propõe atualizações semanais, sem merge automático.
 

@@ -1,0 +1,139 @@
+name: Deploy
+
+# Publica apps/next no Cloud Run (southamerica-east1). Recursos GCP, IAM e
+# variáveis do environment: docs/deploy/cloud-run.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# Um deploy por vez; um deploy em andamento nunca é cancelado no meio.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PROJECT_ID: ecofinance-912de
+  REGION: southamerica-east1
+  SERVICE: ecofinance
+  IMAGE: southamerica-east1-docker.pkg.dev/ecofinance-912de/ecofinance/web
+  DEPLOY_SA: ecofinance-deploy@ecofinance-912de.iam.gserviceaccount.com
+  RUNTIME_SA: ecofinance-runtime@ecofinance-912de.iam.gserviceaccount.com
+  FIRESTORE_DATABASE_ID: ecofinance
+  AUTH_SECRET_NAME: ecofinance-auth-secret
+
+jobs:
+  deploy:
+    name: Cloud Run (southamerica-east1)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Aprovação do mantenedor e política de branch ficam no environment.
+    environment:
+      name: production
+      url: ${{ steps.release.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      AUTH_URL: ${{ vars.AUTH_URL }}
+      AUTH_SECRET_VERSION: ${{ vars.AUTH_SECRET_VERSION }}
+    steps:
+      - name: Validate environment configuration
+        run: |
+          [[ "$WIF_PROVIDER" =~ ^projects/[0-9]+/locations/global/workloadIdentityPools/[a-z0-9-]+/providers/[a-z0-9-]+$ ]] || { echo "::error::GCP_WORKLOAD_IDENTITY_PROVIDER ausente ou inválido"; exit 1; }
+          [[ "$AUTH_URL" =~ ^https://[a-z0-9.-]+$ ]] || { echo "::error::AUTH_URL deve ser uma origem HTTPS exata, sem barra final"; exit 1; }
+          [[ "$AUTH_SECRET_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "::error::AUTH_SECRET_VERSION deve ser o número da versão do secret"; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Build antes da autenticação: nenhuma credencial existe durante o build,
+      # e o .dockerignore (allowlist) também excluiria o arquivo gha-creds-*.json.
+      - name: Build image with synthetic canaries and bundle scan
+        id: build
+        run: |
+          tag="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker build \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --tag "${IMAGE}:${tag}" .
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Push image to Artifact Registry
+        id: push
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker push "${IMAGE}:${TAG}"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "${IMAGE}:${TAG}")"
+          [[ "$digest" == "${IMAGE}@sha256:"* ]] || { echo "::error::digest inesperado: $digest"; exit 1; }
+          echo "image=${digest}" >> "$GITHUB_OUTPUT"
+
+      # Nova revisão sem tráfego, acessível só pela tag "candidate" até passar
+      # no smoke test. --set-env-vars/--set-secrets substituem a configuração
+      # anterior: o estado do serviço é sempre o declarado aqui.
+      - name: Deploy candidate revision without traffic
+        env:
+          IMAGE_DIGEST: ${{ steps.push.outputs.image }}
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$IMAGE_DIGEST" \
+            --service-account "$RUNTIME_SA" \
+            --set-env-vars "FIREBASE_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE_ID=${FIRESTORE_DATABASE_ID},AUTH_URL=${AUTH_URL}" \
+            --set-secrets "AUTH_SECRET=${AUTH_SECRET_NAME}:${AUTH_SECRET_VERSION}" \
+            --port 8080 \
+            --min-instances 0 \
+            --max-instances 2 \
+            --concurrency 20 \
+            --cpu 1 \
+            --memory 512Mi \
+            --timeout 60s \
+            --cpu-throttling \
+            --cpu-boost \
+            --ingress all \
+            --labels "managed-by=github-actions,commit=${GITHUB_SHA:0:12}" \
+            --no-traffic \
+            --tag candidate \
+            --quiet
+
+      - name: Smoke test candidate revision
+        run: |
+          url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format json \
+            | jq -er '.status.traffic[] | select(.tag == "candidate") | .url')"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors --max-time 15 "${url}/api/health"
+          curl --fail --silent --show-error --output /dev/null --max-time 15 "${url}/login"
+
+      - name: Route all traffic to the new revision
+        id: release
+        run: |
+          gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --to-latest --quiet
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors --max-time 15 "${AUTH_URL}/api/health"
+          revision="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format 'value(status.latestReadyRevisionName)')"
+          echo "url=${AUTH_URL}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Cloud Run"
+            echo "- Revisão: \`${revision}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- URL: ${AUTH_URL}"
+            echo "- Rollback: docs/deploy/cloud-run.md#rollback"
+          } >> "$GITHUB_STEP_SUMMARY"
