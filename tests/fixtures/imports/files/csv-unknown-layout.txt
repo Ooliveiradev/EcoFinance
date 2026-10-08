@@ -1,3 +1,0 @@
-2026-10-01|Corrida App Fictício|-23,45
-2026-10-02|Padaria Exemplo|-8,00
-2026-10-03|Pix recebido|150,00

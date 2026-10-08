@@ -1,9 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { ImportMapping } from '../../../packages/shared/src/imports';
+import { buildCorpus } from './build';
 
 /**
- * Hand-written expectations for the synthetic corpus in `files/` (see generate.mjs).
+ * Hand-written expectations for the synthetic corpus built in memory by build.ts.
  * Rows are [amount, purchaseDate, description, origin]; origin is the cell for
  * tabular formats and the line for OFX/QFX. `valid` counts rows with amount, date
  * and description; `total` is their exact sum. No real person or account appears here.
@@ -14,8 +13,12 @@ export interface CorpusCase {
   error?: string; mappingRequired?: string; mapping?: ImportMapping;
   format?: string; rows?: CorpusRow[]; valid?: number; total?: string; warnings?: string[]; externalId?: string;
 }
-export const corpusDir = join(__dirname, 'files');
-export const corpusBytes = (file: string) => new Uint8Array(readFileSync(join(corpusDir, file)));
+let files: Map<string, Uint8Array> | undefined;
+export function corpusBytes(file: string) {
+  const bytes = (files ??= buildCorpus()).get(file);
+  if (!bytes) throw new Error('Unknown corpus file ' + file);
+  return bytes;
+}
 export const mapping = (patch: Partial<ImportMapping>): ImportMapping => ({ sheet: null, headerRow: 1, date: 0, description: 1, amount: 2, debit: null, credit: null, dateOrder: null, decimal: null, ...patch });
 const sheet = (cell: string) => `'Extrato Out'!${cell}`;
 const extrato: CorpusRow[] = [

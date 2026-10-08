@@ -1,5 +1,2 @@
 # Auto detect text files and perform LF normalization
 * text=auto
-
-# Synthetic import corpus: exact bytes (CRLF, BOM, UTF-16, Windows-1252) are test inputs.
-tests/fixtures/imports/files/** -text

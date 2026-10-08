@@ -167,11 +167,13 @@ truncada ou com caractere de fórmula.
 
 ## Corpus sintético
 
-`tests/fixtures/imports/files/` tem 24 arquivos fictícios (nenhum dado real),
-regeneráveis por `node tests/fixtures/imports/generate.mjs`. As expectativas estão
-escritas à mão em `tests/fixtures/imports/corpus.ts`: valores, datas, descrições,
-célula/linha de origem, número de linhas válidas, soma exata e avisos do lote. O
-`.gitattributes` preserva os bytes (CRLF, BOM, UTF-16, Windows-1252).
+`tests/fixtures/imports/build.ts` monta em memória 24 arquivos fictícios (nenhum dado
+real), com os bytes exatos de cada caso (CRLF, BOM, UTF-16, Windows-1252, ZIP/OLE).
+Nada binário é commitado: a política `pnpm security:source` proíbe artefatos
+`.ofx`/`.qfx` no repositório. As expectativas estão escritas à mão em
+`tests/fixtures/imports/corpus.ts`, independentes do gerador: valores, datas,
+descrições, célula/linha de origem, número de linhas válidas, soma exata e avisos do
+lote. Os testes unitários, Firebase e e2e usam o mesmo corpus.
 
 | Família | Arquivos |
 | --- | --- |
