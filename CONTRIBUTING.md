@@ -22,7 +22,7 @@ Este projeto adere ao nosso [Código de Conduta](./CODE_OF_CONDUCT.md). Ao parti
 
 ## Como Reportar um Bug
 
-1. Verifique se o bug já não foi reportado em [Issues](https://github.com/your-username/EcoFinance/issues)
+1. Verifique se o bug já não foi reportado em [Issues](https://github.com/Ooliveiradev/EcoFinance/issues)
 2. Abra uma nova issue com o template **Bug Report**
 3. Inclua:
    - Descrição clara do problema
@@ -49,7 +49,7 @@ Veja o [README.md](./README.md) para o guia completo de instalação. Resumo:
 ```bash
 # Pré-requisitos: Node.js >= 20, pnpm >= 9, Docker
 
-git clone https://github.com/your-username/EcoFinance.git
+git clone https://github.com/Ooliveiradev/EcoFinance.git
 cd EcoFinance
 
 # 1. Copiar e preencher variáveis de ambiente
@@ -158,4 +158,4 @@ EcoFinance/
 
 ---
 
-Dúvidas? Abra uma [Discussion](https://github.com/your-username/EcoFinance/discussions) ou uma Issue. 🚀
+Dúvidas? Abra uma [Discussion](https://github.com/Ooliveiradev/EcoFinance/discussions) ou uma Issue. 🚀
