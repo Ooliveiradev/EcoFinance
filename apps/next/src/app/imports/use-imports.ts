@@ -46,11 +46,12 @@ export function useImports(props: ImportsClientProps) {
     if(action==='process')dispatch({type:'loaded',batch:{...batch,state:'processing'}});
     const response = await fetch(url, { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey(signature), 'If-Match': expected }, body: JSON.stringify(input) });
     const data = await response.json(); if (!response.ok) throw new Error(data.message ?? 'Falha ao salvar. Tente novamente com os mesmos dados.');
-    await read(action==='repeat'?data.id:batch.id); keys.current.delete(signature);
+    await read(action==='repeat'||action==='map'?data.id:batch.id); keys.current.delete(signature);
     if (action === 'undo' || action === 'confirm') router.refresh();
     if (action === 'undo') patch({ message: `Lote revertido: ${data.archived ?? 0} arquivado(s), ${data.preserved ?? 0} preservado(s). Confira os motivos em cada linha.` });
     if (action === 'confirm') patch({ message: 'Lote confirmado. Saldos, faturas e consultas foram atualizados.' });
     if (action === 'repeat') patch({ message: 'Novo lote criado em revisão. Confira as linhas e a seleção antes de confirmar.' });
+    if (action === 'map') patch({ message: data.state === 'review' ? 'Mapeamento aplicado. Confira as linhas antes de confirmar.' : 'O mapeamento ainda exige ajustes. Veja o motivo no lote.' });
   }
   async function upload() {
     const files = state.files.map(entry => entry.file);
@@ -61,9 +62,14 @@ export function useImports(props: ImportsClientProps) {
     const response = await fetch('/api/imports', { method: 'POST', headers: { 'Idempotency-Key': requestKey(signature) }, body: form });
     const data = await response.json(); if (!response.ok) throw new Error(data.message ?? 'Falha no upload. Tente novamente com os mesmos arquivos.');
     keys.current.delete(signature);
-    const results = await Promise.allSettled((data.batches as { id: string }[]).map(async received => { const batch = await read(received.id); await mutate(batch, 'process'); }));
+    // One analysis at a time: concurrent analyses of the same owner contend on
+    // the same account entries and would fail as interrupted under load.
+    let interrupted = false;
+    await (data.batches as { id: string }[]).reduce((previous, received) => previous.then(async () => {
+      try { const batch = await read(received.id); await mutate(batch, 'process'); } catch { interrupted = true; }
+    }), Promise.resolve());
     patch({ files: [], uploadVersion: state.uploadVersion + 1 });
-    if (results.some(r => r.status === 'rejected')) throw new Error('Algumas análises foram interrompidas. Abra os lotes no histórico e repita a análise; nenhum saldo foi alterado.');
+    if (interrupted) throw new Error('Algumas análises foram interrompidas. Abra os lotes no histórico e repita a análise; nenhum saldo foi alterado.');
   }
   async function moreHistory() {
     const page = state.historyPage + 1, response = await fetch('/api/imports?page=' + page, { cache: 'no-store' });

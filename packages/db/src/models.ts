@@ -1,4 +1,4 @@
-import type { RecurrenceSchedule, ScheduleVersion,CardEntryType, ImportCandidate } from '@ecofinance/shared';
+import type { RecurrenceSchedule, ScheduleVersion,CardEntryType, ImportCandidate, ImportLayout, ImportMapping } from '@ecofinance/shared';
 // Compile-time aliases to the frozen SQL schema retained for export/rollback.
 import type * as finance from './schema';
 import type * as auth from './auth-schema';
@@ -16,7 +16,7 @@ export interface Models {
   invoices: typeof finance.invoices.$inferSelect & {revision?:string;previousBalance?:string;paymentAccountId?:string;closed?:boolean};
   installmentGroups: typeof finance.installmentGroups.$inferSelect;
   installments: typeof finance.installments.$inferSelect;
-  importBatches: typeof finance.importBatches.$inferSelect & {revision?:string;filename?:string;mime?:string;payload?:string|null;format?:string;error?:string|null;accountHint?:string|null;processId?:string|null};
+  importBatches: typeof finance.importBatches.$inferSelect & {revision?:string;filename?:string;mime?:string;payload?:string|null;format?:string;error?:string|null;accountHint?:string|null;processId?:string|null;layout?:ImportLayout|null;mapping?:ImportMapping|null};
   importItems: typeof finance.importItems.$inferSelect & {revision?:string;externalId?:string|null;selected?:boolean;resolution?:'new'|'link'|'exclude';duplicateId?:string|null;candidates?:ImportCandidate[];createdTransaction?:boolean;committedRevision?:string|null;undoReason?:string|null};
   preferences: typeof finance.preferences.$inferSelect;
   financialMigrationAudits: typeof finance.financialMigrationAudits.$inferSelect;

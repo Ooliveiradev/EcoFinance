@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import type { Database, Models } from '@ecofinance/db';
-import { IMPORT_LIMITS, importReviewSchema, importPreview, importTargetSchema,type ImportBatchView, type ImportRowView } from '@ecofinance/shared';
+import { IMPORT_LIMITS, IMPORT_MAPPING_LIMITS, importMapRequestSchema, importReviewSchema, importPreview, importTargetSchema, type ImportBatchView, type ImportLayout, type ImportMapping, type ImportRowView } from '@ecofinance/shared';
 import { operation, owned, checkRevision, revision, fail, FinanceError } from './finance-operation';
 import { stableId } from './planning-lock';
 import { activeCard, cardReference } from './card-store';
@@ -35,6 +35,50 @@ export async function receiveImports(db: Database, owner: string, key: string, f
     return { batches: batches.map(b => ({ id: b.id, revision: b.revision })) };
   });
 }
+interface StoredProfile { mapping: ImportMapping; kind: ImportLayout['kind']; updatedAt: string }
+/** Saved mappings live in the owner's single preferences document, keyed by layout fingerprint. */
+async function preferencesOf(tx: Database, owner: string) {
+  return (await tx.owned('preferences', owner, { limit: 1 }))[0] ?? null;
+}
+export async function importProfiles(db: Database, owner: string): Promise<Record<string, ImportMapping>> {
+  const stored = ((await preferencesOf(db, owner))?.settings.importProfiles ?? {}) as Record<string, StoredProfile>;
+  return Object.fromEntries(Object.entries(stored).map(([fingerprint, profile]) => [fingerprint, profile.mapping]));
+}
+async function saveProfile(tx: Database, owner: string, fingerprint: string, kind: ImportLayout['kind'], mapping: ImportMapping) {
+  const now = new Date(), current = await preferencesOf(tx, owner);
+  const profiles = { ...(current?.settings.importProfiles ?? {}) as Record<string, StoredProfile>, [fingerprint]: { mapping, kind, updatedAt: now.toISOString() } };
+  const kept = Object.entries(profiles).sort(([, a], [, b]) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, IMPORT_MAPPING_LIMITS.profiles);
+  await tx.put('preferences', { id: current?.id ?? stableId(['preferences', owner]), ownerId: owner, settings: { ...current?.settings, importProfiles: Object.fromEntries(kept) }, createdAt: current?.createdAt ?? now, updatedAt: now });
+}
+/**
+ * Apply a user-confirmed column mapping. A failed analysis is retried in place;
+ * a batch already in review is cancelled and replaced so earlier rows stay auditable.
+ */
+export async function mapImport(db: Database, owner: string, key: string, id: string, expected: string, input: unknown) {
+  const { mapping, remember } = importMapRequestSchema.parse(input);
+  const result = await operation(db, owner, key, 'map-import', { id, expected, mapping, remember }, async tx => {
+    const batch = await owned(tx, 'importBatches', id, owner); checkRevision(batch, expected);
+    const layout = batch.layout;
+    if (!layout || !['failed', 'review'].includes(batch.state)) fail('BATCH_STATE', 409, 'Somente CSV/TSV ou planilhas em revisão ou com falha aceitam mapeamento de colunas.');
+    if (batch.payload == null) fail('EMPTY_REPEAT', 422, 'O arquivo original não está mais em staging. Selecione o arquivo e faça um novo upload.');
+    const sheet = layout!.kind === 'spreadsheet' ? layout!.sheets.find(s => s.name === (mapping.sheet ?? (layout!.sheets.length === 1 ? layout!.sheets[0]!.name : ''))) : layout!.sheets[0];
+    if (!sheet) fail('INVALID_MAPPING', 400, 'Escolha uma aba existente da planilha.');
+    if ([mapping.date, mapping.description, mapping.amount, mapping.debit, mapping.credit].some(column => column !== null && column >= sheet!.columns)) fail('INVALID_MAPPING', 400, 'O mapeamento indica colunas inexistentes no arquivo.');
+    const confirmed = { ...mapping, sheet: layout!.kind === 'spreadsheet' ? sheet!.name : null };
+    if (remember) await saveProfile(tx, owner, sheet!.fingerprint, layout!.kind, confirmed);
+    const now = new Date();
+    if (batch.state === 'failed') {
+      const next = { ...batch, mapping: confirmed, state: 'received', error: null, processId: null, revision: randomUUID(), updatedAt: now };
+      await tx.put('importBatches', next); return { id, revision: next.revision };
+    }
+    const next = { ...batch, id: randomUUID(), idempotencyKey: key, mapping: confirmed, state: 'received', error: null, processId: null, revision: randomUUID(), createdAt: now, updatedAt: now };
+    await tx.put('importBatches', { ...batch, state: 'cancelled', payload: null, processId: null, revision: randomUUID(), updatedAt: now });
+    await tx.put('importBatches', next, true);
+    return { id: next.id, revision: next.revision };
+  });
+  const target = String(result.id), current = await db.get('importBatches', target);
+  return current?.state === 'received' && current.revision === result.revision ? processImport(db, owner, target, String(result.revision)) : loadImport(db, owner, target);
+}
 export async function processImport(db: Database, owner: string, id: string, expected: string) {
   const token = randomUUID();
   const batch = await db.transaction(async tx => {
@@ -44,7 +88,7 @@ export async function processImport(db: Database, owner: string, id: string, exp
     await tx.put('importBatches', next); return next;
   });
   try {
-    const parsed = parseImport({ name: batch.filename!, mime: batch.mime!, bytes: Buffer.from(batch.payload!, 'base64') });
+    const parsed = parseImport({ name: batch.filename!, mime: batch.mime!, bytes: Buffer.from(batch.payload!, 'base64') }, { mapping: batch.mapping ?? null, profiles: await importProfiles(db, owner) });
     await db.transaction(async tx => {
       const current = await owned(tx, 'importBatches', id, owner);
       if (current.state !== 'processing' || current.processId !== token) fail('BATCH_STATE', 409, 'A análise foi cancelada ou substituída. Recarregue o lote.');
@@ -65,14 +109,14 @@ export async function processImport(db: Database, owner: string, id: string, exp
         return item;
       });
       await tx.putMany('importItems', rows);
-      await tx.put('importBatches', { ...current, source: parsed.source, format: parsed.format, accountHint: parsed.accountHint, state: 'review', processId: null, revision: randomUUID(), updatedAt: new Date() });
+      await tx.put('importBatches', { ...current, source: parsed.source, format: parsed.format, accountHint: parsed.accountHint, layout: parsed.layout ?? null, state: 'review', processId: null, revision: randomUUID(), updatedAt: new Date() });
     });
   } catch (error) {
     // Persist the actionable parser diagnostic, but never overwrite cancellation/newer work.
     await db.transaction(async tx => {
       const current = await owned(tx, 'importBatches', id, owner);
       if (current.state !== 'processing' || current.processId !== token) return;
-      await tx.put('importBatches', { ...current, state: 'failed', format:error instanceof ImportParseError?error.format:current.format,error: error instanceof FinanceError ? error.message : 'Análise interrompida. Repita com os mesmos arquivos; nenhum lançamento foi criado.', processId: null, revision: randomUUID(), updatedAt: new Date() });
+      await tx.put('importBatches', { ...current, state: 'failed', format:error instanceof ImportParseError?error.format:current.format, layout: error instanceof ImportParseError ? error.layout : null,error: error instanceof FinanceError ? error.message : 'Análise interrompida. Repita com os mesmos arquivos; nenhum lançamento foi criado.', processId: null, revision: randomUUID(), updatedAt: new Date() });
     });
   }
   return loadImport(db, owner, id);
@@ -133,6 +177,6 @@ export async function loadImport(db: Database, owner: string, id: string): Promi
       rows[index]!.candidates.push({id:entry.id,description:entry.description,amount:entry.amount,purchaseDate:entry.purchaseDate,categoryId:entry.categoryId,competenceMonth:entry.competenceMonth,status:entry.status,archived:!!entry.archivedAt,exact:true});
     }
     const dates = rows.flatMap(r => r.purchaseDate ? [r.purchaseDate] : []).sort();
-    return { id, filename: batch.filename ?? 'Lote legado', format: batch.format ?? batch.source, state: batch.state, revision: revision(batch), error: batch.error ?? null, accountId: batch.accountId, cardId: batch.cardId, period: dates.length ? `${dates[0]} — ${dates.at(-1)}` : null, createdAt: batch.createdAt.toISOString(), rows, preview: importPreview(rows.map(r => ({ ...r, resolution: r.candidates.some(c => c.exact && !c.archived) ? 'link' : r.resolution })), !!batch.cardId) };
+    return { id, filename: batch.filename ?? 'Lote legado', format: batch.format ?? batch.source, state: batch.state, revision: revision(batch), error: batch.error ?? null, accountId: batch.accountId, cardId: batch.cardId, period: dates.length ? `${dates[0]} — ${dates.at(-1)}` : null, createdAt: batch.createdAt.toISOString(), layout: batch.layout ?? null, mapping: batch.mapping ?? null, rows, preview: importPreview(rows.map(r => ({ ...r, resolution: r.candidates.some(c => c.exact && !c.archived) ? 'link' : r.resolution })), !!batch.cardId) };
   });
 }
