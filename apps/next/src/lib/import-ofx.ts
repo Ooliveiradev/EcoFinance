@@ -9,12 +9,12 @@ const decodeEntities = (value: string) => value.replace(/&(#x[\da-f]{1,6}|#\d{1,
   if (name[0] === '#') { const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : Number(name.slice(1)); return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match; }
   return entities[name.toLowerCase()] ?? match;
 });
-const escape = (name: string) => name.replace(/\./g, '\\.');
+const escape = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** Leaf value of the first `<NAME>` in a block, with or without the XML closing tag. */
 export function ofxValue(text: string, name: string) {
   return decodeEntities(new RegExp(`<${escape(name)}>\\s*([^<\\r\\n]*)`, 'i').exec(text)?.[1]?.trim() ?? '');
 }
-const blocks = (text: string, name: string) => [...text.matchAll(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`, 'gi'))];
+const blocks = (text: string, name: string) => [...text.matchAll(new RegExp(`<${escape(name)}>([\\s\\S]*?)</${escape(name)}>`, 'gi'))];
 
 export function detectOfx(text: string) {
   return /^\s*(?:OFXHEADER\s*:|<[?!]|<OFX>)/i.test(text) && /<OFX>/i.test(text);
@@ -40,9 +40,10 @@ const debitTypes = new Set(['DEBIT', 'PAYMENT', 'FEE', 'SRVCHG', 'CHECK', 'ATM',
 const creditTypes = new Set(['CREDIT', 'DEP', 'INT', 'DIV', 'DIRECTDEP']);
 const knownTypes = new Set([...debitTypes, ...creditTypes, 'XFER', 'OTHER', 'HOLD']);
 
-export function parseOfx(text: string) {
-  const body = text.replace(/<!--[\s\S]*?-->/g, '');
-  if (/<!/.test(body)) parseError('UNSAFE_CONTENT', 'O arquivo contém declarações XML (DOCTYPE, ENTITY ou CDATA). Exporte outro OFX sem entidades externas.', FORMAT);
+export function parseOfx(body: string) {
+  // Markup declarations (DOCTYPE, ENTITY, CDATA and comments) are refused, never
+  // stripped: partially removed markup could still reach the reader.
+  if (/<!/.test(body)) parseError('UNSAFE_CONTENT', 'O arquivo contém declarações ou comentários XML (DOCTYPE, ENTITY, CDATA). Exporte outro OFX sem esse conteúdo.', FORMAT);
   if (!/<\/OFX>\s*$/i.test(body)) parseError('CORRUPT_FILE', 'OFX incompleto. Exporte novamente o extrato no banco.', FORMAT);
   const variant = /<\?xml\b|<\?OFX\b/i.test(body) ? 'XML' : 'SGML', quicken = /<INTU\.BID>/i.test(body);
   const statements = [...blocks(body, 'STMTRS'), ...blocks(body, 'CCSTMTRS')].map(match => ({ text: match[1]!, offset: match.index! + match[0].indexOf(match[1]!), card: /^<CCSTMTRS>/i.test(match[0]) }));
@@ -74,7 +75,7 @@ export function parseOfx(text: string) {
       const foreign = /<CURRENCY>/i.test(block) ? ofxValue(block, 'CURSYM').toUpperCase() : '';
       const original = /<ORIGCURRENCY>/i.test(block) ? ofxValue(block.slice(block.search(/<ORIGCURRENCY>/i)), 'CURSYM').toUpperCase() : '';
       const value = foreign && foreign !== 'BRL' ? null : amount.value;
-      const line = text.slice(0, statement.offset + start).split('\n').length;
+      const line = body.slice(0, statement.offset + start).split('\n').length;
       const repeated = fitid ? seen.get(fitid) : undefined; if (fitid && repeated === undefined) seen.set(fitid, line);
       rows.push({ amount: value, purchaseDate: date.value, description: description?.slice(0, 500) ?? null,
         externalId: fitid ? `${bank}:${account}:${fitid}` : null,

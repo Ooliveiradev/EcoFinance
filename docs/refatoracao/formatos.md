@@ -11,7 +11,7 @@ contadas nos avisos do lote.
 
 | Formato | Variações aceitas | Recusado com orientação | Evidência por linha |
 | --- | --- | --- | --- |
-| OFX/QFX | OFX 1.x SGML (tags abertas), OFX 2.x XML, QFX (`INTU.BID`); conta corrente (`STMTRS`) e cartão (`CCSTMTRS`) | DOCTYPE/ENTITY/CDATA, moeda ≠ BRL, mais de uma conta no arquivo, arquivo truncado, bloco `STMTTRN` incompleto | linha do `<STMTTRN>` e trecho original |
+| OFX/QFX | OFX 1.x SGML (tags abertas), OFX 2.x XML, QFX (`INTU.BID`); conta corrente (`STMTRS`) e cartão (`CCSTMTRS`) | DOCTYPE/ENTITY/CDATA/comentários, moeda ≠ BRL, mais de uma conta no arquivo, arquivo truncado, bloco `STMTTRN` incompleto | linha do `<STMTTRN>` e trecho original |
 | CSV/TSV | `;`, tab, `,`, `\|`; dica `sep=` do Excel; aspas RFC (separador, aspas duplicadas e quebra de linha dentro do campo); preâmbulo antes do cabeçalho; valor único com sinal ou colunas débito/crédito | aspas inválidas (com a linha), mais de 50 colunas, mais de 60 movimentações | célula do valor (`C7`) e linha bruta |
 | XLSX/XLSM | várias abas, abas ocultas ignoradas, datas tipadas (formato de data), números, texto, fórmulas (valor salvo), macros ignoradas | senha/criptografia, XLSB, ODS, HTML renomeado para `.xls`, ZIP64, zip bomb, mais de 24 abas, 2.000 linhas ou 50 colunas | célula com aba (`'Extrato Out'!C6`) e valores da linha |
 | XLS | BIFF8 (Excel 97–2003); BIFF5 com aviso de acentuação | `FILEPASS` (senha), documento OLE que não é planilha (Word/PowerPoint) | célula com aba (`Extrato!C2`) |
@@ -53,7 +53,8 @@ Nada usa `parseFloat` nem `Date.parse`. Valores viram decimal exato validado por
   sem separador de milhar; zeros finais extras são aceitos (`1.2500` → `1.25`), outras
   casas além de duas invalidam a linha. `DTPOSTED`/`DTUSER` aceitam
   `AAAAMMDD[HHMMSS[.XXX]][±H:TZ]`; horas inválidas invalidam a linha. Entidades XML
-  (`&amp;`, `&#233;`) são decodificadas; DOCTYPE/ENTITY é recusado.
+  (`&amp;`, `&#233;`) são decodificadas; DOCTYPE, ENTITY, CDATA e comentários XML são
+  recusados, nunca removidos parcialmente.
 - Texto (CSV e células de texto): `-1.234,56`, `1,234.56`, `R$ 10,00 D` (débito),
   `10,00 C`, `(5,00)`, `10,50-`, sinal de menos Unicode. Datas `AAAA-MM-DD`,
   `AAAAMMDD`, `DD/MM/AAAA`, `MM/DD/AAAA`, `01-Oct-26`, `1 de outubro de 2026`, com hora
@@ -155,7 +156,7 @@ biblioteca nunca recebe texto: CSV/HTML/SYLK não chegam ao SheetJS.
 | `UNSUPPORTED_FORMAT` | PDF, XLSB, ODS, HTML, ZIP/OLE sem planilha, texto sem colunas |
 | `UNSUPPORTED_CURRENCY`, `MULTIPLE_ACCOUNTS` | OFX em outra moeda ou com várias contas |
 | `CORRUPT_FILE` | truncado, aspas inválidas, ZIP/OLE corrompido |
-| `UNSAFE_CONTENT` | DOCTYPE/ENTITY, zip bomb, tamanho mentido, entradas repetidas/sobrepostas |
+| `UNSAFE_CONTENT` | DOCTYPE/ENTITY/CDATA/comentário XML, zip bomb, tamanho mentido, entradas repetidas/sobrepostas |
 | `PROTECTED_FILE` | planilha com senha/criptografia |
 | `MAPPING_REQUIRED` | layout desconhecido, colunas repetidas, datas/decimais ambíguos, aba a escolher |
 

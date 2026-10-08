@@ -80,9 +80,9 @@ export function parseSpreadsheet(bytes: Uint8Array, context: Context) {
   }
   if (book.SheetNames.length > SPREADSHEET_LIMITS.sheets) parseError('SHEET_LIMIT', `A pasta tem mais de ${SPREADSHEET_LIMITS.sheets} abas. Copie o extrato para uma pasta menor.`, kind);
   const date1904 = !!book.Workbook?.WBProps?.date1904;
-  const hidden = book.SheetNames.filter((_, index) => book.Workbook?.Sheets?.[index]?.Hidden);
-  const tables = book.SheetNames.filter(name => !hidden.includes(name)).map(name => table(name, book.Sheets[name]!, date1904)).filter(sheet => sheet.rows.length);
-  if (hidden.length) warnings.push(`Abas ocultas ignoradas: ${hidden.join(', ').slice(0, 200)}.`);
+  const hidden = new Set(book.SheetNames.filter((_, index) => book.Workbook?.Sheets?.[index]?.Hidden));
+  const tables = book.SheetNames.filter(name => !hidden.has(name)).map(name => table(name, book.Sheets[name]!, date1904)).filter(sheet => sheet.rows.length);
+  if (hidden.size) warnings.push(`Abas ocultas ignoradas: ${[...hidden].join(', ').slice(0, 200)}.`);
   if (!tables.length) parseError('NO_ROWS', 'A planilha não tem células preenchidas em abas visíveis.', kind);
   const requested = context.mapping?.sheet ?? null;
   const chosen = requested !== null ? tables.find(sheet => sheet.name === requested)

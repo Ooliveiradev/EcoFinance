@@ -59,10 +59,11 @@ export function preview(table: Table): ImportLayoutSheet {
 /** Content-based guess for files without a recognized header. */
 function guessColumns(table: Table, headerRow: number) {
   const rows = table.rows.filter(row => row.line > headerRow).slice(0, scanRows), columns = columnCount(table);
-  const score = (test: (cell: TableCell) => boolean, skip: number[]) => {
+  const score = (test: (cell: TableCell) => boolean, skipped: number[]) => {
+    const skip = new Set(skipped);
     let best = -1, count = 0;
     for (let index = 0; index < columns; index++) {
-      if (skip.includes(index)) continue;
+      if (skip.has(index)) continue;
       const hits = rows.filter(row => row.cells[index] && test(row.cells[index]!)).length;
       if (hits > count) { best = index; count = hits; }
     }

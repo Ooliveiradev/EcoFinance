@@ -25,7 +25,7 @@ describe('extensible import parser registry', () => {
     expect(parseImport(file('sep=,\ndata,descricao,valor\n2026-10-01,"Compra" ,-0.10')).rows[0]).toMatchObject({ description: 'Compra', provenance: { row: 3 } });
   });
   it('diagnoses empty, corrupt, binary, unsupported, ambiguous and resource-limited files', () => {
-    const expected: [string, string][] = [['', 'EMPTY_FILE'], ['%PDF-1.7', 'UNSUPPORTED_FORMAT'], ['data;descricao;valor', 'NO_ROWS'], ['data;descricao;valor\n2026-10-01;"bad;-10', 'CORRUPT_FILE'],
+    const expected: [string, string][] = [['', 'EMPTY_FILE'], ['<OFX><!-- -->'+ofx.slice(5), 'UNSAFE_CONTENT'], ['%PDF-1.7', 'UNSUPPORTED_FORMAT'], ['data;descricao;valor', 'NO_ROWS'], ['data;descricao;valor\n2026-10-01;"bad;-10', 'CORRUPT_FILE'],
       ['data;descricao;valor\n2026-10-01;"closed"x;-10', 'CORRUPT_FILE'], ['data;descricao;valor\n2026-10-01;bad";-10', 'CORRUPT_FILE'], ['data;descricao;valor;amount\n2026-10-01;a;10;10', 'MAPPING_REQUIRED'],
       ['irreconhecível', 'UNSUPPORTED_FORMAT'], ['binary\0', 'CORRUPT_FILE'], ['data;descricao;valor\n' + '2026-10-01;Compra;-10\n'.repeat(IMPORT_LIMITS.rows + 1), 'ROW_LIMIT'],
       [ofx.replace('</OFX>', ofx.match(/<STMTTRN>.*?\/STMTTRN>/s)![0].repeat(60) + '</OFX>'), 'ROW_LIMIT'], ['<html><table><tr><td>x</td></tr></table></html>', 'UNSUPPORTED_FORMAT'],

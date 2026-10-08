@@ -65,9 +65,9 @@ export function useImports(props: ImportsClientProps) {
     // One analysis at a time: concurrent analyses of the same owner contend on
     // the same account entries and would fail as interrupted under load.
     let interrupted = false;
-    for (const received of data.batches as { id: string }[]) {
+    await (data.batches as { id: string }[]).reduce((previous, received) => previous.then(async () => {
       try { const batch = await read(received.id); await mutate(batch, 'process'); } catch { interrupted = true; }
-    }
+    }), Promise.resolve());
     patch({ files: [], uploadVersion: state.uploadVersion + 1 });
     if (interrupted) throw new Error('Algumas análises foram interrompidas. Abra os lotes no histórico e repita a análise; nenhum saldo foi alterado.');
   }
