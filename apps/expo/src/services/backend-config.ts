@@ -54,19 +54,27 @@ async function clearMatchingSession(expected: BackendConfig | null) {
     for (const listener of listeners) listener();
   });
 }
-export async function backendFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export type BackendQuery = Record<string, string>;
+/**
+ * `expectedUserId` binds a replayed request to the account that created it: an
+ * offline draft of one user is never sent with another user's credential.
+ */
+export async function backendFetch(path: string, init: RequestInit = {}, query?: BackendQuery, expectedUserId?: string): Promise<Response> {
   const config = await loadBackendConfig();
   if (!config) {
     await clearMatchingSession(null);
     throw new SessionExpired('Entre novamente para continuar.');
   }
-  return fetchForSession(config, path, init);
+  if (expectedUserId !== undefined && config.userId !== expectedUserId) throw new SessionExpired('Esta alteração pertence a outra conta.');
+  return fetchForSession(config, path, init, query);
 }
-async function fetchForSession(config: BackendConfig, path: string, init: RequestInit): Promise<Response> {
+async function fetchForSession(config: BackendConfig, path: string, init: RequestInit, query?: BackendQuery): Promise<Response> {
   if (!path.startsWith('/api/') || path.startsWith('//') || path.includes('..') || /[\\?#]/.test(path)) throw new Error('Endpoint inválido.');
+  // Query values are encoded here, so a path can never smuggle its own query or fragment.
+  const search = query && Object.keys(query).length ? `?${new URLSearchParams(query).toString()}` : '';
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${config.credential}`);
-  const response = await fetch(`${config.url}${path}`, { ...init, signal: init.signal ?? AbortSignal.timeout(15000), credentials: 'omit', headers, redirect: 'error' });
+  const response = await fetch(`${config.url}${path}${search}`, { ...init, signal: init.signal ?? AbortSignal.timeout(15000), credentials: 'omit', headers, redirect: 'error' });
   if (response.status === 401) {
     // An old request completing after a new login must not erase that session.
     await clearMatchingSession(config);

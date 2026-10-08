@@ -1,0 +1,11 @@
+# Toda mudança no main exige revisão do mantenedor (regra "require code owner review").
+* @Ooliveiradev
+
+# Áreas sensíveis: listadas explicitamente para deixar a responsabilidade visível.
+/.github/                @Ooliveiradev
+/firestore.rules         @Ooliveiradev
+/firestore.indexes.json  @Ooliveiradev
+/firebase.json           @Ooliveiradev
+/scripts/security/       @Ooliveiradev
+/patches/                @Ooliveiradev
+/pnpm-lock.yaml          @Ooliveiradev
