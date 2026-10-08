@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { SettingsClient } from './settings-client';
 import { SessionControls } from '@/components/session-controls';
+import { DataControls } from './data-controls';
 
 export const metadata: Metadata = {
   title: 'EcoFinance | Configurações',
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function SettingsPage() {
-  return <><SessionControls /><SettingsClient /></>;
+  return <><SessionControls /><DataControls /><SettingsClient /></>;
 }
