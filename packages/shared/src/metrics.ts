@@ -210,8 +210,10 @@ export function monthProjection(input: MetricsInput, month: string, balance: big
   };
 }
 
-const CSV_FORMULA = /^[=+\-@\t\r]/;
-function csvCell(value: string | number): string {
+// Leading whitespace and full-width signs are also evaluated by some spreadsheets.
+const CSV_FORMULA = /^(?:[\t\r]|\s*[=+\-@＝＋－＠])/;
+/** Quotes one cell and neutralizes text that a spreadsheet would run as a formula. */
+export function csvCell(value: string | number): string {
   const text = String(value);
   const safe = CSV_FORMULA.test(text) && !/^-?\d+(?:\.\d+)?$/.test(text) ? `'${text}` : text;
   return /[";\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;

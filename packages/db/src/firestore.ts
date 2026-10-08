@@ -1,5 +1,5 @@
 import { getApps, initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore, Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, type DocumentReference, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { field, and, or, type BooleanExpression, type Expression } from '@google-cloud/firestore/pipelines';
 import { uniqueKeys, validateDocument, references } from './firestore-validation';
 import type { Collection, Models, OwnedCollection } from './models';
@@ -57,12 +57,35 @@ export class DocumentStore {
     if (!collections.includes(collection) || !id || id.includes('/')) throw new Error('Invalid document identity.');
     return this.firestore.collection(collection).doc(id);
   }
+  // A transaction reads one consistent snapshot, so repeated reads are served locally.
+  private reads = new Map<string, Record<string, unknown> | null>();
+  private remember(path: string, data: Record<string, unknown> | null) {
+    if (this.tx) this.reads.set(path, data);
+    if (data) this.originals.set(path, data);
+    return data;
+  }
+  private async read(ref: DocumentReference): Promise<Record<string, unknown> | null> {
+    if (this.tx && this.reads.has(ref.path)) return this.reads.get(ref.path)!;
+    const snap = this.tx ? await this.tx.get(ref) : await ref.get();
+    return this.remember(ref.path, snap.exists ? snap.data()! : null);
+  }
   async get<K extends Collection>(collection: K, id: string): Promise<Models[K] | null> {
     const ref = this.ref(collection, id);
     if (this.pending.has(ref.path)) return decode(this.pending.get(ref.path) ?? null) as Models[K] | null;
-    const snap = this.tx ? await this.tx.get(ref) : await ref.get();
-    if(snap.exists)this.originals.set(ref.path,snap.data()!);
-    return snap.exists ? decode(snap.data()) as Models[K] : null;
+    const data = await this.read(ref);
+    return data ? decode(data) as Models[K] : null;
+  }
+  /** Bulk writes: loads the documents and their unique claims in batched round trips. */
+  async prefetch(collection: Collection, rows: { id: string }[]): Promise<void> {
+    if (!this.tx) return;
+    const refs = new Map<string, DocumentReference>();
+    for (const row of rows) for (const ref of [this.ref(collection, row.id), ...uniqueKeys(collection, row as Record<string, unknown>).map(key => this.firestore.collection('_unique').doc(key))]) {
+      if (!this.reads.has(ref.path) && !this.pending.has(ref.path)) refs.set(ref.path, ref);
+    }
+    const list = [...refs.values()];
+    for (let i = 0; i < list.length; i += 300) {
+      for (const snap of await this.tx.getAll(...list.slice(i, i + 300))) this.remember(snap.ref.path, snap.exists ? snap.data()! : null);
+    }
   }
   async query<K extends Collection>(collection: K, options: QueryOptions = {}): Promise<Models[K][]> {
     if (!collections.includes(collection)) throw new Error('Unknown collection.');
@@ -126,7 +149,7 @@ export class DocumentStore {
     const newKeys = uniqueKeys(collection, next);
     for (const key of newKeys) {
       const unique = this.firestore.collection('_unique').doc(key);
-      const claim = this.pending.has(unique.path) ? this.pending.get(unique.path) : (await this.tx.get(unique)).data();
+      const claim = this.pending.has(unique.path) ? this.pending.get(unique.path) : await this.read(unique);
       if (claim && claim.path !== ref.path) throw new Error('Duplicate unique value.');
       this.pending.set(unique.path, {path:ref.path});
     }
@@ -139,6 +162,20 @@ export class DocumentStore {
     const row = await this.get(collection, id);
     if (!row) return;
     for (const key of uniqueKeys(collection, row as unknown as Record<string, unknown>)) this.pending.set(`_unique/${key}`, null);
+    this.pending.set(this.ref(collection, id).path, null);
+  }
+  /**
+   * Explicit data-control deletion. Only inside a transaction and only for a
+   * document of the given owner (or that owner's own identity/auth records);
+   * callers delete the whole owned graph so no reference is left dangling.
+   */
+  async erase(collection: Collection, id: string, ownerId: string): Promise<void> {
+    if (!this.tx) throw new Error('Erasure requires an explicit transaction.');
+    const row = await this.get(collection, id) as unknown as Record<string, unknown> | null;
+    if (!row) return;
+    const owner = collection === 'users' ? row.id : ['authAccounts','authSessions'].includes(collection) ? row.userId : row.ownerId;
+    if (!ownerId || owner !== ownerId) throw new Error('Erasure is restricted to the owner\'s own records.');
+    for (const key of uniqueKeys(collection, row)) this.pending.set(`_unique/${key}`, null);
     this.pending.set(this.ref(collection, id).path, null);
   }
   async putMany<K extends Collection>(collection: K, rows: Models[K][]): Promise<void> {
