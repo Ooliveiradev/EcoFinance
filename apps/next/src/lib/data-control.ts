@@ -35,25 +35,35 @@ export async function deleteUserData(db: Database, ownerId: string, input: unkno
   const before = await db.transaction(tx => ownedData(tx, ownerId));
   const empty = BACKUP_COLLECTIONS.every(c => !before[c].length);
   if (!empty && dataRevision(before) !== expected) fail('REVISION_CONFLICT', 409, 'Seus dados mudaram. Recarregue a página e confirme novamente.');
-  for (;;) {
-    const logs = await db.owned('operations', ownerId, { limit: 400 });
-    if (!logs.length) break;
-    await db.transaction(async tx => { await tx.prefetch('operations', logs); for (const row of logs) await tx.erase('operations', row.id, ownerId); });
-  }
+  await purgeLogs(db, ownerId);
   const deleted = await db.transaction(async tx => {
     const current = await ownedData(tx, ownerId);
     if (!empty && dataRevision(current) !== expected) fail('REVISION_CONFLICT', 409, 'Seus dados mudaram. Recarregue a página e confirme novamente.');
     const audits = await tx.owned('financialMigrationAudits', ownerId);
     const [logins, sessions] = scope === 'account' ? await Promise.all([tx.query('authAccounts', { where: [{ field: 'userId', value: ownerId }] }), tx.query('authSessions', { where: [{ field: 'userId', value: ownerId }] })]) : [[], []];
-    for (const c of BACKUP_COLLECTIONS) await tx.prefetch(c, current[c]);
-    for (const c of [...BACKUP_COLLECTIONS].reverse()) for (const row of current[c]) await tx.erase(c, row.id, ownerId);
-    for (const row of audits) await tx.erase('financialMigrationAudits', row.id, ownerId);
-    for (const row of logins) await tx.erase('authAccounts', row.id, ownerId);
-    for (const row of sessions) await tx.erase('authSessions', row.id, ownerId);
-    if (scope === 'account') await tx.erase('users', ownerId, ownerId);
+    await Promise.all(BACKUP_COLLECTIONS.map(c => tx.prefetch(c, current[c])));
+    // Each erasure only stages its own document and claims, so order does not matter.
+    await Promise.all([
+      ...BACKUP_COLLECTIONS.flatMap(c => current[c].map(row => tx.erase(c, row.id, ownerId))),
+      ...audits.map(row => tx.erase('financialMigrationAudits', row.id, ownerId)),
+      ...logins.map(row => tx.erase('authAccounts', row.id, ownerId)),
+      ...sessions.map(row => tx.erase('authSessions', row.id, ownerId)),
+      ...(scope === 'account' ? [tx.erase('users', ownerId, ownerId)] : []),
+    ]);
     return counts(current);
   });
   return { scope, deleted };
+}
+
+/** Idempotency logs can be numerous: removed in bounded batches until none is left. */
+async function purgeLogs(db: Database, ownerId: string): Promise<void> {
+  const logs = await db.owned('operations', ownerId, { limit: 400 });
+  if (!logs.length) return;
+  await db.transaction(async tx => {
+    await tx.prefetch('operations', logs);
+    await Promise.all(logs.map(row => tx.erase('operations', row.id, ownerId)));
+  });
+  return purgeLogs(db, ownerId);
 }
 
 export async function exportEntries(db: Database, ownerId: string, input: unknown) {

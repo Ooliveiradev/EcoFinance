@@ -37,7 +37,8 @@ test('dashboard, reports, summary API and CSV export show the same exact totals 
   const main=page.getByRole('main');
   await expect(main.getByText('R$ 1.000,10',{exact:true}).first()).toBeVisible();
   await expect(main.getByText('R$ 0,30',{exact:true}).first()).toBeVisible();
-  await expect(page.getByTestId('projection-formula')).toContainText('compromissos R$ 0,00');
+  // Streamed HTML can briefly keep a hidden copy outside the summary while React hydrates.
+  await expect(main.getByRole('region',{name:'Resumo financeiro do mês'}).getByTestId('projection-formula')).toContainText('compromissos R$ 0,00');
 
   await page.goto(`/reports?de=${month}&ate=${month}`);
   await expect(page.getByRole('heading',{name:'Relatórios',exact:true})).toBeVisible();

@@ -146,19 +146,21 @@ function ordered(rows: Row[]) {
   rows.forEach(visit);
   return out;
 }
+/** Sequential on purpose: each put validates against parents and unique claims staged by the previous ones. */
+function inOrder<T>(items: T[], step: (item: T) => Promise<void>) {
+  return items.reduce((chain, item) => chain.then(() => step(item)), Promise.resolve());
+}
 /** Replaces the owner's graph inside the caller's transaction; the store revalidates every invariant and link. */
 async function replace(tx: Database, ownerId: string, current: Rows, next: Rows) {
   try {
-    for (const c of BACKUP_COLLECTIONS) await Promise.all([tx.prefetch(c, current[c]), tx.prefetch(c, next[c])]);
-    for (const c of BACKUP_COLLECTIONS) for (const row of current[c]) await tx.erase(c, row.id, ownerId);
-    const deferred: Row[] = [];
-    for (const c of BACKUP_COLLECTIONS) for (const row of c === 'transactions' ? ordered(next[c]) : next[c]) {
-      // Occurrence ↔ entry links are circular: write the occurrence, then its entry, then the link.
-      const linked = c === 'recurrenceOccurrences' && row.transactionId != null;
-      if (linked) deferred.push(row);
-      await tx.put(c, (linked ? { ...row, transactionId: null } : row) as never, true);
-    }
-    for (const row of deferred) await tx.put('recurrenceOccurrences', row as never);
+    await Promise.all(BACKUP_COLLECTIONS.flatMap(c => [tx.prefetch(c, current[c]), tx.prefetch(c, next[c])]));
+    // Erasures are independent once prefetched; writes are not (see inOrder).
+    await Promise.all(BACKUP_COLLECTIONS.flatMap(c => current[c].map(row => tx.erase(c, row.id, ownerId))));
+    // Occurrence ↔ entry links are circular: write the occurrence, then its entry, then the link.
+    const deferred = next.recurrenceOccurrences.filter(row => row.transactionId != null), linked = new Set(deferred);
+    const writes = BACKUP_COLLECTIONS.flatMap(c => (c === 'transactions' ? ordered(next[c]) : next[c]).map(row => ({ c, row: linked.has(row) ? { ...row, transactionId: null } : row })));
+    await inOrder(writes, ({ c, row }) => tx.put(c, row as never, true));
+    await inOrder(deferred, row => tx.put('recurrenceOccurrences', row as never));
   } catch (error) {
     // Firestore/gRPC errors carry numeric codes and must keep their retry semantics.
     if (error instanceof FinanceError || typeof (error as { code?: unknown })?.code === 'number') throw error;
