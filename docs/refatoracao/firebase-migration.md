@@ -91,6 +91,9 @@ apenas o caminho local ADC e a configuração do servidor; arquivos sensíveis f
 fora do Git. O token do Firebase CLI não foi copiado para outro arquivo.
 Na hospedagem, use identidade de serviço/Workload Identity e a permissão
 `roles/datastore.user`, vinculada ao banco necessário; não publique ADC de usuário.
+O roteiro do Cloud Run em São Paulo (SA de runtime com condição no banco `ecofinance`,
+Workload Identity Federation para o deploy e `AUTH_SECRET` no Secret Manager) está em
+[deploy/cloud-run.md](../deploy/cloud-run.md).
 A URL AUTH_URL deve ser HTTPS fora de localhost. Não há cadastro público: crie
 o primeiro acesso por JSON em stdin conforme `autenticacao.md`.
 

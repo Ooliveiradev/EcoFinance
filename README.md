@@ -29,7 +29,7 @@ pnpm db:firebase init-empty
 pnpm dev
 ```
 
-Configure AUTH_URL como a URL canônica da instalação e AUTH_SECRET aleatório de pelo menos 32 caracteres. Use HTTPS fora de localhost/emulador. O acesso público não permite cadastro automático. Provisione o primeiro login e eventual proprietário legado pelo [procedimento de autenticação](docs/refatoracao/autenticacao.md).
+Configure AUTH_URL como a URL canônica da instalação e AUTH_SECRET aleatório de pelo menos 32 caracteres. Use HTTPS fora de localhost/emulador. O acesso público não permite cadastro automático. Provisione o primeiro login e eventual proprietário legado pelo [procedimento de autenticação](docs/refatoracao/autenticacao.md). A hospedagem em produção usa Cloud Run em São Paulo, com deploy aprovado pelo mantenedor e sem chave de service account: [runbook](docs/deploy/cloud-run.md).
 
 A base real foi confirmada vazia e inicializada. Antes de qualquer importação futura, ensaie backup, restauração e reversão conforme o [runbook Firebase](docs/refatoracao/firebase-migration.md). O [modelo SQL histórico](docs/refatoracao/modelo-financeiro.md) permanece congelado para recuperação.
 

@@ -1,0 +1,40 @@
+# Allowlist: o contexto do build contém apenas o necessário para a web.
+# Tudo o mais (Expo, testes, docs, dados locais) fica fora da imagem.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc
+!turbo.json
+!tsconfig.base.json
+!patches/
+!scripts/security/
+!apps/expo/package.json
+!apps/next/
+!packages/db/
+!packages/shared/
+
+# Nunca entram, mesmo dentro dos diretórios permitidos.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/node_modules
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+**/*.test.ts
+**/*.test.tsx
+**/*.test.mjs
+apps/next/scripts
+packages/db/tests
+packages/db/scripts
+packages/db/migrations
+packages/db/migration-drafts
+packages/db/drizzle.config.ts
+.ci-diagnostics
+.local-postgres
+.local-migrations
+playwright-report
+test-results
