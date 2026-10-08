@@ -21,7 +21,7 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
     <Logo size={100} />
     <Text style={styles.title}>Bem-vindo ao EcoFinance</Text>
     <Text style={styles.body}>Entre com o endereço do seu servidor, email e senha. O operador da instalação pode criar ou recuperar seu acesso.</Text>
-    <Text style={styles.body}>Esta versão está em construção. A captura de notificações, localização e conexão bancária está desativada; nenhuma dessas permissões é necessária para entrar.</Text>
+    <Text style={styles.body}>Gerencie o mês, lançamentos, planejamento, cartões e importações direto no aparelho. O app não pede localização nem leitura de notificações; sem conexão, mostra a última cópia salva e guarda suas alterações como pendentes.</Text>
     <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={continueToLogin} disabled={busy}>
       {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Continuar para o login</Text>}
     </TouchableOpacity>

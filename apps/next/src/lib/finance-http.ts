@@ -10,10 +10,10 @@ export async function financeRead(request:Request,callback:(ownerId:string)=>Pro
     return Response.json(await callback(access.userId),{headers:{'Cache-Control':PRIVATE_CACHE}});
   } catch(error) {return financeError(error);}
 }
-export async function financeWrite(request:Request,callback:(ownerId:string,requestId:string,input:unknown,expected:string)=>Promise<unknown>,status=200) {
+export async function financeWrite(request:Request,callback:(ownerId:string,requestId:string,input:unknown,expected:string)=>Promise<unknown>,status=200,limit=16384) {
   try {
     const access=await authorize(request);if(access.response)return access.response;
-    const input=await readJson(request,16384);if(input instanceof Response)return input;
+    const input=await readJson(request,limit);if(input instanceof Response)return input;
     const requestId=request.headers.get('idempotency-key')??'';
     const expected=(request.headers.get('if-match')??'').replace(/^"|"$/g,'');
     return Response.json(await callback(access.userId,requestId,input,expected),{status,headers:{'Cache-Control':PRIVATE_CACHE}});
