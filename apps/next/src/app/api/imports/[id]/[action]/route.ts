@@ -1,6 +1,6 @@
 import { db } from '@ecofinance/db';
 import { financeWrite } from '@/lib/finance-http';
-import { cancelImport, processImport,repeatImport } from '@/lib/import-store';
+import { cancelImport, mapImport, processImport,repeatImport } from '@/lib/import-store';
 import { confirmImport, undoImport } from '@/lib/import-commit';
 import { fail, operationId } from '@/lib/finance-operation';
 import { importIdSchema } from '@ecofinance/shared';
@@ -11,6 +11,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     importIdSchema.parse(id);
     if (action === 'confirm') return confirmImport(db, owner, key, id, expected, input);
     if (action === 'undo') return undoImport(db, owner, key, id, expected, input);
+    if (action === 'map') return mapImport(db, owner, key, id, expected, input);
     operationId(owner, key);
     if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) fail('INVALID_INPUT', 400, 'Esta ação não aceita campos.');
     if (action === 'cancel') return cancelImport(db, owner, key, id, expected);

@@ -45,16 +45,13 @@ e proveniência extensível a página, linha e célula. A assinatura/conteúdo e
 o parser; MIME divergente gera aviso e a extensão é apenas uma pista. Nenhum
 conteúdo executável ou entidade XML é expandido.
 
-- OFX/QFX: assinatura `<OFX>`, moeda BRL explícita, blocos de movimentação
-  completos, FITID quando disponível e data civil extraída sem deslocamento de fuso.
-- CSV/TSV em UTF-8: cabeçalho `data`, `descrição`, `valor` (também nomes equivalentes
-  em inglês); separador `;`, tab ou `,`; aspas escapadas e campos com quebras de
-  linha. `;` e tab aceitam decimal brasileiro; CSV com vírgula usa decimal com ponto.
+- OFX/QFX (SGML/XML), CSV/TSV (UTF-8, UTF-16, Windows-1252) e XLS/XLSX, com
+  mapeamento assistido de colunas, perfis salvos, escolha de aba e evidência por
+  célula, estão descritos em [formatos.md](formatos.md) (#9).
 - Arquivos vazios, truncados, binários, codificação inválida, colunas ambíguas,
   moeda incompatível e limites excedidos retornam diagnóstico acionável.
-- PDF, arquivos OLE/XLS e ZIP/XLSX, inclusive protegidos, orientam exportar
-  OFX/QFX ou CSV/TSV sem senha. Corpus bancário e compatibilidade completa de
-  planilhas são #9; interpretação PDF/OCR é #10. Não há promessa de suporte universal.
+- PDF orienta exportar outro formato; interpretação PDF/OCR é #10. Não há promessa
+  de suporte universal.
 
 Limites: dez arquivos por upload, 256 KiB e sessenta linhas por arquivo, seis
 competências por confirmação e cem referências de importação por lançamento.

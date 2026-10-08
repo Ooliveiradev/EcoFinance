@@ -2,6 +2,7 @@
 import { useImports } from './use-imports';
 import { Button } from '@/components/ui/button';
 import { ImportReview } from './import-review';
+import { ImportMappingForm } from './import-mapping';
 export interface ImportReference { id: string; name: string }
 export interface ImportHistory { id: string; filename: string; state: string; format: string;createdAt?:string }
 export interface ImportsClientProps { accounts: ImportReference[]; cards: ImportReference[]; categories: ImportReference[]; recentBatches: ImportHistory[]; error?: string }
@@ -17,14 +18,15 @@ export default function ImportsClient({ accounts, cards, categories, recentBatch
     <form className="rounded-2xl border border-border bg-surface p-4 space-y-4" onSubmit={e => { e.preventDefault(); void guarded(upload); }}>
       <label className="block">Conta ou cartão de destino<select aria-label="Conta ou cartão de destino" value={target} disabled={busy} onChange={e => setTarget(e.target.value)} className="mt-2 w-full rounded-xl border border-border bg-surface p-3"><option value="">Escolha o destino</option><optgroup label="Contas">{accounts.map(a => <option key={a.id} value={'account:' + a.id}>{a.name}</option>)}</optgroup><optgroup label="Cartões">{cards.map(c => <option key={c.id} value={'card:' + c.id}>{c.name}</option>)}</optgroup></select></label>
       <label className="block">Arquivos para revisão<input aria-label="Arquivos para revisão" key={controller.uploadVersion} type="file" multiple disabled={busy} onChange={e => setFiles(Array.from(e.target.files ?? []))} className="block w-full mt-2 border border-border rounded-xl p-3" /></label>
-      <p className="text-sm text-muted">OFX/QFX e CSV/TSV em UTF-8. A detecção usa o conteúdo e verifica o MIME; a extensão é uma pista. Até 10 arquivos, 256 KiB, 60 linhas e seis competências por arquivo. Planilhas binárias e PDF exibem orientação para conversão.</p>
-      <p className="text-sm">CSV/TSV: colunas data, descrição e valor; despesas negativas. Nenhum saldo é alterado no upload ou na revisão. Em cartões, valores positivos são créditos e compras não representam pagamento da fatura.</p>
+      <p className="text-sm text-muted">OFX/QFX (SGML ou XML), CSV/TSV (UTF-8, UTF-16 ou Windows-1252) e planilhas XLS/XLSX. A detecção usa o conteúdo e verifica o MIME; a extensão é uma pista. Até 10 arquivos, 256 KiB, 60 linhas e seis competências por arquivo. Fórmulas e macros nunca são executadas; planilhas com senha e PDF exibem orientação.</p>
+      <p className="text-sm">CSV/TSV e planilhas: colunas de data, descrição e valor (ou débito e crédito); despesas negativas. Layouts desconhecidos e datas ambíguas pedem mapeamento, que pode ser salvo. Nenhum saldo é alterado no upload ou na revisão. Em cartões, valores positivos são créditos e compras não representam pagamento da fatura.</p>
       {files.length > 0 && <ul aria-label="Arquivos selecionados" className="text-sm">{files.map(entry => <li key={entry.id}>{entry.file.name} · {entry.file.size} bytes</li>)}</ul>}
       <Button type="submit" disabled={busy || !target || !files.length}>{busy ? 'Processando arquivos…' : 'Carregar e analisar'}</Button>
     </form>
     <section aria-label="Lotes para revisão" className="space-y-6">{batches.map(batch => <article key={batch.id} aria-label={'Lote ' + batch.filename} className="rounded-2xl border border-border bg-surface p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="font-bold break-all">{batch.filename}</h2><p className="text-sm text-muted">{batch.format} · {labels[batch.state] ?? batch.state} · {batch.cardId ? cards.find(c => c.id === batch.cardId)?.name : accounts.find(a => a.id === batch.accountId)?.name} · {batch.period ?? 'Período a identificar'}</p></div><progress aria-label={'Progresso de ' + batch.filename} value={batch.state === 'received' ? 0 : batch.state === 'processing' ? 1 : 2} max={2} /></div>
       {batch.error && <p role="alert" className="text-danger">{batch.error}</p>}
+      {batch.layout && ['failed', 'review'].includes(batch.state) && <ImportMappingForm key={batch.revision} batch={batch} busy={busy} onApply={input => guarded(() => mutate(batch, 'map', input))} />}
       <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={() => void guarded(async () => { await read(batch.id); })}>Recarregar lote</Button>
         {['received', 'processing', 'failed'].includes(batch.state) && <Button disabled={busy} onClick={() => void guarded(() => mutate(batch, 'process'))}>{batch.state === 'received' ? 'Analisar arquivo' : 'Repetir análise'}</Button>}
         {['received', 'processing', 'failed', 'review'].includes(batch.state) && <Button variant="outline" disabled={busy} onClick={() => void guarded(() => mutate(batch, 'cancel'))}>Cancelar lote</Button>}
