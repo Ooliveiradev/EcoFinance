@@ -1,10 +1,13 @@
 import { randomUUID, createHash } from 'node:crypto';
 import type { Database, Models } from '@ecofinance/db';
-import { IMPORT_LIMITS, IMPORT_MAPPING_LIMITS, importMapRequestSchema, importReviewSchema, importPreview, importTargetSchema, type ImportBatchView, type ImportLayout, type ImportMapping, type ImportRowView } from '@ecofinance/shared';
+import { IMPORT_DOCUMENT_LIMITS, IMPORT_LIMITS, IMPORT_MAPPING_LIMITS, importMapRequestSchema, importProcessSchema, importReviewSchema, importPreview, importTargetSchema, type ImportBatchView, type ImportDocumentInfo, type ImportLayout, type ImportMapping, type ImportRowView } from '@ecofinance/shared';
 import { operation, owned, checkRevision, revision, fail, FinanceError } from './finance-operation';
 import { stableId } from './planning-lock';
 import { activeCard, cardReference } from './card-store';
-import { parseImport, ImportParseError, type ImportFile } from './import-parsers';
+import { parseImport, ImportParseError, type ImportFile, type ParsedContent } from './import-parsers';
+import { checkDocument, detectDocument, looksLikeDocument } from './import-document-file';
+import { interpretDocument } from './import-document';
+import { abortDocumentJob, assertDocumentCapacity, startDocumentJob, type DocumentJobHandlers } from './import-jobs';
 
 export function importIdentity(batch: Models['importBatches'], item: Models['importItems']) {
   const scope = batch.cardId ? ['card', batch.cardId] : ['account', batch.accountId];
@@ -18,7 +21,7 @@ export async function receiveImports(db: Database, owner: string, key: string, f
   if (!files.length || files.length > IMPORT_LIMITS.files) fail('FILE_COUNT', 400, 'Selecione de 1 a 10 arquivos.');
   if (!!target.accountId === !!target.cardId) fail('INVALID_TARGET', 400, 'Escolha uma conta ou cartão de destino.');
   importTargetSchema.parse(target);
-  if (files.some(file => file.bytes.length > IMPORT_LIMITS.bytes)) fail('FILE_LIMIT', 413, 'Cada arquivo deve ter até 256 KiB. Exporte um período menor.');
+  if (files.some(file => file.bytes.length > (looksLikeDocument(file.bytes) ? IMPORT_DOCUMENT_LIMITS.bytes : IMPORT_LIMITS.bytes))) fail('FILE_LIMIT', 413, 'Cada arquivo deve ter até 256 KiB (PDF e imagens: até 512 KiB). Exporte um período menor.');
   const fingerprints = files.map(file => ({ name: file.name.slice(0, 200), mime: file.mime.slice(0, 120), digest: createHash('sha256').update(file.bytes).digest('hex') }));
   return operation(db, owner, key, 'receive-imports', { target, fingerprints }, async tx => {
     let accountId = target.accountId;
@@ -79,45 +82,89 @@ export async function mapImport(db: Database, owner: string, key: string, id: st
   const target = String(result.id), current = await db.get('importBatches', target);
   return current?.state === 'received' && current.revision === result.revision ? processImport(db, owner, target, String(result.revision)) : loadImport(db, owner, target);
 }
-export async function processImport(db: Database, owner: string, id: string, expected: string) {
+/** Stage parsed rows unless the batch was cancelled or re-claimed meanwhile. */
+async function stage(db: Database, owner: string, id: string, token: string, batch: Models['importBatches'], parsed: ParsedContent & { format: string; warnings: string[] }) {
+  await db.transaction(async tx => {
+    const current = await owned(tx, 'importBatches', id, owner);
+    if (current.state !== 'processing' || current.processId !== token) fail('BATCH_STATE', 409, 'A análise foi cancelada ou substituída. Recarregue o lote.');
+    const accountEntries = await tx.owned('transactions', owner, { where: [{ field: 'accountId', value: batch.accountId }] });
+    const invoiceCards = batch.cardId ? new Set((await tx.owned('invoices', owner, { where: [{ field: 'cardId', value: batch.cardId }] })).map(i => i.id)) : null;
+    const rows: Models['importItems'][] = parsed.rows.map((row, i) => {
+      const valid = !!row.amount && !!row.purchaseDate && !!row.description, now = new Date();
+      const item: Models['importItems'] = { ...row, id: stableId(['import-item', id, i + 1]), ownerId: owner, batchId: id, position: i + 1,
+        accountId: batch.accountId, categoryId: null, invoiceId: null, transactionId: null, currency: 'BRL',
+        kind: row.amount?.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income',
+        competenceMonth: row.purchaseDate ? row.purchaseDate.slice(0, 7) + '-01' : null,
+        warnings: [...parsed.warnings, ...row.warnings], state: valid ? 'pending' : 'invalid', selected: false,
+        resolution: 'new', duplicateId: null, revision: randomUUID(), createdAt: now, updatedAt: now };
+      const identity = importIdentity({...batch,source:parsed.source}, item);
+      item.candidates = accountEntries.filter(e => !e.archivedAt && (invoiceCards ? !!e.invoiceId && invoiceCards.has(e.invoiceId) : !e.invoiceId) && (e.id === identity || e.amount === item.amount && e.purchaseDate === item.purchaseDate && e.description.trim().toLowerCase() === item.description?.trim().toLowerCase())).slice(0, 20).map(e => ({ id: e.id, description: e.description, amount: e.amount, purchaseDate: e.purchaseDate, categoryId:e.categoryId,competenceMonth:e.competenceMonth,status:e.status,exact: e.id === identity }));
+      if (item.candidates.length) item.warnings.push('Possível duplicata: revise e escolha criar, vincular ou excluir.');
+      if (valid) item.warnings.push('Escolha a categoria e confirme os dados da linha.');
+      return item;
+    });
+    await tx.putMany('importItems', rows);
+    await tx.put('importBatches', { ...current, source: parsed.source, format: parsed.format, accountHint: parsed.accountHint, layout: parsed.layout ?? null, document: parsed.document ?? null, progress: null, state: 'review', processId: null, revision: randomUUID(), updatedAt: new Date() });
+  });
+}
+const PASSWORD_ERRORS = new Set(['PASSWORD_REQUIRED', 'PASSWORD_INCORRECT']);
+/** Persist the actionable diagnostic, but never overwrite cancellation/newer work. */
+async function failBatch(db: Database, owner: string, id: string, token: string, error: unknown) {
+  await db.transaction(async tx => {
+    const current = await owned(tx, 'importBatches', id, owner);
+    if (current.state !== 'processing' || current.processId !== token) return;
+    const parse = error instanceof ImportParseError ? error : null;
+    const document: ImportDocumentInfo | null = parse && PASSWORD_ERRORS.has(parse.code) ? { kind: 'unknown', pages: 0, ocrPages: 0, textPages: 0, passwordRequired: true, confidence: null } : null;
+    await tx.put('importBatches', { ...current, state: 'failed', format: parse ? parse.format : current.format, layout: parse ? parse.layout : null, document, progress: null, error: error instanceof FinanceError ? error.message : 'Análise interrompida. Repita com os mesmos arquivos; nenhum lançamento foi criado.', processId: null, revision: randomUUID(), updatedAt: new Date() });
+  });
+}
+/** Document jobs report through the batch: progress, rows in review or a diagnostic. */
+function documentHandlers(db: Database, owner: string, id: string, token: string, batch: Models['importBatches']): DocumentJobHandlers {
+  return {
+    progress: progress => db.transaction(async tx => {
+      const current = await owned(tx, 'importBatches', id, owner);
+      if (current.state !== 'processing' || current.processId !== token) return false;
+      // Progress keeps the revision, so cancelling with the revision on screen stays valid.
+      await tx.put('importBatches', { ...current, progress });
+      return true;
+    }),
+    complete: async extraction => {
+      try {
+        const result = interpretDocument(extraction, { target: batch.cardId ? 'card' : 'account' });
+        await stage(db, owner, id, token, batch, { source: 'document', accountHint: null, rows: result.rows, format: result.format, warnings: result.warnings, document: result.document });
+      } catch (error) { await failBatch(db, owner, id, token, error); }
+    },
+    failed: error => failBatch(db, owner, id, token, error),
+  };
+}
+/**
+ * Structured files are parsed in the request. PDFs and images are claimed here and
+ * extracted by the document queue; the response returns the batch in processing
+ * with its progress. A PDF password is used for this run only and never stored.
+ */
+export async function processImport(db: Database, owner: string, id: string, expected: string, input: unknown = {}) {
+  const { password } = importProcessSchema.parse(input ?? {});
   const token = randomUUID();
   const batch = await db.transaction(async tx => {
     const old = await owned(tx, 'importBatches', id, owner); checkRevision(old, expected);
     if (!['received', 'processing', 'failed'].includes(old.state) || old.payload == null) fail('BATCH_STATE', 409, 'Este lote não pode ser analisado novamente.');
-    const next = { ...old, state: 'processing', processId: token, error: null, revision: randomUUID(), updatedAt: new Date() };
+    const documentBatch = looksLikeDocument(Buffer.from(old.payload!, 'base64'));
+    if (password && !documentBatch) fail('INVALID_INPUT', 400, 'Somente PDF protegido aceita senha.');
+    if (documentBatch) assertDocumentCapacity();
+    const next = { ...old, state: 'processing', processId: token, error: null, progress: documentBatch ? { phase: 'queued' as const, page: 0, pages: 0, updatedAt: new Date().toISOString() } : null, revision: randomUUID(), updatedAt: new Date() };
     await tx.put('importBatches', next); return next;
   });
   try {
-    const parsed = parseImport({ name: batch.filename!, mime: batch.mime!, bytes: Buffer.from(batch.payload!, 'base64') }, { mapping: batch.mapping ?? null, profiles: await importProfiles(db, owner) });
-    await db.transaction(async tx => {
-      const current = await owned(tx, 'importBatches', id, owner);
-      if (current.state !== 'processing' || current.processId !== token) fail('BATCH_STATE', 409, 'A análise foi cancelada ou substituída. Recarregue o lote.');
-      const accountEntries = await tx.owned('transactions', owner, { where: [{ field: 'accountId', value: batch.accountId }] });
-      const invoiceCards = batch.cardId ? new Set((await tx.owned('invoices', owner, { where: [{ field: 'cardId', value: batch.cardId }] })).map(i => i.id)) : null;
-      const rows: Models['importItems'][] = parsed.rows.map((row, i) => {
-        const valid = !!row.amount && !!row.purchaseDate && !!row.description, now = new Date();
-        const item: Models['importItems'] = { ...row, id: stableId(['import-item', id, i + 1]), ownerId: owner, batchId: id, position: i + 1,
-          accountId: batch.accountId, categoryId: null, invoiceId: null, transactionId: null, currency: 'BRL',
-          kind: row.amount?.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income',
-          competenceMonth: row.purchaseDate ? row.purchaseDate.slice(0, 7) + '-01' : null,
-          warnings: [...parsed.warnings, ...row.warnings], state: valid ? 'pending' : 'invalid', selected: false,
-          resolution: 'new', duplicateId: null, revision: randomUUID(), createdAt: now, updatedAt: now };
-        const identity = importIdentity({...batch,source:parsed.source}, item);
-        item.candidates = accountEntries.filter(e => !e.archivedAt && (invoiceCards ? !!e.invoiceId && invoiceCards.has(e.invoiceId) : !e.invoiceId) && (e.id === identity || e.amount === item.amount && e.purchaseDate === item.purchaseDate && e.description.trim().toLowerCase() === item.description?.trim().toLowerCase())).slice(0, 20).map(e => ({ id: e.id, description: e.description, amount: e.amount, purchaseDate: e.purchaseDate, categoryId:e.categoryId,competenceMonth:e.competenceMonth,status:e.status,exact: e.id === identity }));
-        if (item.candidates.length) item.warnings.push('Possível duplicata: revise e escolha criar, vincular ou excluir.');
-        if (valid) item.warnings.push('Escolha a categoria e confirme os dados da linha.');
-        return item;
-      });
-      await tx.putMany('importItems', rows);
-      await tx.put('importBatches', { ...current, source: parsed.source, format: parsed.format, accountHint: parsed.accountHint, layout: parsed.layout ?? null, state: 'review', processId: null, revision: randomUUID(), updatedAt: new Date() });
-    });
+    const bytes = Buffer.from(batch.payload!, 'base64'), document = detectDocument(bytes);
+    if (document) {
+      checkDocument(bytes, document);
+      void startDocumentJob({ id, type: document.type, bytes, password }, documentHandlers(db, owner, id, token, batch));
+      return loadImport(db, owner, id);
+    }
+    const parsed = parseImport({ name: batch.filename!, mime: batch.mime!, bytes }, { mapping: batch.mapping ?? null, profiles: await importProfiles(db, owner) });
+    await stage(db, owner, id, token, batch, parsed);
   } catch (error) {
-    // Persist the actionable parser diagnostic, but never overwrite cancellation/newer work.
-    await db.transaction(async tx => {
-      const current = await owned(tx, 'importBatches', id, owner);
-      if (current.state !== 'processing' || current.processId !== token) return;
-      await tx.put('importBatches', { ...current, state: 'failed', format:error instanceof ImportParseError?error.format:current.format, layout: error instanceof ImportParseError ? error.layout : null,error: error instanceof FinanceError ? error.message : 'Análise interrompida. Repita com os mesmos arquivos; nenhum lançamento foi criado.', processId: null, revision: randomUUID(), updatedAt: new Date() });
-    });
+    await failBatch(db, owner, id, token, error);
   }
   return loadImport(db, owner, id);
 }
@@ -144,9 +191,9 @@ export async function cancelImport(db: Database, owner: string, key: string, id:
   return operation(db, owner, key, 'cancel-import', { id, expected }, async tx => {
     const batch = await owned(tx, 'importBatches', id, owner); checkRevision(batch, expected);
     if (!['received', 'processing', 'review', 'failed'].includes(batch.state)) fail('BATCH_STATE', 409, 'Só lotes ainda não confirmados podem ser cancelados.');
-    const row = { ...batch, state: 'cancelled', payload: null, processId: null, revision: randomUUID(), updatedAt: new Date() };
+    const row = { ...batch, state: 'cancelled', payload: null, processId: null, progress: null, revision: randomUUID(), updatedAt: new Date() };
     await tx.put('importBatches', row); return { id, revision: row.revision };
-  });
+  }).finally(() => abortDocumentJob(id));
 }
 export async function repeatImport(db:Database,owner:string,key:string,id:string,expected:string) {
   return operation(db,owner,key,'repeat-import',{id,expected},async tx=>{
@@ -177,6 +224,6 @@ export async function loadImport(db: Database, owner: string, id: string): Promi
       rows[index]!.candidates.push({id:entry.id,description:entry.description,amount:entry.amount,purchaseDate:entry.purchaseDate,categoryId:entry.categoryId,competenceMonth:entry.competenceMonth,status:entry.status,archived:!!entry.archivedAt,exact:true});
     }
     const dates = rows.flatMap(r => r.purchaseDate ? [r.purchaseDate] : []).sort();
-    return { id, filename: batch.filename ?? 'Lote legado', format: batch.format ?? batch.source, state: batch.state, revision: revision(batch), error: batch.error ?? null, accountId: batch.accountId, cardId: batch.cardId, period: dates.length ? `${dates[0]} — ${dates.at(-1)}` : null, createdAt: batch.createdAt.toISOString(), layout: batch.layout ?? null, mapping: batch.mapping ?? null, rows, preview: importPreview(rows.map(r => ({ ...r, resolution: r.candidates.some(c => c.exact && !c.archived) ? 'link' : r.resolution })), !!batch.cardId) };
+    return { id, filename: batch.filename ?? 'Lote legado', format: batch.format ?? batch.source, state: batch.state, revision: revision(batch), error: batch.error ?? null, accountId: batch.accountId, cardId: batch.cardId, period: dates.length ? `${dates[0]} — ${dates.at(-1)}` : null, createdAt: batch.createdAt.toISOString(), layout: batch.layout ?? null, mapping: batch.mapping ?? null, document: batch.document ?? null, progress: batch.state === 'processing' ? batch.progress ?? null : null, rows, preview: importPreview(rows.map(r => ({ ...r, resolution: r.candidates.some(c => c.exact && !c.archived) ? 'link' : r.resolution })), !!batch.cardId) };
   });
 }

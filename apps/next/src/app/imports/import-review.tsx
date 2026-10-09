@@ -49,9 +49,12 @@ function ConfirmSelection({ busy, dirty, count, onConfirm }: { busy: boolean; di
   </div>;
 }
 function ImportEvidence({ row }: { row: ImportRowView }) {
-  const warnings = [...new Set(row.warnings)];
+  const warnings = [...new Set(row.warnings)], area = row.provenance.region;
+  // Region of the page in percent from the top-left corner, as the document is displayed.
+  const percent = (value: number) => Math.round(value * 100) + '%';
+  const region = area ? `${percent(area.x)} da esquerda, ${percent(area.y)} do topo, ${percent(area.width)} × ${percent(area.height)}` : null;
   return <div className="space-y-3">
-    <p className="text-xs text-muted">Origem: {row.provenance.page && `página ${row.provenance.page} · `}linha {row.provenance.row ?? row.position}{row.provenance.cell && ' · célula ' + row.provenance.cell}</p>
+    <p className="text-xs text-muted">Origem: {row.provenance.page && `página ${row.provenance.page} · `}linha {row.provenance.row ?? row.position}{row.provenance.cell && ' · célula ' + row.provenance.cell}{region && ` · região ${region}`}{row.provenance.confidence !== undefined && ` · confiança do OCR ${row.provenance.confidence}%`}</p>
     <pre className="text-xs whitespace-pre-wrap break-all max-h-28 overflow-auto">{row.provenance.excerpt}</pre>
     {warnings.length > 0 && <ul className="text-xs text-muted list-disc pl-5">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
     {row.undoReason && <p role="status" className="text-sm">{row.undoReason}</p>}

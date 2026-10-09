@@ -50,10 +50,12 @@ conteúdo executável ou entidade XML é expandido.
   célula, estão descritos em [formatos.md](formatos.md) (#9).
 - Arquivos vazios, truncados, binários, codificação inválida, colunas ambíguas,
   moeda incompatível e limites excedidos retornam diagnóstico acionável.
-- PDF orienta exportar outro formato; interpretação PDF/OCR é #10. Não há promessa
-  de suporte universal.
+- PDF (digital, escaneado ou com senha) e fotos PNG/JPEG/WebP são analisados em
+  segundo plano, com OCR local opcional, progresso, cancelamento e origem por item
+  (página, região e trecho), conforme [documentos.md](documentos.md) (#10). Não há
+  promessa de suporte universal.
 
-Limites: dez arquivos por upload, 256 KiB e sessenta linhas por arquivo, seis
+Limites: dez arquivos por upload, 256 KiB (PDF e imagens: 512 KiB e 20 páginas) e sessenta linhas por arquivo, seis
 competências por confirmação e cem referências de importação por lançamento.
 O corpo multipart é limitado durante a leitura do stream, independentemente de
 `Content-Length`. Essas fronteiras mantêm a transação abaixo dos limites de

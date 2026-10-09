@@ -4,6 +4,12 @@ import { decimalCents } from './manual-finance';
 
 /** Small bounded files keep staging and confirmation within one atomic commit. */
 export const IMPORT_LIMITS = { files: 10, bytes: 256 * 1024, rows: 60 } as const;
+/**
+ * PDF and image documents are analysed off the request path. Bytes stay below the
+ * single-document staging budget (base64 under 700 KiB); pages, decoded pixels and
+ * time bound the worker before and during extraction.
+ */
+export const IMPORT_DOCUMENT_LIMITS = { bytes: 512 * 1024, pages: 20, inputPixels: 40_000_000, renderPixels: 9_000_000, timeoutMs: 120_000, password: 128, tokens: 20_000 } as const;
 export const importSourceSchema = z.enum(['ofx','csv','spreadsheet','document']);
 export type ImportSource = z.infer<typeof importSourceSchema>;
 export const importIdSchema=z.string().uuid();
@@ -43,7 +49,15 @@ export const importMapRequestSchema = z.object({ mapping: importMappingSchema, r
 export interface ImportLayoutSheet { name: string; fingerprint: string; columns: number; headerRow: number; sample: { line: number; cells: string[] }[] }
 /** Evidence persisted with a tabular batch so the user can map unknown layouts. */
 export interface ImportLayout { kind: 'delimited' | 'spreadsheet'; sheets: ImportLayoutSheet[]; suggestion: ImportMapping; reasons: string[] }
-export interface ImportOrigin { page?: number; row?: number; cell?: string; excerpt?: string }
+/** Normalized page region (0–1, origin at the top-left of the page as displayed). */
+export interface ImportRegion { x: number; y: number; width: number; height: number }
+export interface ImportOrigin { page?: number; row?: number; cell?: string; excerpt?: string; region?: ImportRegion; confidence?: number }
+export type ImportDocumentKind = 'statement' | 'invoice' | 'receipt' | 'unknown';
+/** What the document analysis found, kept on the batch for the review screen. */
+export interface ImportDocumentInfo { kind: ImportDocumentKind; pages: number; ocrPages: number; textPages: number; passwordRequired: boolean; confidence: number | null }
+export interface ImportProgress { phase: 'queued' | 'reading' | 'ocr' | 'interpreting'; page: number; pages: number; updatedAt: string }
+/** Process accepts no fields, or the PDF password for this run only (never persisted). */
+export const importProcessSchema = z.object({ password: z.string().min(1).max(IMPORT_DOCUMENT_LIMITS.password) }).strict().partial();
 export interface ParsedImportRow {
   description: string | null; amount: string | null; purchaseDate: string | null;
   externalId: string | null; provenance: ImportOrigin; warnings: string[];
@@ -59,6 +73,7 @@ export interface ImportBatchView {
   id: string; filename: string; format: string; state: string; revision: string; error: string | null;
   accountId: string | null; cardId: string | null; period: string | null; createdAt: string;
   layout: ImportLayout | null; mapping: ImportMapping | null;
+  document: ImportDocumentInfo | null; progress: ImportProgress | null;
   rows: ImportRowView[]; preview: ReturnType<typeof importPreview>;
 }
 export function importPreview(rows: Pick<ImportRowView, 'selected' | 'resolution' | 'state' | 'amount' | 'competenceMonth'>[], card = false) {

@@ -1,4 +1,4 @@
-import { scheduleSchema,planningMonthSchema,IMPORT_LIMITS,importReviewSchema } from '@ecofinance/shared';
+import { scheduleSchema,planningMonthSchema,IMPORT_LIMITS,IMPORT_DOCUMENT_LIMITS,importReviewSchema } from '@ecofinance/shared';
 import catalog from './firestore-catalog.json';
 import { Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
@@ -62,7 +62,7 @@ export function validateDocument(collection:Collection,row:Record<string,unknown
   if(collection==='importBatches' && row.filename!=null) {
     requireValue(typeof row.filename==='string' && row.filename.length<=200 && typeof row.mime==='string' && row.mime.length<=120);
     requireValue(row.accountId!=null && typeof row.fileHash==='string' && /^[0-9a-f]{64}$/.test(row.fileHash));
-    if(row.payload!=null)requireValue(typeof row.payload==='string' && row.payload.length<=Math.ceil(IMPORT_LIMITS.bytes/3)*4);
+    if(row.payload!=null)requireValue(typeof row.payload==='string' && row.payload.length<=Math.ceil(Math.max(IMPORT_LIMITS.bytes,IMPORT_DOCUMENT_LIMITS.bytes)/3)*4);
     if(['cancelled','confirmed','reverted'].includes(String(row.state)))requireValue(row.payload==null);
   }
   if(collection==='importItems' && row.selected!=null) {

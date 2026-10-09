@@ -1,4 +1,4 @@
-import { IMPORT_LIMITS, type ImportLayout, type ImportMapping, type ParsedImportRow, type ImportSource } from '@ecofinance/shared';
+import { IMPORT_LIMITS, type ImportDocumentInfo, type ImportLayout, type ImportMapping, type ParsedImportRow, type ImportSource } from '@ecofinance/shared';
 import { ImportParseError, parseError } from './import-errors';
 import { decodeText } from './import-text';
 import { detectOfx, parseOfx } from './import-ofx';
@@ -10,7 +10,7 @@ export { delimitedRows } from './import-delimited';
 export interface ImportFile { name: string; mime: string; bytes: Uint8Array }
 export interface ParseOptions { mapping?: ImportMapping | null; profiles?: Record<string, ImportMapping>; parsers?: readonly ImportParser[] }
 export interface ParseContext { encoding: string; mapping: ImportMapping | null; profiles: Record<string, ImportMapping> }
-export interface ParsedContent { source: ImportSource; accountHint: string | null; rows: ParsedImportRow[]; format?: string; warnings?: string[]; layout?: ImportLayout; mapping?: ImportMapping }
+export interface ParsedContent { source: ImportSource; accountHint: string | null; rows: ParsedImportRow[]; format?: string; warnings?: string[]; layout?: ImportLayout; mapping?: ImportMapping; document?: ImportDocumentInfo }
 export interface ParsedImport extends ParsedContent { format: string; warnings: string[] }
 /** Parsers see decoded text (empty for binary containers) and always the original bytes. */
 export interface ImportParser { format: string; detect: (text: string, file: ImportFile) => boolean; parse: (text: string, file: ImportFile, context: ParseContext) => ParsedContent }
@@ -39,7 +39,7 @@ export function parseImport(file: ImportFile, options: ParseOptions = {}): Parse
   const text = binary ? '' : decoded!.text;
   const matching = parsers.filter(parser => parser.detect(text, file));
   if (!matching.length) {
-    if (pdf) parseError('UNSUPPORTED_FORMAT', 'PDF requer o pipeline da issue 10. Exporte OFX/QFX, CSV/TSV ou XLS/XLSX.', 'PDF');
+    if (pdf) parseError('UNSUPPORTED_FORMAT', 'PDF é lido pela análise de documentos, fora deste leitor de arquivos estruturados.', 'PDF');
     if (!decoded && !container) parseError('UNSUPPORTED_ENCODING', 'Codificação não reconhecida. Exporte o arquivo em UTF-8 ou Windows-1252.');
     if (binary) parseError('CORRUPT_FILE', 'Conteúdo binário incompatível. Exporte OFX/QFX, CSV/TSV ou XLS/XLSX.');
     if (/^\s*<(?:!doctype|html|table)/i.test(text)) parseError('UNSUPPORTED_FORMAT', 'Arquivo HTML com extensão de planilha. Abra no Excel e salve como XLSX ou exporte CSV.', 'HTML');

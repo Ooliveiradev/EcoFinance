@@ -84,6 +84,30 @@ Mudar esses valores exige PR no `deploy.yml`. O orçamento abaixo **alerta, mas 
 bloqueia** gastos. A contenção real vem de `max-instances`, do limite de login
 compartilhado e do [corte de emergência](#corte-de-emergência).
 
+### PDF, imagens e OCR
+
+A importação de documentos ([documentos.md](../refatoracao/documentos.md)) roda em
+uma `worker_thread` da própria instância, fora da requisição que a inicia. Com a
+configuração acima:
+
+- **PDF com texto** funciona: cerca de 80 MiB além do Next e menos de 1 s por
+  documento sintético.
+- **OCR (PDF escaneado e fotos) fica desligado.** `IMPORT_OCR` não é definido no
+  `deploy.yml`, então essas análises falham com orientação para enviar o PDF
+  original ou OFX/CSV. Nenhuma linha é inventada. O OCR medido usa até ~470 MiB de
+  RSS por análise de duas páginas a 300 DPI. Isso não cabe em 512 MiB junto com o
+  Next.
+- Com `--cpu-throttling`, a CPU fora de requisições é mínima. A análise avança
+  enquanto a tela consulta o progresso (uma requisição por segundo). Se a instância
+  for encerrada, o lote fica em "Processando" e o botão "Repetir análise" o retoma.
+
+Para ligar o OCR em produção, faça um PR no `deploy.yml` com `--memory 1Gi` (ou
+mais), `--no-cpu-throttling` e `IMPORT_OCR=on` em `--set-env-vars`. As duas
+primeiras opções mudam a cobrança para instância ativa. Revise o orçamento antes do
+merge. A imagem já contém o tesseract.js, os dados `por` e o canvas nativo. O passo
+"Document worker runs from the traced standalone files" do job `container` da CI
+comprova isso. Não há serviço pago nem download em tempo de execução.
+
 ## Pré-requisitos
 
 - Use o [Cloud Shell](https://shell.cloud.google.com/?project=ecofinance-912de) (bash,

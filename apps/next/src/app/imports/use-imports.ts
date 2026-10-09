@@ -1,7 +1,7 @@
 'use client';
-import { useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { IMPORT_LIMITS, type ImportBatchView } from '@ecofinance/shared';
+import { IMPORT_DOCUMENT_LIMITS, IMPORT_LIMITS, type ImportBatchView } from '@ecofinance/shared';
 import type { ImportHistory, ImportsClientProps } from './imports-client';
 interface ImportState {
   files: { id: string; file: File }[]; target: string; batches: ImportBatchView[]; history: ImportHistory[];
@@ -23,10 +23,36 @@ function reducer(state: ImportState, action: Action): ImportState {
   for (const row of batch.rows) if (dirtyRows[row.id] !== row.revision) delete dirtyRows[row.id];
   return { ...state, dirtyRows, batches: [batch, ...state.batches.filter(b => b.id !== batch.id)], history: [{ id: batch.id, filename: batch.filename, state: batch.state, format: batch.format,createdAt:batch.createdAt }, ...state.history.filter(b => b.id !== batch.id)] };
 }
+const documentFile = (file: File) => /^(application\/pdf|image\/(png|jpeg|webp))$/.test(file.type) || /\.(pdf|png|jpe?g|webp)$/i.test(file.name);
+/**
+ * Photos above the document limit are reduced in the browser (longest side 2400 px,
+ * JPEG), keeping the orientation recorded by the camera. Other files go untouched.
+ */
+async function fitImage(file: File): Promise<{ file: File; reduced: boolean }> {
+  if (file.size <= IMPORT_DOCUMENT_LIMITS.bytes || !/^image\/(png|jpeg|webp)$/.test(file.type) || typeof createImageBitmap !== 'function') return { file, reduced: false };
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height)), canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close();
+  for (const quality of [0.85, 0.7, 0.55]) {
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (blob && blob.size <= IMPORT_DOCUMENT_LIMITS.bytes) return { file: new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }), reduced: true };
+  }
+  return { file, reduced: false };
+}
 export function useImports(props: ImportsClientProps) {
   const router = useRouter(), keys = useRef(new Map<string, string>());
   const [state, dispatch] = useReducer(reducer, props, initial);
   const patch = (data: Partial<ImportState>) => dispatch({ type: 'patch', data });
+  // Documents are analysed off the request: poll their progress without blocking the screen.
+  const processing = state.batches.filter(batch => batch.state === 'processing').map(batch => batch.id).join(',');
+  useEffect(() => {
+    if (!processing) return;
+    const timer = setInterval(() => {
+      for (const id of processing.split(',')) void fetch('/api/imports/' + id, { cache: 'no-store' }).then(async response => { if (response.ok) dispatch({ type: 'loaded', batch: await response.json() as ImportBatchView }); }).catch(() => {});
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [processing]);
   function requestKey(signature: string) {
     const old = keys.current.get(signature); if (old) return old;
     const key = crypto.randomUUID(); keys.current.set(signature, key); return key;
@@ -42,7 +68,8 @@ export function useImports(props: ImportsClientProps) {
   }
   async function mutate(batch: ImportBatchView, action: string, input: unknown = {}, item?: { id: string; revision: string }) {
     const url = '/api/imports/' + batch.id + (item ? '/items/' + item.id : '/' + action), expected = item?.revision ?? batch.revision;
-    const signature = JSON.stringify([url, expected, input]);
+    // The PDF password never enters the retry signature kept in memory.
+    const signature = JSON.stringify([url, expected, action === 'process' ? action : input]);
     if(action==='process')dispatch({type:'loaded',batch:{...batch,state:'processing'}});
     const response = await fetch(url, { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey(signature), 'If-Match': expected }, body: JSON.stringify(input) });
     const data = await response.json(); if (!response.ok) throw new Error(data.message ?? 'Falha ao salvar. Tente novamente com os mesmos dados.');
@@ -54,8 +81,8 @@ export function useImports(props: ImportsClientProps) {
     if (action === 'map') patch({ message: data.state === 'review' ? 'Mapeamento aplicado. Confira as linhas antes de confirmar.' : 'O mapeamento ainda exige ajustes. Veja o motivo no lote.' });
   }
   async function upload() {
-    const files = state.files.map(entry => entry.file);
-    if (!state.target || !files.length || files.length > IMPORT_LIMITS.files || files.some(f => f.size > IMPORT_LIMITS.bytes)) throw new Error('Escolha um destino e de 1 a 10 arquivos, com até 256 KiB cada.');
+    const fitted = await Promise.all(state.files.map(entry => fitImage(entry.file))), files = fitted.map(entry => entry.file);
+    if (!state.target || !files.length || files.length > IMPORT_LIMITS.files || files.some(f => f.size > (documentFile(f) ? IMPORT_DOCUMENT_LIMITS.bytes : IMPORT_LIMITS.bytes))) throw new Error('Escolha um destino e de 1 a 10 arquivos, com até 256 KiB cada (PDF e imagens: até 512 KiB).');
     const form = new FormData(), [type, id] = state.target.split(':');
     form.append(type === 'card' ? 'cardId' : 'accountId', id!); for (const file of files) form.append('files', file);
     const signature = JSON.stringify(['upload', state.target, state.files.map(f => f.id)]);
@@ -68,7 +95,7 @@ export function useImports(props: ImportsClientProps) {
     await (data.batches as { id: string }[]).reduce((previous, received) => previous.then(async () => {
       try { const batch = await read(received.id); await mutate(batch, 'process'); } catch { interrupted = true; }
     }), Promise.resolve());
-    patch({ files: [], uploadVersion: state.uploadVersion + 1 });
+    patch({ files: [], uploadVersion: state.uploadVersion + 1, message: fitted.some(entry => entry.reduced) ? 'Fotos acima de 512 KiB foram reduzidas no navegador antes do envio.' : '' });
     if (interrupted) throw new Error('Algumas análises foram interrompidas. Abra os lotes no histórico e repita a análise; nenhum saldo foi alterado.');
   }
   async function moreHistory() {

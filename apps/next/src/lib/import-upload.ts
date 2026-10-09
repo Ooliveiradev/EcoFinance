@@ -1,4 +1,4 @@
-import { IMPORT_LIMITS } from '@ecofinance/shared';
+import { IMPORT_DOCUMENT_LIMITS, IMPORT_LIMITS } from '@ecofinance/shared';
 import { authorize } from './session';
 import { PRIVATE_CACHE } from './access-policy';
 import { financeError } from './finance-http';
@@ -11,11 +11,12 @@ export async function uploadImports(db: Database, request: Request) {
   try {
     const access = await authorize(request); if (access.response) return access.response;
     if (!request.headers.get('content-type')?.startsWith('multipart/form-data;')) fail('INVALID_UPLOAD', 400, 'Envie os arquivos como multipart/form-data.');
-    const max = IMPORT_LIMITS.files * IMPORT_LIMITS.bytes + 64 * 1024;
+    // Per-file limits (256 KiB structured, 512 KiB PDF/image) are checked after parsing.
+    const max = IMPORT_LIMITS.files * IMPORT_DOCUMENT_LIMITS.bytes + 64 * 1024;
     const reader = request.body?.getReader(); if (!reader) fail('EMPTY_UPLOAD', 400, 'Selecione os arquivos.');
     const chunks: Uint8Array[] = []; let length = 0;
     try {
-      for (;;) { const { done, value } = await reader!.read(); if (done) break; length += value.length; if (length > max) { await reader!.cancel(); fail('UPLOAD_LIMIT', 413, 'Upload excede o limite. Envie até 10 arquivos de 256 KiB.'); } chunks.push(value); }
+      for (;;) { const { done, value } = await reader!.read(); if (done) break; length += value.length; if (length > max) { await reader!.cancel(); fail('UPLOAD_LIMIT', 413, 'Upload excede o limite. Envie até 10 arquivos de 256 KiB (PDF e imagens: 512 KiB).'); } chunks.push(value); }
     } finally { reader!.releaseLock(); }
     const bytes = Buffer.concat(chunks);
     let form: FormData;
