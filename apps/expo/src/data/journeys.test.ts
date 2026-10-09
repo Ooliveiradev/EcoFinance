@@ -6,7 +6,7 @@ vi.mock('expo-secure-store', () => ({
 }));
 import type { CardRecord, ImportRowView, InvoiceView, ManualAccountRecord, PlanningOccurrence } from '@ecofinance/shared';
 import { archiveCardMutation, cardMutation, paymentMutation, purchasePreview } from './cards';
-import { batchAction, checkPicked, intentKey, pendingReview, reviewBody, reviewForm, reviewFormBody, reviewItem, uploadImports, uploadSignature } from './imports';
+import { batchAction, checkPicked, hasPendingReview, intentKey, pendingReview, reviewBody, reviewForm, reviewFormBody, reviewItem, uploadImports, uploadSignature } from './imports';
 import { budgetForm, budgetMutation, generateMutation, occurrenceMutation, ruleMutation } from './planning';
 import { accountForm, accountMutation, archiveReferenceMutation, categoryMutation } from './references';
 
@@ -115,6 +115,10 @@ describe('import from the file picker', () => {
     expect(pendingReview(saved, row)).toBe(saved);
     expect(pendingReview(saved, refreshed)).toBeUndefined();
     expect(pendingReview(undefined, row)).toBeUndefined();
+    expect(hasPendingReview({ [row.id]: draft }, [refreshed])).toBe(true);
+    expect(hasPendingReview({ [row.id]: saved }, [row])).toBe(true);
+    expect(hasPendingReview({ [row.id]: saved }, [refreshed])).toBe(false);
+    expect(hasPendingReview({ [row.id]: draft }, [{ ...row, id: 'another-batch-row' }])).toBe(false);
   });
   it('retries a lost review response with the same intent and original row revision', async () => {
     secure.value = JSON.stringify({ url: 'https://api.example.test', credential: 'synthetic.signed', userId: '10000000-0000-4000-8000-000000000001' });

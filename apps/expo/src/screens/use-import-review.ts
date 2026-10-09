@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ImportBatchView, ImportRowView } from '@ecofinance/shared';
-import { batchAction, intentKey, pendingReview, reviewFormBody, reviewItem, type BatchAction, type ReviewDraft, type ReviewForm } from '../data/imports';
+import { batchAction, hasPendingReview, intentKey, pendingReview, reviewFormBody, reviewItem, type BatchAction, type ReviewDraft, type ReviewForm } from '../data/imports';
 import { NO_NOTICE, type NoticeState } from '../data/outcome';
 
 const DONE: Record<BatchAction, string> = { confirm: 'Importação confirmada. Os lançamentos já aparecem no mês.', undo: 'Importação desfeita.', cancel: 'Lote cancelado.' };
@@ -33,10 +33,7 @@ export function useImportReview(batchId: string, reload: () => void, failure: (r
     finally { sending.current = false; setBusy(false); reload(); }
   }
   function dirty(view: ImportBatchView) {
-    return Object.entries(drafts).some(([id, draft]) => {
-      const row = view.rows.find(item => item.id === id);
-      return row ? !!pendingReview(draft, row) : !draft.saved;
-    });
+    return hasPendingReview(drafts, view.rows);
   }
   async function act(view: ImportBatchView, action: BatchAction) {
     if (sending.current || dirty(view)) return;

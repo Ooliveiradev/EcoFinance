@@ -61,6 +61,10 @@ export function reviewForm(row: ImportRowView): ReviewForm {
 export function pendingReview(draft: ReviewDraft | undefined, row: ImportRowView): ReviewDraft | undefined {
   return draft && (!draft.saved || draft.base.revision === row.revision) ? draft : undefined;
 }
+/** Drafts from another batch must not block the batch currently displayed. */
+export function hasPendingReview(drafts: Record<string, ReviewDraft>, rows: ImportRowView[]): boolean {
+  return rows.some(row => !!pendingReview(drafts[row.id], row));
+}
 export function reviewFormBody(row: ImportRowView, form: ReviewForm) {
   const amount = parseMoneyInput(form.amount);
   const result = reviewBody(row, { ...form, amount, competenceMonth: `${form.competenceMonth}-01`, selected: form.resolution !== 'exclude' && form.selected });
