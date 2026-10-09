@@ -5,6 +5,22 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # Versões controladas pelo SDK do Expo: o check de compatibilidade da CI
+      # só aceita a faixa do SDK instalado. Elas sobem juntas numa atualização
+      # de SDK (npx expo install --fix); patches continuam liberados.
+      - dependency-name: expo
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: expo-*
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: '@expo/*'
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: react-native
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: react-native-*
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: '@react-native-async-storage/async-storage'
+        update-types: [version-update:semver-major, version-update:semver-minor]
     groups:
       development:
         dependency-type: development
