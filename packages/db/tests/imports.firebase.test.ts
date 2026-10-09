@@ -8,7 +8,7 @@ import { saveCard } from '../../../apps/next/src/lib/card-store';
 import { loadInvoice } from '../../../apps/next/src/lib/card-read';
 import { receiveImports, processImport, loadImport, reviewImportItem, cancelImport,repeatImport } from '../../../apps/next/src/lib/import-store';
 import { confirmImport, undoImport } from '../../../apps/next/src/lib/import-commit';
-import { accountBalances, monthTotals, type ImportBatchView } from '../../shared/src';
+import { accountBalances, monthTotals, metricsCsv, type ImportBatchView } from '../../shared/src';
 const db = testStore('imports-' + randomBytes(6).toString('hex')), copy = testStore('imports-copy-' + randomBytes(6).toString('hex'));
 const owner = '10000000-0000-4000-8000-000000000001', other = '20000000-0000-4000-8000-000000000001';
 let account: string, category: string, foreign: string, card: string;
@@ -195,19 +195,40 @@ it('an explicit link never restores a transaction archived after its review or c
 });
 it('keeps import staging separate from metrics and refreshes confirmed reports and balances after commit and undo', async () => {
   const { loadReport } = await import('../../../apps/next/src/lib/metrics-read');
-  const report = () => loadReport(owner, { from: '2026-10', to: '2026-10', basis: 'competence' }, new Date('2026-10-31T15:00:00Z'), db);
+  const report = (basis: 'competence' | 'cash' = 'competence') => loadReport(owner, { from: '2026-10', to: '2026-10', basis }, new Date('2026-10-31T15:00:00Z'), db);
   const initial = await report();
-  const batch = await reviewed(await staged(csv('2026-10-01;Mercado;-10.25\n2026-10-02;Salário;20')));
+  let batch = await reviewed(await staged(csv('2026-10-01;Mercado;-10.25\n2026-10-02;Salário;20')));
   expect(batch.preview).toEqual([{ month: '2026-10', income: '20.00', expenses: '10.25', balance: '9.75' }]);
   expect((await report()).report.totals).toEqual(initial.report.totals);
-  expect((await report()).projection.balance).toBe('1000.00');
+
+  const row = batch.rows[0]!;
+  await reviewImportItem(db, owner, randomUUID(), batch.id, row.id, row.revision, {
+    description: 'Mercado corrigido', amount: '-12.50', purchaseDate: '2026-10-01', competenceMonth: '2026-10-01',
+    categoryId: category, selected: true, resolution: 'new', duplicateId: null,
+  });
+  batch = await loadImport(db, owner, batch.id);
+  expect(batch.preview).toEqual([{ month: '2026-10', income: '20.00', expenses: '12.50', balance: '7.50' }]);
+  for (const basis of ['competence', 'cash'] as const) {
+    const staging = await report(basis);
+    expect(staging.report.totals).toEqual(initial.report.totals);
+    expect(staging.report.categories).toEqual([]);
+    expect(staging.projection.balance).toBe('1000.00');
+  }
   await confirm(batch);
-  const committed = await report();
-  expect(committed.report.totals).toMatchObject({ income: '20.00', expenses: '10.25', net: '9.75', count: 2 });
-  expect(committed.projection.balance).toBe('1009.75');
+  for (const basis of ['competence', 'cash'] as const) {
+    const committed = await report(basis);
+    expect(committed.report.totals).toMatchObject({ income: '20.00', expenses: '12.50', net: '7.50', count: 2 });
+    expect(committed.report.categories).toEqual([expect.objectContaining({ id: category, amount: '12.50', share: '100.0' })]);
+    expect(committed.projection.balance).toBe('1007.50');
+    const csvBasis = basis === 'competence' ? 'competência' : 'caixa';
+    expect(metricsCsv(committed.report)).toContain(`mensal;2026-10;${csvBasis};expenses;12.50`);
+  }
   const current = await loadImport(db, owner, batch.id);
   await undoImport(db, owner, randomUUID(), current.id, current.revision, { confirmed: true });
-  const reverted = await report();
-  expect(reverted.report.totals).toEqual(initial.report.totals);
-  expect(reverted.projection.balance).toBe('1000.00');
+  for (const basis of ['competence', 'cash'] as const) {
+    const reverted = await report(basis);
+    expect(reverted.report.totals).toEqual(initial.report.totals);
+    expect(reverted.report.categories).toEqual([]);
+    expect(reverted.projection.balance).toBe('1000.00');
+  }
 });
