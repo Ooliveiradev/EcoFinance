@@ -6,7 +6,7 @@ vi.mock('expo-secure-store', () => ({
 }));
 import type { CardRecord, ImportRowView, InvoiceView, ManualAccountRecord, PlanningOccurrence } from '@ecofinance/shared';
 import { archiveCardMutation, cardMutation, paymentMutation, purchasePreview } from './cards';
-import { batchAction, checkPicked, intentKey, reviewBody, uploadImports, uploadSignature } from './imports';
+import { batchAction, checkPicked, hasPendingReview, intentKey, pendingReview, reviewBody, reviewForm, reviewFormBody, reviewItem, uploadImports, uploadSignature } from './imports';
 import { budgetForm, budgetMutation, generateMutation, occurrenceMutation, ruleMutation } from './planning';
 import { accountForm, accountMutation, archiveReferenceMutation, categoryMutation } from './references';
 
@@ -88,6 +88,52 @@ describe('import from the file picker', () => {
   it('requires a category and a chosen duplicate before a reviewed row is sent', () => {
     expect(reviewBody(row, { resolution: 'link' })).toMatchObject({ ok: false });
     expect(reviewBody(row, { categoryId: CATEGORY, selected: true })).toEqual({ ok: true, body: { description: 'Padaria', amount: '-12.00', purchaseDate: '2026-10-03', competenceMonth: '2026-10-01', categoryId: CATEGORY, selected: true, resolution: 'new', duplicateId: null } });
+  });
+  it('repairs missing imported fields with signed cents and an explicit competence month', () => {
+    const invalid = { ...row, state: 'invalid', description: null, amount: null, purchaseDate: null, competenceMonth: null };
+    expect(reviewForm(invalid)).toMatchObject({ description: '', amount: '', purchaseDate: '', competenceMonth: '', selected: false });
+    const form = { ...reviewForm(invalid), description: '  Mercado  ', amount: '-1.234,56', purchaseDate: '2026-09-30', competenceMonth: '2026-10', categoryId: CATEGORY, selected: true };
+    expect(reviewFormBody(invalid, form)).toEqual({ ok: true, body: { description: 'Mercado', amount: '-1234.56', purchaseDate: '2026-09-30', competenceMonth: '2026-10-01', categoryId: CATEGORY, selected: true, resolution: 'new', duplicateId: null } });
+    expect(reviewForm(row).amount).toBe('-12,00');
+    expect(reviewFormBody(row, { ...form, amount: '0,01', selected: false })).toMatchObject({ ok: true, body: { amount: '0.01', selected: false } });
+    expect(reviewFormBody(row, { ...form, resolution: 'exclude', selected: true, duplicateId: row.id })).toMatchObject({ ok: true, body: { selected: false, resolution: 'exclude', duplicateId: null } });
+  });
+  it('reports all invalid fields without silently rounding money or changing the purchase month', () => {
+    const form = { ...reviewForm(row), categoryId: CATEGORY };
+    expect(reviewFormBody(row, { ...form, amount: '1,999', purchaseDate: '2026-02-30', competenceMonth: '2026-13' })).toMatchObject({ ok: false, errors: { amount: expect.any(String), purchaseDate: expect.any(String), competenceMonth: expect.any(String) } });
+    expect(reviewFormBody(row, { ...form, amount: '0' })).toMatchObject({ ok: false, errors: { amount: 'Informe valor diferente de zero.' } });
+    expect(reviewFormBody(row, { ...form, competenceMonth: '2026-10-01' })).toMatchObject({ ok: false });
+    expect(reviewFormBody(row, { ...form, resolution: 'link', duplicateId: null })).toMatchObject({ ok: false, errors: { form: 'Escolha o lançamento existente.' } });
+  });
+  it('keeps unsaved drafts across server changes and blocks confirmation until a saved version is refreshed', () => {
+    const draft = { base: row, form: { ...reviewForm(row), amount: '-99,90' }, saved: false, errors: {} };
+    const refreshed = { ...row, amount: '-88.00', revision: 'r2' };
+    expect(pendingReview(draft, refreshed)).toBe(draft);
+    expect(draft.base.revision).toBe('r1');
+    expect(draft.form.amount).toBe('-99,90');
+    const saved = { ...draft, saved: true };
+    expect(pendingReview(saved, row)).toBe(saved);
+    expect(pendingReview(saved, refreshed)).toBeUndefined();
+    expect(pendingReview(undefined, row)).toBeUndefined();
+    expect(hasPendingReview({ [row.id]: draft }, [refreshed])).toBe(true);
+    expect(hasPendingReview({ [row.id]: saved }, [row])).toBe(true);
+    expect(hasPendingReview({ [row.id]: saved }, [refreshed])).toBe(false);
+    expect(hasPendingReview({ [row.id]: draft }, [{ ...row, id: 'another-batch-row' }])).toBe(false);
+  });
+  it('retries a lost review response with the same intent and original row revision', async () => {
+    secure.value = JSON.stringify({ url: 'https://api.example.test', credential: 'synthetic.signed', userId: '10000000-0000-4000-8000-000000000001' });
+    const fetch = vi.fn().mockRejectedValueOnce(new TypeError('Lost response')).mockResolvedValueOnce(new Response(JSON.stringify({ revision: 'r2' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+    const built = reviewFormBody(row, { ...reviewForm(row), amount: '-123,45', categoryId: CATEGORY, selected: true });
+    if (!built.ok) throw new Error('invalid');
+    const keys = new Map<string, string>();
+    const signature = JSON.stringify(['review', row.id, row.revision, built.body]);
+    await expect(reviewItem('b1', row, built.body, intentKey(keys, signature))).rejects.toMatchObject({ kind: 'offline' });
+    await reviewItem('b1', row, built.body, intentKey(keys, signature));
+    const requests = fetch.mock.calls.map(([url, init]) => [url, init.headers.get('If-Match'), init.headers.get('Idempotency-Key'), init.body]);
+    expect(requests[0]).toEqual(requests[1]);
+    expect(requests[0]).toEqual(['https://api.example.test/api/imports/b1/items/' + row.id, '"r1"', expect.any(String), JSON.stringify(built.body)]);
+    expect(intentKey(keys, JSON.stringify(['review', row.id, 'r2', built.body]))).not.toBe(requests[0]![2]);
   });
   it('uploads multipart with the key and confirms under the batch revision', async () => {
     secure.value = JSON.stringify({ url: 'https://api.example.test', credential: 'synthetic.signed', userId: '10000000-0000-4000-8000-000000000001' });

@@ -1,6 +1,6 @@
 # Aplicativo de gestão Android e iOS — EF-13 (#13)
 
-Atualizado em 07/10/2026. Este documento cobre o incremento entregue como **Parte de #13**. Ele descreve as jornadas nativas, a camada de dados e sessão do Expo e as pendências para fechar a issue. Não certifica produção nem build iOS assinado.
+Atualizado em 09/10/2026. Este documento cobre os incrementos entregues como **Parte de #13**. Ele descreve as jornadas nativas, a camada de dados e sessão do Expo e as pendências para fechar a issue. Não certifica produção nem build iOS assinado.
 
 ## Decisão
 
@@ -22,10 +22,18 @@ Captura de notificações bancárias, localização (GPS) e conexão Pluggy fora
 | Contas e categorias: listar com saldo, criar, editar, arquivar e restaurar | `references` | `/api/accounts`, `/api/categories` | Entregue |
 | Planejamento: orçamento do mês, previstos (pagar, adiar, cancelar, restaurar), gerar previstos, nova recorrência | `planning` | `/api/planning/:month`, `/api/occurrences/:id/:action`, `/api/recurrences` | Entregue |
 | Cartões e faturas: cadastrar cartão, ver fatura do mês com totais e divergência, compra parcelada com prévia, pagar fatura | `cards` | `/api/cards`, `/api/cards/:id/invoices/:month`, `/api/cards/:id/purchases`, `/api/invoices/:id/pay` | Entregue |
-| Importação: seletor de arquivos, destino conta/cartão, análise no servidor, revisão por linha (categoria, criar/vincular/excluir), confirmar, desfazer e cancelar | `imports` | `/api/imports`, `/api/imports/:id/:action`, `/api/imports/:id/items/:itemId` | Entregue (requer conexão) |
+| Importação: seletor de arquivos, destino conta/cartão, análise no servidor, correção de linhas inválidas, revisão de descrição/valor/data/competência/categoria, criar/vincular/excluir, seleção explícita, confirmar, desfazer e cancelar | `imports` | `/api/imports`, `/api/imports/:id/:action`, `/api/imports/:id/items/:itemId` | Entregue (requer conexão) |
 | Pendências e conflitos | `pending` | — | Entregue |
 
 O mesmo lançamento aparece igual na web e no celular depois da sincronização, porque ambos leem as mesmas rotas e o mesmo cálculo.
+
+### Correção de linhas importadas
+
+- Cada linha, inclusive inválida, permite corrigir descrição, valor com sinal (negativo para saída; positivo para entrada/estorno), data `AAAA-MM-DD`, competência `AAAA-MM` e categoria. A competência pode diferir do mês da compra; o valor mantém centavos exatos e o sinal original.
+- “Incluir na confirmação” é uma escolha explícita. Alterar a categoria não seleciona a linha automaticamente. Criar, vincular e excluir só chegam ao servidor em “Salvar linha”. A prévia mostra os dados já salvos.
+- Os erros aparecem nos campos, usando `importReviewSchema`. Rascunhos de revisão ficam na memória da tela, separados da outbox: não são enviados offline e se perdem ao sair da tela. Falha de envio ou atualização do lote enquanto a tela está aberta mantém os campos digitados.
+- Cada salvamento conserva `If-Match` da revisão que iniciou o rascunho e uma chave idempotente por payload/revisão. Se outra sessão mudou a linha, o formulário mantém o rascunho e bloqueia o salvamento; compare com o cabeçalho atual e descarte para editar a versão atual. Não há sobrescrita automática.
+- Confirmação, cancelamento e desfazer ficam bloqueados com rascunhos pendentes. Mesmo após salvar, é necessário carregar a nova versão para atualizar a prévia; durante envio/atualização os controles ficam desabilitados. Uma cópia em cache é somente leitura para importação.
 
 ## Dados e sessão
 
@@ -96,6 +104,7 @@ Testes vitest da camada de dados e sessão (`apps/expo/src/**/*.test.ts`, na su�
 - `outbox.test.ts`: pendente offline e replay com a mesma chave; resposta perdida reenviada com a mesma chave e o mesmo `If-Match`; intenção enviada não é editada; conflito e `reapply` com revisão nova; recusa corrigível; ordem preservada; sessão expirada sem contar tentativa; isolamento por usuário; replays concorrentes com um único envio; recusa de reenvio com credencial de outra conta.
 - `session.test.ts`: logout revoga e depois limpa; falha de rede mantém os dados; saída offline limpa e notifica; troca de conta não herda dados.
 - `entries.test.ts` e `journeys.test.ts`: entrada de valores em pt-BR sem ponto flutuante (R$ 0,10 + R$ 0,20 = R$ 0,30), payloads validados pelos schemas compartilhados para lançamentos, contas, categorias, orçamento, previstos, recorrências, cartões, compra 300 em 3x100, pagamento de fatura, limites e multipart de importação e chave por intenção.
+- `journeys.test.ts` cobre também reparo de campos ausentes, sinal e centavos, competência independente da data, seleção explícita/exclusão, erros simultâneos de valor/data/competência, rascunho preservado diante de revisão divergente, espera pela prévia atualizada e resposta de salvamento perdida repetida com a mesma chave e revisão.
 
 React Doctor (`npx react-doctor@0.9.14 apps/expo`): 100/100, sem achados.
 
@@ -106,7 +115,7 @@ React Doctor (`npx react-doctor@0.9.14 apps/expo`): 100/100, sem achados.
 - **E2E mobile:** não há suíte (Maestro ou Detox). Ela deve cobrir login, sessão expirada, offline/reconexão, conflito entre dispositivos, arquivos e leitores de tela (TalkBack/VoiceOver).
 - **Detecção de rede:** a reconexão é tentada ao abrir, voltar ao primeiro plano, salvar e manualmente. Um listener de rede (`@react-native-community/netinfo`) aceleraria o replay.
 - **Cache em repouso:** o AsyncStorage fica no sandbox do app, sem criptografia própria. `allowBackup=false` cobre o Android; no iOS, os arquivos podem entrar no backup do aparelho. Avaliar criptografia com chave no SecureStore ou exclusão do backup.
-- **Funções ainda só na web:** limites por categoria no orçamento (preservados ao editar no telefone), fechar/reabrir mês, copiar plano, editar e pausar recorrências, itens de fatura (juros, tarifa, crédito, estorno), conciliação de cartão, repetir importação e edição de campos de uma linha importada.
+- **Funções ainda só na web:** limites por categoria no orçamento (preservados ao editar no telefone), fechar/reabrir mês, copiar plano, editar e pausar recorrências, itens de fatura (juros, tarifa, crédito, estorno), conciliação de cartão e repetir importação.
 - **Lembretes locais:** opcionais na issue, não implementados.
 - **Seletor de data nativo:** as datas são digitadas como `AAAA-MM-DD` e validadas pelo schema compartilhado.
 
