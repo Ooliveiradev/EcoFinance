@@ -19,10 +19,3 @@ export async function authorize(request: Request) {
   if (!session) return { response: Response.json({ error: 'SESSION_EXPIRED' }, { status: 401, headers: { 'Cache-Control': PRIVATE_CACHE } }) };
   return { userId: session.user.id };
 }
-export async function retiredEndpoint(request: Request) {
-  const access = await authorize(request);
-  if (access.response) return access.response;
-  return Response.json({ error: 'LEGACY_DISABLED', message: 'Este fluxo foi desativado. A substituição exige revisão e confirmação.' }, {
-    status: 410, headers: { 'Cache-Control': PRIVATE_CACHE },
-  });
-}

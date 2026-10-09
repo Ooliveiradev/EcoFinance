@@ -64,10 +64,7 @@ pnpm install
 # 4. Aplicar schema do banco
 pnpm db:push
 
-# 5. (Opcional) Popular com dados de demonstração
-curl -X POST http://localhost:3000/api/seed
-
-# 6. Rodar em modo desenvolvimento
+# 5. Rodar em modo desenvolvimento
 pnpm dev
 ```
 

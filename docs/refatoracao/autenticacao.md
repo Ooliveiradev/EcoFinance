@@ -44,7 +44,7 @@ Proxy Next valida a sessão antes de páginas/APIs. SSR de dashboard, contas e l
 
 Authorization presente remove Cookie antes da validação. Credencial inválida não herda uma identidade válida de cookie. Escritas com cookie exigem Origin exatamente igual a AUTH_URL; Origem opaca/hostil ou ausente é recusada. Bearer assinado permite clientes nativos sem Origin. A política CORS (allowlist exata com AUTH_URL, preflight e origens negadas) é uma camada separada, documentada em [cors.md](cors.md).
 
-Os endpoints antigos de seed, Pluggy, notificações, Uber, nearby, importação OFX e sessão global respondem 401 sem sessão e 410 após autenticação. Não leem uploads nem escrevem dados: limite de upload efetivo zero até o staging EF-08. O chat legado responde 503 após autorização e não envia mensagens/dados a terceiros; assistência opt-in pertence à EF-11.
+Os endpoints antigos de seed, Pluggy, notificações, Uber, nearby, importação OFX e sessão global foram removidos na #15 ([transicao.md](transicao.md)): respondem 401 sem sessão (proxy) e 404 com sessão, sem handler que leia o corpo ou grave dados. O chat legado responde 503 após autorização e não envia mensagens/dados a terceiros; assistência opt-in pertence à EF-11.
 
 Login aceita no máximo 16 KiB reais, contando UTF-8 e corpos chunked. Cinco tentativas por minuto compartilham um contador transacional no Firestore, inclusive entre processos/réplicas. Spoofing de X-Forwarded-For não altera o bucket. A instalação pessoal privilegia falhar fechado; o limite global pode reduzir disponibilidade para vários usuários. Ingress confiável pode acrescentar limites por IP. Não se registram corpo, endereço IP, senha, token ou informação financeira nos novos handlers. Eventos/auditoria de segurança completa seguem #39.
 

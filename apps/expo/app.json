@@ -22,13 +22,6 @@
       ]
     },
     "plugins": [
-      [
-        "expo-notifications",
-        {
-          "icon": null,
-          "color": "#10b981"
-        }
-      ],
       "expo-font",
       "expo-secure-store"
     ],

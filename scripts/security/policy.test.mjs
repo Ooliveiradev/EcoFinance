@@ -3,11 +3,16 @@ import assert from 'node:assert/strict';
 import { bundleFindings, sourceFindings, sarifFindings } from './policy.mjs';
 
 test('blocks public mobile secrets, private server env in client/shared modules, allows public endpoints', () => {
-  assert.equal(sourceFindings('apps/expo/src/api.ts', 'process.env.EXPO_PUBLIC_API_SECRET').length, 1);
+  assert.deepEqual(sourceFindings('apps/expo/src/api.ts', 'process.env.EXPO_PUBLIC_API_SECRET'), ['public credential EXPO_PUBLIC_API_SECRET', 'retired credential EXPO_PUBLIC_API_SECRET']);
   assert.equal(sourceFindings('apps/next/src/client.tsx', "'use client';\nprocess.env['GEMINI_API_KEY']").length, 1);
-  assert.equal(sourceFindings('packages/shared/src/api.ts', 'process.env.API_SECRET_KEY').length, 1);
+  assert.deepEqual(sourceFindings('packages/shared/src/api.ts', 'process.env.API_SECRET_KEY'), ['retired credential API_SECRET_KEY']);
   assert.deepEqual(sourceFindings('apps/expo/src/api.ts', 'process.env.EXPO_PUBLIC_API_URL'), []);
   assert.deepEqual(sourceFindings('apps/next/src/app/api/route.ts', 'process.env.GEMINI_API_KEY'), []);
+});
+test('retired integration credentials are blocked even in server routes', () => {
+  assert.deepEqual(sourceFindings('apps/next/src/app/api/pluggy/route.ts', "process.env['PLUGGY_CLIENT_SECRET']"), ['retired credential PLUGGY_CLIENT_SECRET']);
+  assert.deepEqual(sourceFindings('apps/next/src/app/api/route.ts', 'process.env.PLUGGY_CLIENT_ID'), ['retired credential PLUGGY_CLIENT_ID']);
+  assert.deepEqual(sourceFindings('apps/next/src/app/api/route.ts', 'process.env.API_SECRET_KEY_ROTATED'), []);
 });
 test('detects direct and encoded canaries without disclosing their values', () => {
   const canary = 'synthetic-value-with-32-characters';

@@ -5,7 +5,7 @@ import { serverCredentials } from './policy.mjs';
 const scope = process.argv[2];
 if (!['web', 'mobile'].includes(scope)) throw new Error('Expected web or mobile');
 const env = { ...process.env };
-for (const name of [...serverCredentials, 'EXPO_PUBLIC_API_SECRET']) {
+for (const name of serverCredentials) {
   // Synthetic canaries, never production credentials. Keep DATABASE_URL for disposable E2E DB.
   if (name !== 'DATABASE_URL') env[name] = `ecofinance_ci_${name}_${randomBytes(16).toString('hex')}`;
 }
