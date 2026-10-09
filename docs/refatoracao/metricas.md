@@ -1,4 +1,4 @@
-# Métricas e relatórios — EF-12 (parcial)
+# Métricas e relatórios — EF-12
 
 `Meu mês`, `/reports`, `GET /api/reports`, `GET /api/reports/export` e `GET /api/months/:month/summary` usam um único cálculo: `packages/shared/src/metrics.ts`. O pacote compartilhado não depende de Next nem de banco, então o Expo pode consumir a mesma API ou as mesmas funções.
 
@@ -23,12 +23,38 @@
 - A prévia de importação fica em itens de lote, não em lançamentos, e não entra nos números confirmados.
 - Falha de leitura, inclusive o limite de 10 mil registros, gera erro explícito: `Meu mês` não recebe nenhum número e a API responde 503. Período inválido ou acima de 12 meses → 400.
 
-## Pendências da issue
+## Integração com importações
 
-A integração com o fluxo completo de importação (#8/#9) só pode ser comprovada após esses PRs: "importar, corrigir ou desfazer um lote atualiza todos os componentes" e "prévia separada dos números confirmados" dependem do pipeline de lotes. Telas Expo de relatório ficam com #13; o contrato `/api/reports` já é compartilhado.
+Após a integração de #8/#9, a validação cobre upload, seleção, correção de valor,
+confirmação e desfazer do lote. Durante a revisão, inclusive depois de salvar uma
+correção, somente a prévia muda. Após confirmar, os valores corrigidos passam a
+compor os relatórios; linhas não selecionadas continuam fora. Desfazer restaura os
+totais anteriores, preservando os lançamentos manuais.
+
+O teste de navegador confere os cartões e tabelas de `/reports`, os valores exatos
+dos tooltips dos quatro gráficos acionados pelo teclado, o CSV baixado, o dashboard e
+o resumo mensal da API. Executa nas visões de competência e caixa em Chromium,
+WebKit e viewport móvel. A integração Firestore verifica também categorias e
+saldo consolidado. Os cenários de cartão, recorrência, transferência e falha de
+leitura permanecem cobertos pelo conjunto conhecido abaixo.
+
+O encerramento da #12 depende da integração deste incremento com CI completa
+aprovada. Paridade e execução nativa Android/iOS continuam sob #13; viewport
+móvel no navegador não comprova essas jornadas.
 
 ## Validação reproduzível
 
 - Domínio: `packages/shared/src/metrics.test.ts` usa um conjunto conhecido com transferências, cartão, parcelas, estorno, pagamento de fatura, recorrências, renda prevista, previstos, ruído arquivado/cancelado e meses vazios.
 - Firestore: `packages/db/tests/metrics.firebase.test.ts` cria o conjunto pelos serviços reais e confere competência/caixa, igualdade com planejamento e fatura, projeção, isolamento entre proprietários, CSV e propagação de falhas.
 - Navegador: `tests/e2e/reports.spec.ts` compara dashboard, `/reports`, resumo mensal e CSV no mesmo filtro, arquiva um lançamento e confere a atualização, recusa períodos inválidos e acesso anônimo.
+- Importações: `packages/db/tests/imports.firebase.test.ts` confere prévia corrigida sem efeitos financeiros, confirmação e desfazer em competência/caixa, categorias, CSV e saldo exato.
+- Jornada completa: `tests/e2e/import-reports.spec.ts` usa uma base manual com receita de R$ 100,00 e despesa de R$ 0,30. O lote recebe receita de R$ 20,00 e despesa corrigida de R$ 10,25 para R$ 12,50, mantendo R$ 777,00 não selecionados. Antes do commit os totais são R$ 100,00/R$ 0,30; depois, R$ 120,00/R$ 12,80; após desfazer, R$ 100,00/R$ 0,30.
+
+```sh
+pnpm exec vitest run --config vitest.firebase.config.ts packages/db/tests/metrics.firebase.test.ts packages/db/tests/imports.firebase.test.ts
+pnpm exec playwright test tests/e2e/reports.spec.ts tests/e2e/import-reports.spec.ts
+```
+
+Os comandos exigem o emulador Enterprise no projeto `demo-ecofinance`,
+`FIREBASE_PROJECT_ID=demo-ecofinance`, `FIRESTORE_DATABASE_ID=ecofinance` e
+`FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`; Playwright exige build web prévio.
