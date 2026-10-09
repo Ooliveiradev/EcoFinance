@@ -37,12 +37,12 @@ export function Field({ label, value, onChangeText, error, keyboardType, placeho
     {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
   </View>;
 }
-export function Choice<T extends string>({ label, options, value, onChange, error }: { label: string; options: readonly (readonly [T, string])[]; value: T | ''; onChange: (value: T) => void; error?: string }) {
+export function Choice<T extends string>({ label, options, value, onChange, error, disabled = false }: { label: string; options: readonly (readonly [T, string])[]; value: T | ''; onChange: (value: T) => void; error?: string; disabled?: boolean }) {
   return <View style={styles.field} accessibilityRole="radiogroup" accessibilityLabel={label}>
     <Text style={styles.label}>{label}</Text>
     <View style={styles.chips}>
-      {options.map(([option, text]) => <Pressable key={option} accessibilityRole="radio" accessibilityState={{ selected: option === value }} onPress={() => onChange(option)}
-        style={[styles.chip, option === value && styles.chipSelected]}>
+      {options.map(([option, text]) => <Pressable key={option} accessibilityRole="radio" accessibilityState={{ selected: option === value, disabled }} disabled={disabled} onPress={() => onChange(option)}
+        style={[styles.chip, option === value && styles.chipSelected, disabled && styles.dim]}>
         <Text style={styles.chipText}>{text}</Text>
       </Pressable>)}
     </View>

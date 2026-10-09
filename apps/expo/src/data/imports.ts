@@ -1,7 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { IMPORT_LIMITS, importReviewSchema, type ImportBatchView, type ImportRowView } from '@ecofinance/shared';
 import { apiRequest } from './api';
-import { fieldErrors } from './format';
+import { fieldErrors, parseMoneyInput } from './format';
 
 /** What the document picker returned; files are read by the native fetch from their local URI. */
 export interface PickedFile { uri: string; name: string; mimeType: string | null; size: number | null }
@@ -44,7 +44,29 @@ export type BatchAction = 'confirm' | 'undo' | 'cancel';
 export function batchAction(batch: ImportBatchView, action: BatchAction, key: string) {
   return apiRequest<unknown>({ method: 'POST', path: `/api/imports/${batch.id}/${action}`, body: action === 'cancel' ? {} : { confirmed: true }, key, ifMatch: batch.revision });
 }
-export type ReviewPatch = Partial<Pick<ImportRowView, 'categoryId' | 'selected' | 'resolution' | 'duplicateId'>>;
+export type ReviewPatch = Partial<Pick<ImportRowView, 'description' | 'amount' | 'purchaseDate' | 'competenceMonth' | 'categoryId' | 'selected' | 'resolution' | 'duplicateId'>>;
+export interface ReviewForm {
+  description: string; amount: string; purchaseDate: string; competenceMonth: string;
+  categoryId: string; selected: boolean; resolution: ImportRowView['resolution']; duplicateId: string | null;
+}
+export interface ReviewDraft { base: ImportRowView; form: ReviewForm; saved: boolean; errors: Record<string, string> }
+export function reviewForm(row: ImportRowView): ReviewForm {
+  return {
+    description: row.description ?? '', amount: row.amount?.replace('.', ',') ?? '', purchaseDate: row.purchaseDate ?? '',
+    competenceMonth: row.competenceMonth?.slice(0, 7) ?? '', categoryId: row.categoryId ?? '',
+    selected: row.selected, resolution: row.resolution, duplicateId: row.duplicateId,
+  };
+}
+/** A successful save stays pending until a fresh row version replaces the old preview. */
+export function pendingReview(draft: ReviewDraft | undefined, row: ImportRowView): ReviewDraft | undefined {
+  return draft && (!draft.saved || draft.base.revision === row.revision) ? draft : undefined;
+}
+export function reviewFormBody(row: ImportRowView, form: ReviewForm) {
+  const amount = parseMoneyInput(form.amount);
+  const result = reviewBody(row, { ...form, amount, competenceMonth: `${form.competenceMonth}-01`, selected: form.resolution !== 'exclude' && form.selected });
+  if (!amount) return { ok: false as const, errors: { ...(!result.ok ? result.errors : {}), amount: 'Informe um valor como -1.234,56.' } };
+  return result;
+}
 /** Builds the shared review payload for one row; invalid rows report why instead of being sent. */
 export function reviewBody(row: ImportRowView, patch: ReviewPatch) {
   const next = { ...row, ...patch };

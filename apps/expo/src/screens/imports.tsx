@@ -1,19 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import type { ImportBatchView, ImportRowView } from '@ecofinance/shared';
+import type { ImportBatchView } from '@ecofinance/shared';
 import { ApiError, toApiError } from '../data/api';
-import { money } from '../data/format';
 import { NO_NOTICE, type NoticeState } from '../data/outcome';
 import {
-  BATCH_STATE, batchAction, checkPicked, intentKey, processBatch, reviewBody, reviewItem, uploadImports, uploadSignature,
-  type BatchAction, type ImportTarget, type PickedFile, type ReviewPatch,
+  BATCH_STATE, checkPicked, intentKey, pendingReview, processBatch, uploadImports, uploadSignature,
+  type BatchAction, type ImportTarget, type PickedFile,
 } from '../data/imports';
 import { read } from '../data/resources';
 import { useStack, type StackProps } from '../navigation';
 import { useResource } from '../ui/data-context';
 import { Badge, Box, Button, Choice, ErrorState, ListItem, Loading, MoneyLine, Muted, Notice, Screen, SourceBanner, Title } from '../ui/kit';
 import { styles } from '../ui/theme';
+import { ReviewRow } from './import-review-row';
+import { useImportReview } from './use-import-review';
 
 function failure(raw: unknown): NoticeState {
   let error: ApiError;
@@ -84,25 +85,6 @@ export function ImportsScreen() {
   </Screen>;
 }
 
-function ReviewRow({ row, categories, editable, onReview }: { row: ImportRowView; categories: (readonly [string, string])[]; editable: boolean; onReview: (row: ImportRowView, patch: ReviewPatch) => void }) {
-  const duplicates = row.candidates.map(candidate => [candidate.id, `${candidate.description} · ${money(candidate.amount)} · ${candidate.purchaseDate}${candidate.exact ? ' (mesmo lançamento)' : ''}`] as const);
-  return <Box tone={row.state === 'invalid' ? 'danger' : undefined}>
-    <View style={styles.line}>
-      <Text style={styles.itemTitle}>{row.description ?? 'Sem descrição'}</Text>
-      <Text style={styles.itemRight}>{money(row.amount, 'sem valor')}</Text>
-    </View>
-    <Muted>Linha {row.position} · {row.purchaseDate ?? 'sem data'} · {row.state === 'valid' ? 'pronta' : row.state === 'invalid' ? 'inválida' : row.state}</Muted>
-    {row.provenance.excerpt ? <Muted>Origem: “{row.provenance.excerpt}”</Muted> : null}
-    {row.warnings.map(warning => <Badge key={warning} label={warning} />)}
-    {editable && row.state !== 'invalid' ? <>
-      <Choice label="Categoria" options={categories} value={row.categoryId ?? ''} onChange={categoryId => onReview(row, { categoryId, selected: row.resolution !== 'exclude' })} />
-      <Choice label="Ação" options={[['new', 'Criar'], ...(duplicates.length ? [['link', 'Vincular existente'] as const] : []), ['exclude', 'Excluir']] as const}
-        value={row.resolution} onChange={resolution => onReview(row, { resolution, selected: resolution !== 'exclude', duplicateId: resolution === 'link' ? row.duplicateId ?? duplicates[0]?.[0] ?? null : null })} />
-      {row.resolution === 'link' ? <Choice label="Lançamento existente" options={duplicates} value={row.duplicateId ?? ''} onChange={duplicateId => onReview(row, { duplicateId })} /> : null}
-    </> : null}
-  </Box>;
-}
-
 function BatchSummary({ view }: { view: ImportBatchView }) {
   const ready = view.rows.filter(row => row.selected && row.state === 'valid').length;
   return <Box>
@@ -118,48 +100,22 @@ function BatchSummary({ view }: { view: ImportBatchView }) {
   </Box>;
 }
 
-function BatchActions({ view, live, busy, onAction }: { view: ImportBatchView; live: boolean; busy: boolean; onAction: (action: BatchAction) => void }) {
+function BatchActions({ view, live, busy, dirty, onAction }: { view: ImportBatchView; live: boolean; busy: boolean; dirty: boolean; onAction: (action: BatchAction) => void }) {
   if (!live) return <Muted>Cópia salva: conecte-se para revisar ou confirmar este lote.</Muted>;
   const ready = view.rows.some(row => row.selected && row.state === 'valid');
   return <View style={{ gap: 8 }}>
-    {view.state === 'review' ? <Button label={busy ? 'Enviando…' : 'Confirmar importação'} disabled={busy || !ready} onPress={() => onAction('confirm')} /> : null}
-    {view.state === 'confirmed' ? <Button label="Desfazer importação" variant="danger" disabled={busy} onPress={() => onAction('undo')} /> : null}
-    {['received', 'review', 'failed'].includes(view.state) ? <Button label="Cancelar lote" variant="secondary" disabled={busy} onPress={() => onAction('cancel')} /> : null}
+    {dirty ? <Notice message="Há alterações pendentes. Salve ou descarte cada linha e atualize a prévia antes de continuar." tone="warning" /> : null}
+    {view.state === 'review' ? <Button label={busy ? 'Enviando…' : 'Confirmar importação'} disabled={busy || dirty || !ready} onPress={() => onAction('confirm')} /> : null}
+    {view.state === 'confirmed' ? <Button label="Desfazer importação" variant="danger" disabled={busy || dirty} onPress={() => onAction('undo')} /> : null}
+    {['received', 'review', 'failed'].includes(view.state) ? <Button label="Cancelar lote" variant="secondary" disabled={busy || dirty} onPress={() => onAction('cancel')} /> : null}
   </View>;
-}
-
-const DONE: Record<BatchAction, string> = { confirm: 'Importação confirmada. Os lançamentos já aparecem no mês.', undo: 'Importação desfeita.', cancel: 'Lote cancelado.' };
-/** Review and commit go straight to the server (never queued): each intent keeps one Idempotency-Key. */
-function useBatchActions(batchId: string, reload: () => void) {
-  const [notice, setNotice] = useState<NoticeState>(NO_NOTICE);
-  const [busy, setBusy] = useState(false);
-  // Only the row last reviewed can carry an error: the others are already saved on the server.
-  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
-  const keys = useRef(new Map<string, string>());
-  async function review(row: ImportRowView, patch: ReviewPatch) {
-    const built = reviewBody(row, patch);
-    if (!built.ok) { setRowError({ id: row.id, message: Object.values(built.errors)[0] ?? 'Revise a linha.' }); return; }
-    setRowError(null); setBusy(true);
-    try { await reviewItem(batchId, row, built.body, intentKey(keys.current, JSON.stringify(['review', row.id, row.revision, built.body]))); }
-    catch (raw) { setNotice(failure(raw)); }
-    finally { setBusy(false); reload(); }
-  }
-  async function act(view: ImportBatchView, action: BatchAction) {
-    setBusy(true);
-    try {
-      await batchAction(view, action, intentKey(keys.current, `${action}:${view.revision}`));
-      setNotice({ message: DONE[action], tone: 'ok' });
-    } catch (raw) { setNotice(failure(raw)); }
-    finally { setBusy(false); reload(); }
-  }
-  return { notice, busy, rowError, review, act };
 }
 
 export function ImportReviewScreen({ route, navigation }: StackProps<'ImportReview'>) {
   const { batchId } = route.params;
   const batch = useResource('import.' + batchId, () => read.importBatch(batchId));
   const refs = useResource('references', read.references);
-  const actions = useBatchActions(batchId, batch.reload);
+  const actions = useImportReview(batchId, batch.reload, failure);
   const view = batch.loaded?.data;
   useEffect(() => { if (view) navigation.setOptions({ title: view.filename }); }, [navigation, view]);
   const categories = (refs.loaded?.data.categories ?? []).filter(row => !row.archivedAt).map(row => [row.id, row.name] as const);
@@ -167,15 +123,15 @@ export function ImportReviewScreen({ route, navigation }: StackProps<'ImportRevi
   if (!batch.loaded || !view) return <Screen>{batch.error ? <ErrorState error={batch.error} onRetry={batch.reload} /> : null}</Screen>;
   // Review and commit need the live version: a cached batch is shown read-only.
   const live = batch.loaded.source === 'network';
-  const editable = live && view.state === 'review' && !actions.busy;
+  const editable = live && view.state === 'review';
   return <Screen refreshing={batch.refreshing} onRefresh={batch.reload}>
     <SourceBanner loaded={batch.loaded} />
     <BatchSummary view={view} />
     <Notice message={actions.notice.message} tone={actions.notice.tone} />
-    <BatchActions view={view} live={live} busy={actions.busy} onAction={action => void actions.act(view, action)} />
+    <BatchActions view={view} live={live} busy={actions.busy || batch.refreshing} dirty={actions.dirty(view)} onAction={action => void actions.act(view, action)} />
     {view.rows.map(row => <View key={row.id} style={{ gap: 4 }}>
-      <ReviewRow row={row} categories={categories} editable={editable} onReview={(item, patch) => void actions.review(item, patch)} />
-      {actions.rowError?.id === row.id ? <Text style={styles.error}>{actions.rowError.message}</Text> : null}
+      <ReviewRow row={row} draft={pendingReview(actions.drafts[row.id], row)} categories={categories} editable={editable} busy={actions.busy || batch.refreshing}
+        onChange={form => actions.change(row, form)} onSave={() => void actions.review(row)} onDiscard={() => actions.discard(row)} />
     </View>)}
   </Screen>;
 }

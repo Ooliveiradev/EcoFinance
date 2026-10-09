@@ -1,6 +1,6 @@
 # Revisão das issues em 09/10/2026
 
-Base: `origin/main` em `3317a81`, incluindo o PR #74. Encerradas: #1–#9, #14, #15, #29, #36, #38 e #47. #18 é agregadora.
+Base: `origin/main` em `7be3512`, incluindo o PR #80. Encerradas: #1–#9, #12, #14, #15, #29, #36, #38 e #47. #18 é agregadora.
 Entregas desta rodada: [importação unificada #8](importacoes.md) (PR #53), [métricas #12 parcial](metricas.md) (PR #52), [CORS #38](cors.md) (PR #54), [Expo #13 parcial](mobile.md) (PR #55), [formatos estruturados #9](formatos.md) (PR #56), [dados e backup #14](dados.md) (PR #57), segurança do repositório (PR #60) e [deploy Cloud Run](../deploy/cloud-run.md) (PR #61, infraestrutura GCP ainda não provisionada).
 
 Modelo/tela existente não equivale a um fluxo completo. A revisão abaixo registra
@@ -15,13 +15,13 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #9 | Concluída no PR #56: OFX/QFX SGML/XML, CSV/TSV com encodings e datas ambíguas, XLS/XLSX com aba e célula de origem, mapeamento assistido e corpus sintético; evidência em formatos.md |
 | #10 | PDF/OCR com evidência por item em andamento (sessão dedicada); a importação recusa PDF explicitamente até lá |
 | #11 | Chat externo desativado; faltam adapters e assistência opt-in/local |
-| #12 | [Serviço único de métricas](metricas.md) entregue no PR #52; este incremento acrescenta a jornada de revisão/correção/confirmação/desfazer com dashboard, gráficos, tabelas, API e CSV em competência/caixa. Encerramento condicionado à CI completa e integração do PR |
-| #13 | PR #55 entrega telas nativas, cache/rascunhos por usuário, replay idempotente e conflitos (mobile.md); validação iOS e jornadas restantes pendentes |
+| #12 | Concluída nos PRs #52 e #80, com serviço único e jornada de revisão/correção/confirmação/desfazer validada em dashboard, gráficos, tabelas, API e CSV em competência/caixa; CI completa aprovada |
+| #13 | PR #55 entrega telas nativas, cache/rascunhos por usuário, replay idempotente e conflitos; este incremento acrescenta correção de campos e linhas inválidas na importação, salvamento explícito e bloqueio de confirmação com rascunhos pendentes (mobile.md). Validação iOS e jornadas restantes pendentes |
 | #14 | Concluída no PR #57: CSV seguro, backup versionado do usuário, restauração com prévia/atomicidade, exclusão confirmada; evidência em dados.md |
 | #15 | Concluída no PR #74: Pluggy, Uber, mapa/GPS, captura antiga e ingestão global removidos; dados históricos preservados e cobertos por consulta, CSV, backup e restauração |
 | #16 | Gates e jornadas básicas existem; release/jornadas completas/mobile ainda pendentes |
 | #17 | README atualizado; faltam capturas reais dos fluxos finais entregues |
-| #18 | #1–#9, #14, #15 e #38 completas; #12 aguarda integração desta evidência; #13 parcial; demais critérios permanecem nas respectivas issues |
+| #18 | #1–#9, #12, #14, #15 e #38 completas; #13 parcial; demais critérios permanecem nas respectivas issues |
 | #19 | Captura automática desativada; faltam opt-in, staging, provas nativas e conector de email |
 | #28 | URLs/cookies seguros e exceções locais definidas; falta comprovar transporte/redirects da implantação |
 | #30 | MFA não implementado |
