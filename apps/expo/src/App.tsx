@@ -18,7 +18,6 @@ import { ReferencesScreen, ReferenceFormScreen } from './screens/references';
 import { ImportsScreen, ImportReviewScreen } from './screens/imports';
 import { PendingScreen } from './screens/pending';
 import { MoreScreen, SettingsScreen } from './screens/settings';
-import { disableLegacyCapture } from './services/notification-handler';
 import { backendFetch, clearSession, loadBackendConfig, onSessionExpired, SessionExpired } from './services/backend-config';
 import { toApiError } from './data/api';
 import { activeUserId, prepareUser, unsyncedCount } from './data/session';
@@ -76,7 +75,6 @@ function Main({ userId }: { userId: string }) {
 type Startup = { status: 'loading' } | { status: 'error' } | { status: 'ready'; onboarded: boolean; userId: string | null };
 
 async function checkStartup(): Promise<Startup> {
-  await disableLegacyCapture();
   const onboarded = await AsyncStorage.getItem(ONBOARDING_KEY) === 'done';
   const session = await loadBackendConfig();
   if (!session) return { status: 'ready', onboarded, userId: null };

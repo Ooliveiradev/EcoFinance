@@ -50,7 +50,7 @@ Consumidores reais:
 
 - **Web Next (navegador)**: páginas SSR e componentes cliente chamam `/api/...` com URL relativa, portanto na mesma origem (`fetch` em `finance-client.ts`, `card-client-utils.ts`, `planning/*`, `login/page.tsx`, `session-controls.tsx`, `settings-client.tsx`, `ai-client.tsx`).
 - **Expo nativo (Android/iOS)**: não é navegador. Não há `react-native-web` nem alvo web no [app.json](../../apps/expo/app.json). Usa `Authorization: Bearer <token assinado>`, `credentials: 'omit'` e `redirect: 'error'` ([backend-config.ts](../../apps/expo/src/services/backend-config.ts)). Não envia Origin e não depende de CORS.
-- **Máquina a máquina**: o Apps Script [`gas/uber-parser.js`](../../gas/uber-parser.js) chamava `/api/transactions/uber-webhook` com a chave global. A chave foi removida na #3 e o endpoint está desativado (410). Não há webhooks ativos.
+- **Máquina a máquina**: o Apps Script `gas/uber-parser.js` chamava `/api/transactions/uber-webhook` com a chave global. A chave foi removida na #3; o script e o endpoint, na #15 ([transicao.md](transicao.md)). Não há webhooks ativos.
 
 | Rota | Métodos | Web (mesma origem) | Expo (Bearer) | Cross-origin |
 | --- | --- | --- | --- | --- |
@@ -68,7 +68,7 @@ Consumidores reais:
 | `/api/planning/[month]`, `/api/planning/[month]/[action]`, `/api/planning/copy-preview` | GET, PUT, POST | sim | não | negado |
 | `/api/sessions` | GET, DELETE | sim | aceita Bearer (coberto no e2e); sem tela hoje | negado |
 | `/api/chat` | POST | sim (503 após autorização) | sim (503 após autorização) | negado |
-| `/api/session`, `/api/seed`, `/api/pluggy/{token,sync,webhook}`, `/api/transactions/{notification,import-ofx,uber-webhook,nearby}` | conforme rota | desativadas: 401 sem sessão, 410 com sessão | Expo ainda chama `pluggy/token` e `pluggy/sync` e recebe 410 | negado |
+| `/api/session`, `/api/seed`, `/api/pluggy/{token,sync,webhook}`, `/api/transactions/{notification,import-ofx,uber-webhook,nearby}` | — | removidas na #15: 401 sem sessão, 404 com sessão | não chama | negado |
 | Páginas (`/`, `/accounts`, `/cards`, `/planning`, `/imports`, `/settings`, ...) | GET (+ POST de server action, se houver) | sim | não | negado; nunca recurso CORS |
 
 Rotas de importação que a #8 vier a criar sob `/api/` herdam a mesma política sem alteração. Se um novo header de requisição for necessário (por exemplo, em upload), ele precisa entrar explicitamente em `CORS_REQUEST_HEADERS`, com teste.

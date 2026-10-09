@@ -156,13 +156,29 @@ test('login limit is enforced and public signup is disabled',async({request})=>{
   expect(limited.status()).toBe(429); expect(limited.headers()['retry-after']).toBe('60');
   expect((await request.post('/api/auth/sign-up/email',{data:{}})).status()).toBe(404);
 });
-for(const path of ['/api/session','/api/seed','/api/pluggy/sync','/api/pluggy/webhook','/api/transactions/notification','/api/transactions/uber-webhook']) {
-  test(`retires ${path} and rejects the former global key`,async({request})=>{
+// Legacy ingestion was removed in #15 (docs/refatoracao/transicao.md): no handler is left to write.
+for(const path of ['/api/session','/api/seed','/api/pluggy/sync','/api/pluggy/token','/api/pluggy/webhook','/api/transactions/notification','/api/transactions/uber-webhook','/api/transactions/nearby','/api/transactions/import-ofx']) {
+  test(`removed ${path} rejects the former global key and has no handler`,async({request})=>{
     expect((await request.post(path,{headers:{'x-api-secret-key':'ci'.repeat(32)},data:{}})).status()).toBe(401);
     await authenticate(request);
-    expect((await request.post(path,{headers:{origin:'http://127.0.0.1:3000'},data:{}})).status()).toBe(410);
+    expect((await request.post(path,{headers:{origin:'http://127.0.0.1:3000'},data:{}})).status()).toBe(404);
+    expect((await request.get(path)).status()).toBe(404);
   });
 }
+test('main pages never ask for location or notification permission and the map is gone',async({page})=>{
+  await page.addInitScript(()=>{
+    const calls:string[]=[]; Object.defineProperty(window,'__permissionCalls',{value:calls});
+    if(navigator.geolocation) for(const name of ['getCurrentPosition','watchPosition'] as const) navigator.geolocation[name]=(()=>{calls.push(name);return 0;}) as never;
+    if('Notification' in window) Notification.requestPermission=(()=>{calls.push('notification');return Promise.resolve('denied');}) as never;
+  });
+  await authenticate(page.request);
+  for(const path of ['/','/accounts','/transactions','/planning','/cards','/imports','/settings']) {
+    await page.goto(path); await expect(page.getByRole('main')).toBeVisible();
+  }
+  await expect(page.getByText('Permissões do Dispositivo')).toHaveCount(0);
+  expect(await page.evaluate(()=>(window as unknown as {__permissionCalls:string[]}).__permissionCalls)).toEqual([]);
+  expect((await page.goto('/map'))?.status()).toBe(404);
+});
 test('health exposes no private data and every other private API fails closed',async({request,page})=>{
   expect((await request.get('/api/health')).status()).toBe(200);
   for(const path of ['/api/accounts','/api/cards','/api/categories','/api/months/2026-10/summary','/api/entries','/api/sessions','/api/pluggy/token','/api/transactions/nearby']) expect((await request.get(path)).status()).toBe(401);

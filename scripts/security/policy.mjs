@@ -1,7 +1,10 @@
 export const serverCredentials = [
-  'GOOGLE_APPLICATION_CREDENTIALS', 'DATABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'PLUGGY_CLIENT_ID',
-  'PLUGGY_CLIENT_SECRET', 'GEMINI_API_KEY', 'API_SECRET_KEY', 'AUTH_SECRET',
+  'GOOGLE_APPLICATION_CREDENTIALS', 'DATABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GEMINI_API_KEY', 'AUTH_SECRET',
 ];
+// Credentials of the integrations retired in #15 (Pluggy, the global key and the
+// mobile shared secret). No module, server or client, may read them again.
+export const retiredCredentials = ['PLUGGY_CLIENT_ID', 'PLUGGY_CLIENT_SECRET', 'API_SECRET_KEY', 'EXPO_PUBLIC_API_SECRET'];
+const envRead = name => new RegExp(`\\bprocess\\.env(?:\\.${name}\\b|\\[['"]${name}['"]\\])`);
 
 export function sourceFindings(path, content) {
   const findings = [];
@@ -9,10 +12,13 @@ export function sourceFindings(path, content) {
   for (const name of new Set(content.match(publicCredential) ?? [])) {
     findings.push(`public credential ${name}`);
   }
+  for (const name of retiredCredentials) {
+    if (envRead(name).test(content)) findings.push(`retired credential ${name}`);
+  }
   const client = path.startsWith('apps/expo/') || path.startsWith('packages/shared/') || /^\s*['"]use client['"]/m.test(content);
   if (client) {
     for (const name of serverCredentials) {
-      if (new RegExp(`\\bprocess\\.env(?:\\.${name}\\b|\\[['"]${name}['"]\\])`).test(content)) {
+      if (envRead(name).test(content)) {
         findings.push(`server credential ${name} read by client/shared module`);
       }
     }
@@ -22,7 +28,7 @@ export function sourceFindings(path, content) {
 
 export function bundleFindings(content, env) {
   const findings = [];
-  for (const name of [...serverCredentials, 'EXPO_PUBLIC_API_SECRET']) {
+  for (const name of serverCredentials) {
     const value = env[name];
     if (!value || value.length < 12) continue;
     const variants = [value, encodeURIComponent(value), Buffer.from(value).toString('base64')];

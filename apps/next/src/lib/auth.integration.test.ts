@@ -102,14 +102,14 @@ describe('real Firestore authentication and ownership', () => {
     expect(await sessions.requestSession(new Request(origin,{headers:{authorization:'Bearer '+first}}))).toBeNull();
     expect((await sessions.requestSession(new Request(origin,{headers:{authorization:'Bearer '+second}})))?.user.id).toBe(ownerA);
   });
-  it('rejects expired sessions, global credentials and anonymous retired uploads before reading the body', async () => {
+  it('rejects expired sessions and the former global credential', async () => {
     const token = (await login()).headers.get('set-auth-token')!;
     for (const session of await data.db.query('authSessions')) await data.db.put('authSessions',{...session,expiresAt:new Date(Date.now()-1000)});
     expect(await sessions.requestSession(new Request(origin,{headers:{authorization:'Bearer '+token}}))).toBeNull();
-    expect((await sessions.retiredEndpoint(new Request(origin,{headers:{'x-api-secret-key':'synthetic'}}))).status).toBe(401);
-    expect((await sessions.retiredEndpoint(new Request(origin))).status).toBe(401);
+    expect((await sessions.authorize(new Request(origin,{headers:{'x-api-secret-key':'synthetic'}}))).response?.status).toBe(401);
+    expect((await sessions.authorize(new Request(origin))).response?.status).toBe(401);
     const active = (await login()).headers.get('set-auth-token')!;
-    expect((await sessions.retiredEndpoint(new Request(origin,{method:'POST',headers:{authorization:'Bearer '+active},body:'unparsed upload'}))).status).toBe(410);
+    expect(await sessions.authorize(new Request(origin,{method:'POST',headers:{authorization:'Bearer '+active}}))).toEqual({userId:ownerA});
   });
   it('disables public signup and bounds actual auth body bytes including chunked requests', async () => {
     expect((await gateway.POST(authRequest('/sign-up/email',{email:'evil@example.test',password,name:'evil'}))).status).toBe(404);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Sun,
   Moon,
@@ -13,11 +13,8 @@ import {
   CheckCircle2,
   XCircle,
   Server,
-  Bell,
-  MapPin,
   Tag,
   LayoutDashboard,
-  Shield,
   RefreshCw,
 } from 'lucide-react';
 import {
@@ -52,47 +49,6 @@ function useSettingsState() {
     timestamp?: string;
     errorMsg?: string;
   } | null>(null);
-
-  // Browser permissions state
-  const [notificationPermission, setNotificationPermission] = useState<string>('default');
-  const [locationPermission, setLocationPermission] = useState<string>('prompt');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission);
-    }
-    if (typeof navigator !== 'undefined' && navigator.permissions) {
-      navigator.permissions
-        .query({ name: 'geolocation' as PermissionName })
-        .then((perm) => {
-          setLocationPermission(perm.state);
-          perm.onchange = () => setLocationPermission(perm.state);
-        })
-        .catch(() => {
-          // Permissions API might not support geolocation in some browsers
-        });
-    }
-  }, []);
-
-  const handleRequestNotification = async () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      try {
-        const result = await Notification.requestPermission();
-        setNotificationPermission(result);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-  };
-
-  const handleRequestLocation = () => {
-    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        () => setLocationPermission('granted'),
-        () => setLocationPermission('denied'),
-      );
-    }
-  };
 
   const handleTestConnection = async () => {
     setConnectionStatus('testing');
@@ -134,7 +90,7 @@ function useSettingsState() {
     { id: 'dark', label: 'Escuro', icon: Moon },
   ];
 
-  return { preferences, resolvedTheme, setTheme, setFavoriteCategory, toggleCardVisibility, moveCard, resetPreferences, connectionStatus, connectionDetails, notificationPermission, locationPermission, handleRequestNotification, handleRequestLocation, handleTestConnection, themeOptions };
+  return { preferences, resolvedTheme, setTheme, setFavoriteCategory, toggleCardVisibility, moveCard, resetPreferences, connectionStatus, connectionDetails, handleTestConnection, themeOptions };
 }
 
 export function SettingsClient() {
@@ -158,8 +114,6 @@ export function SettingsClient() {
       <FavoriteCategorySettings state={state} />
 
       <BackendDiagnostics state={state} />
-
-      <DevicePermissions state={state} />
     </div>
   );
 }
@@ -439,90 +393,6 @@ function BackendDiagnostics({ state }: {state: ReturnType<typeof useSettingsStat
             )}
           </CardContent>
         </Card>
-      </section>
-  );
-}
-
-function DevicePermissions({ state }: {state: ReturnType<typeof useSettingsState>}) {
-  const { notificationPermission, locationPermission, handleRequestNotification, handleRequestLocation } = state;
-  return (
-      <section aria-labelledby="permissions-heading" className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-primary" />
-          <h2 id="permissions-heading" className="text-lg font-bold text-foreground">
-            Permissões do Dispositivo
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Notifications */}
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <Bell className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold text-foreground">Notificações</h3>
-                  <p className="text-xs text-muted mt-1 mb-3 leading-relaxed">
-                    Alertas de novos lançamentos e lembretes de vencimento de contas.
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted">Status:</span>
-                    {notificationPermission === 'granted' ? (
-                      <Badge variant="outline" className="bg-success-soft text-success border-success/30">
-                        Concedido ✓
-                      </Badge>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRequestNotification}
-                        className="h-8 text-xs touch-target"
-                      >
-                        Solicitar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Location */}
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-info-soft text-info flex items-center justify-center shrink-0">
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold text-foreground">Localização</h3>
-                  <p className="text-xs text-muted mt-1 mb-3 leading-relaxed">
-                    Associação de estabelecimentos e locais aos gastos no mapa.
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted">Status:</span>
-                    {locationPermission === 'granted' ? (
-                      <Badge variant="outline" className="bg-success-soft text-success border-success/30">
-                        Concedido ✓
-                      </Badge>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRequestLocation}
-                        className="h-8 text-xs touch-target"
-                      >
-                        Solicitar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </section>
   );
 }

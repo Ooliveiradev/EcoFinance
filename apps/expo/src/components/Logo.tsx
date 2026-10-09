@@ -104,11 +104,11 @@ export function Logo({ size = 120, animate = false }: LogoProps) {
             strokeLinejoin="round"
           />
 
-          {/* GPS node glow */}
+          {/* Pin node glow */}
           <Circle cx="240" cy="260" r="22" fill="#10B981" opacity="0.45" />
-          {/* GPS node white ring */}
+          {/* Pin node white ring */}
           <Circle cx="240" cy="260" r="18" fill="#FFFFFF" />
-          {/* GPS node inner */}
+          {/* Pin node inner */}
           <Circle cx="240" cy="260" r="10" fill="#34D399" />
         </G>
       </Svg>

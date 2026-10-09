@@ -10,7 +10,7 @@ O app Expo (`apps/expo`) passa a ser um cliente de gestão completo. Ele consome
 - prévia de parcelas com `installmentPlan`, limites de upload com `IMPORT_LIMITS`, navegação mensal com `shiftMonth`/`monthLabel`/`currentMonthParam`/`civilToday`, formatação com `formatCents`;
 - todos os totais (mês, projeção, categorias, planejamento, fatura, prévia de importação) chegam calculados pelo servidor, com as mesmas funções puras que a web usa. O telefone só exibe.
 
-Captura de notificações bancárias, localização (GPS) e conexão Pluggy foram **removidas** do app: telas `home`/`accounts`/`ai`, `location-service`, plugin de notification listener e as dependências `expo-location`, `react-native-pluggy-connect`, `react-native-webview` e `expo-intent-launcher`. As permissões de localização saíram do `AndroidManifest.xml` e ficaram bloqueadas em `app.json` (`android.blockedPermissions`). A tarefa legada de notificação continua só para ser desregistrada em instalações antigas (`disableLegacyCapture`).
+Captura de notificações bancárias, localização (GPS) e conexão Pluggy foram **removidas** do app: telas `home`/`accounts`/`ai`, `location-service`, plugin de notification listener e as dependências `expo-location`, `react-native-pluggy-connect`, `react-native-webview` e `expo-intent-launcher`. As permissões de localização saíram do `AndroidManifest.xml` e ficaram bloqueadas em `app.json` (`android.blockedPermissions`). Na #15 saíram também a tarefa legada de notificação (`disableLegacyCapture`), `expo-notifications` e `expo-task-manager`: sem esses módulos nativos, nenhum registro antigo consegue executar JavaScript em segundo plano ([transicao.md](transicao.md)).
 
 ## Jornadas cobertas
 

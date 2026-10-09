@@ -34,6 +34,8 @@ export const competenceSchema = civilDateSchema.refine(value => value.endsWith('
 export const currencySchema = z.literal('BRL');
 export const entryKindSchema = z.enum(['income', 'expense', 'transfer', 'refund', 'adjustment', 'unclassified']);
 export const entryStatusSchema = z.enum(['planned', 'recorded', 'settled', 'cancelled']);
+// notification, pluggy and uber are historical origins (retired in #15): no current
+// flow writes them, but old entries keep them for reading, export and restore.
 export const financialSourceSchema = z.enum(['manual', 'ofx', 'csv', 'spreadsheet', 'document', 'notification', 'email', 'pluggy', 'uber']);
 
 const ownership = { ownerId: z.string().uuid() };
