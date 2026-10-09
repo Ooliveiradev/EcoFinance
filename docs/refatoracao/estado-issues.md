@@ -1,8 +1,7 @@
-# Revisão das issues em 07/10/2026
+# Revisão das issues em 08/10/2026
 
-Base: `origin/main` em `7809164`, PRs #48/#49/#50/#51 integrados e #47/#5/#6/#7 encerradas.
-#1, #2, #3, #4, #29 e #36 já estavam encerradas. #18 é agregadora.
-A entrega de #6 está no [PR #50](https://github.com/Ooliveiradev/EcoFinance/pull/50), com CI completa aprovada. Cartões e faturas #7 foram integrados no [PR #51](https://github.com/Ooliveiradev/EcoFinance/pull/51), com CI completa aprovada. Este incremento entrega [importação unificada #8](importacoes.md).
+Base: `origin/main` após os PRs #52–#58, #60 e #61. Encerradas: #1–#9, #14, #29, #36, #38 e #47. #18 é agregadora.
+Entregas desta rodada: [importação unificada #8](importacoes.md) (PR #53), [métricas #12 parcial](metricas.md) (PR #52), [CORS #38](cors.md) (PR #54), [Expo #13 parcial](mobile.md) (PR #55), [formatos estruturados #9](formatos.md) (PR #56), [dados e backup #14](dados.md) (PR #57), segurança do repositório (PR #60) e [deploy Cloud Run](../deploy/cloud-run.md) (PR #61, infraestrutura GCP ainda não provisionada).
 
 Modelo/tela existente não equivale a um fluxo completo. A revisão abaixo registra
 as lacunas que impedem novos fechamentos; não certifica a implantação em produção.
@@ -12,17 +11,17 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #5 | Concluída no PR #49, com CRUD, transferências, exclusão reversível e CI completa |
 | #6 | Recorrências versionadas, geração/pagamento/adiar/pausar, orçamento/cópia revisada, conciliação e meses fechados entregues no PR #50; evidências em planejamento.md e no PR |
 | #7 | Cadastro de cartões, faturas/parcelas confirmadas, pagamento separado do gasto, estornos/encargos/créditos/saldo anterior, divergência e conciliação auditável implementados; entregues no PR #51 com CI completa aprovada |
-| #8 | Upload múltiplo, registro extensível/detecção, staging/revisão/prévia, confirmação atômica/idempotente, duplicidades, cancelamento/repetição/desfazer protegido implementados; evidência em importacoes.md e integração condicionada ao gate completo do PR |
-| #9 | Parser OFX e testes existem; faltam corpus/diagnóstico e suporte completo CSV/TSV/XLS/XLSX/QFX |
-| #10 | Não há pipeline PDF/OCR com evidência por item |
+| #8 | Concluída no PR #53: upload múltiplo, detecção extensível, staging/revisão/prévia, confirmação atômica/idempotente, duplicidades e desfazer protegido; evidência em importacoes.md |
+| #9 | Concluída no PR #56: OFX/QFX SGML/XML, CSV/TSV com encodings e datas ambíguas, XLS/XLSX com aba e célula de origem, mapeamento assistido e corpus sintético; evidência em formatos.md |
+| #10 | PDF/OCR com evidência por item em andamento (sessão dedicada); a importação recusa PDF explicitamente até lá |
 | #11 | Chat externo desativado; faltam adapters e assistência opt-in/local |
-| #12 | [Serviço único de métricas](metricas.md): competência/caixa, categorias, evolução, previsto×realizado, fixos×variáveis, disponibilidade projetada com fórmula, `/reports` e CSV coincidentes, erro real sem zeros; critérios ligados a lotes de importação aguardam #8/#9 |
-| #13 | Expo possui login seguro; telas financeiras demonstrativas não comprovam paridade |
-| #14 | CI ensaia dump/restore operacional; exportação/restore do produto e controle dos dados incompletos |
-| #15 | Ingestão antiga desativada; SDKs/código/permissões legados e substitutos ainda pendentes |
+| #12 | [Serviço único de métricas](metricas.md) entregue no PR #52; comprovação após importar/corrigir/desfazer lote e prévia separada em andamento |
+| #13 | PR #55 entrega telas nativas, cache/rascunhos por usuário, replay idempotente e conflitos (mobile.md); validação iOS e jornadas restantes pendentes |
+| #14 | Concluída no PR #57: CSV seguro, backup versionado do usuário, restauração com prévia/atomicidade, exclusão confirmada; evidência em dados.md |
+| #15 | Remoção de Pluggy, Uber, mapa/GPS e captura antiga em andamento (sessão dedicada); dados históricos preservados pelo backup da #14 |
 | #16 | Gates e jornadas básicas existem; release/jornadas completas/mobile ainda pendentes |
 | #17 | README atualizado; faltam capturas reais dos fluxos finais entregues |
-| #18 | #1–#7 completas; importação #8 neste incremento e demais critérios permanecem nas respectivas issues |
+| #18 | #1–#9, #14 e #38 completas; #12/#13 parciais; demais critérios permanecem nas respectivas issues |
 | #19 | Captura automática desativada; faltam opt-in, staging, provas nativas e conector de email |
 | #28 | URLs/cookies seguros e exceções locais definidas; falta comprovar transporte/redirects da implantação |
 | #30 | MFA não implementado |
@@ -32,7 +31,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #34 | Consultas parametrizadas existem; falta matriz explícita de entradas hostis e inventário de SQL indireto |
 | #35 | Migrations/backup existentes; falta runbook de rollback de código/configuração/dados e ensaio completo |
 | #37 | Segredos server-only e scanners existentes; faltam rotação/revogação e evidência operacional |
-| #38 | Allowlist CORS exata (somente AUTH_URL), preflight e origem negada antes da autenticação, inventário de rotas e consumidores máquina a máquina em [cors.md](cors.md); testes unitários e E2E no PR da #38 |
+| #38 | Concluída no PR #54: allowlist CORS exata (somente AUTH_URL), preflight e origem negada antes da autenticação, inventário em cors.md |
 | #39 | Logs de auth desativados para evitar vazamentos; trilha de eventos/retencão/correlação não entregue |
 | #40 | SecureStore e hashes não comprovam criptografia de volumes, arquivos e backups |
 | #41 | Lockfile, patches, auditoria, Dependabot e Actions fixas existem; política de prazos/exceções e inventário formal incompletos |
@@ -41,4 +40,4 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #44 | Restauração sintética existe; RPO/RTO, responsáveis e runbook de incidente completos ainda pendentes |
 | #47 | Concluída no PR #48, com Firestore Enterprise em São Paulo, runtime/autenticação, regras, backup/reversão e CI incluindo Android nativo |
 
-A [CI do PR #48](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37478780725) passou em todos os grupos. A auditoria preservou abertas as issues com lacunas reais; #47 foi encerrada após a integração. A [CI do PR #49](https://github.com/Ooliveiradev/EcoFinance/actions/runs/37547524052) também passou; #5 foi encerrada após a integração. O encerramento de #6 também exige sua própria CI completa. #18 permanece aberta acompanhando as demais entregas. Nenhuma implantação do site em hospedagem externa foi comprovada nesta revisão.
+As issues só são encerradas após a CI completa do PR correspondente. O site ainda não está publicado: o workflow de deploy falha de propósito até o GCP ser provisionado conforme `docs/deploy/cloud-run.md`.
