@@ -50,7 +50,8 @@ conteúdo executável ou entidade XML é expandido.
   célula, estão descritos em [formatos.md](formatos.md) (#9).
 - Arquivos vazios, truncados, binários, codificação inválida, colunas ambíguas,
   moeda incompatível e limites excedidos retornam diagnóstico acionável.
-- PDF orienta exportar outro formato; interpretação PDF/OCR é #10. Não há promessa
+- PDF digital/escaneado e fotos PNG/JPEG/WebP passam pelo leitor de documentos com
+  OCR local e evidência por página e região, descrito em [documentos.md](documentos.md) (#10). Não há promessa
   de suporte universal.
 
 Limites: dez arquivos por upload, 256 KiB e sessenta linhas por arquivo, seis
