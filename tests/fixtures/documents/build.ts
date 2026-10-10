@@ -12,7 +12,8 @@ import { PDFDocument, StandardFonts, degrees, type PDFFont, type PDFPage } from 
 export interface Cell { text: string; x: number; right?: boolean }
 export type Row = Cell[] | string;
 export interface PageSpec { rows: Row[]; width?: number; height?: number; size?: number; rotate?: 0 | 90 }
-const require = createRequire(import.meta.url);
+// Vitest loads this as ESM and Playwright as CommonJS; both run from the repository root.
+const require = createRequire(path.join(process.cwd(), 'package.json'));
 const pdfjsRoot = path.dirname(require.resolve('pdfjs-dist/package.json'));
 const pdfjs = () => import(pathToFileURL(path.join(pdfjsRoot, 'legacy/build/pdf.mjs')).href);
 const canvas = () => import(pathToFileURL(require.resolve('@napi-rs/canvas')).href);

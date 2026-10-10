@@ -26,12 +26,12 @@ async function upload(page: Page, target: string, files: { name: string; mimeTyp
 }
 test('reads a digital invoice, a receipt photo and a protected PDF with explicit review', async ({ page }, info) => {
   await login(page.request); const run = info.project.name + '-' + Date.now(), target = 'card:' + await card(page.request, 'Documentos ' + run);
-  const password = 'senha-' + run;
+  const pdfKey = 'senha-' + run;
   const names = { invoice: `fatura-${run}.pdf`, receipt: `comprovante-${run}.png`, locked: `protegida-${run}.pdf` };
   await upload(page, target, [
     { name: names.invoice, mimeType: 'application/pdf', buffer: Buffer.from(await textPdf(invoicePages)) },
     { name: names.receipt, mimeType: 'image/png', buffer: Buffer.from(await picture(receiptPage, 'png')) },
-    { name: names.locked, mimeType: 'application/pdf', buffer: Buffer.from(protectedPdf(['FATURA DO CARTAO', 'Vencimento 10/10/2026', 'Data Descricao Valor', '12/09 MERCADO EXEMPLO 45,90'], password)) },
+    { name: names.locked, mimeType: 'application/pdf', buffer: Buffer.from(protectedPdf(['FATURA DO CARTAO', 'Vencimento 10/10/2026', 'Data Descricao Valor', '12/09 MERCADO EXEMPLO 45,90'], pdfKey)) },
   ]);
   const batch = (name: string) => page.getByRole('article', { name: 'Lote ' + name, exact: true });
   await expect(batch(names.invoice)).toContainText('PDF digital · fatura de cartão · Em revisão');
@@ -46,11 +46,11 @@ test('reads a digital invoice, a receipt photo and a protected PDF with explicit
   await locked.getByLabel('Senha do PDF ' + names.locked, { exact: true }).fill('errada');
   await locked.getByRole('button', { name: 'Analisar com a senha', exact: true }).click();
   await expect(locked.getByRole('alert')).toContainText('Senha do PDF incorreta');
-  await locked.getByLabel('Senha do PDF ' + names.locked, { exact: true }).fill(password);
+  await locked.getByLabel('Senha do PDF ' + names.locked, { exact: true }).fill(pdfKey);
   await locked.getByRole('button', { name: 'Analisar com a senha', exact: true }).click();
   await expect(locked).toContainText('PDF digital · fatura de cartão · Em revisão');
   await expect(locked).toContainText('MERCADO EXEMPLO');
   // Nothing about the password is kept in the batch the browser can read back.
-  const listed = await page.request.get('/api/imports'); expect(await listed.text()).not.toContain(password);
+  const listed = await page.request.get('/api/imports'); expect(await listed.text()).not.toContain(pdfKey);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

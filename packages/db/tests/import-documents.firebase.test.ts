@@ -50,18 +50,18 @@ it('warns when a receipt or invoice is sent to an unexpected target, without cha
   expect(await db.owned('transactions', owner)).toHaveLength(0);
 }, 60_000);
 it('asks for a PDF password per analysis and never stores it', async () => {
-  const password = 'segredo-' + randomBytes(4).toString('hex');
-  const staged = await stage('protegido.pdf', 'application/pdf', protectedPdf(['FATURA DO CARTAO', 'Vencimento 10/10/2026', 'Data Descricao Valor', '12/09 MERCADO EXEMPLO 45,90'], password), { accountId: null, cardId: card });
+  const pdfKey = 'segredo-' + randomBytes(4).toString('hex');
+  const staged = await stage('protegido.pdf', 'application/pdf', protectedPdf(['FATURA DO CARTAO', 'Vencimento 10/10/2026', 'Data Descricao Valor', '12/09 MERCADO EXEMPLO 45,90'], pdfKey), { accountId: null, cardId: card });
   const locked = await processImport(db, owner, staged.id, staged.revision);
   expect(locked).toMatchObject({ state: 'failed', errorCode: 'PASSWORD_REQUIRED', format: 'PDF' });
   const wrong = await processImport(db, owner, staged.id, locked.revision, { password: 'errada' });
   expect(wrong).toMatchObject({ state: 'failed', errorCode: 'PASSWORD_INVALID' });
   await expect(processImport(db, owner, staged.id, wrong.revision, { password: '', extra: 1 })).rejects.toThrow();
-  const open = await processImport(db, owner, staged.id, wrong.revision, { password });
+  const open = await processImport(db, owner, staged.id, wrong.revision, { password: pdfKey });
   expect(open).toMatchObject({ state: 'review', errorCode: null });
   expect(open.rows.map(row => row.amount)).toEqual(['-45.90']);
   const stored = JSON.stringify([await db.get('importBatches', staged.id), await db.owned('importItems', owner), await db.owned('operations', owner)]);
-  expect(stored).not.toContain(password);
+  expect(stored).not.toContain(pdfKey);
 }, 60_000);
 it('records page progress without changing the revision and stops OCR when cancelled', async () => {
   const staged = await stage('escaneada.pdf', 'application/pdf', await scannedPdf([scannedInvoicePage, scannedInvoicePage, scannedInvoicePage]), { accountId: null, cardId: card });
