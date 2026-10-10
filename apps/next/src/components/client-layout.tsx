@@ -19,7 +19,7 @@ import {
   Laptop,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { usePreferences } from '@/lib/preferences-context';
+import { usePreferences, useResolvedTheme } from '@/lib/preferences-context';
 import { Button } from '@/components/ui/button';
 import { AddExpenseModal } from '@/components/add-expense-modal';
 import { loadEntryReferences } from '@/lib/finance-client';
@@ -48,7 +48,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  const { preferences, setTheme, resolvedTheme } = usePreferences();
+  const { preferences, setTheme } = usePreferences();
+  const resolvedTheme = useResolvedTheme();
   const quickRequest=useRef<AbortController|null>(null);
   const [quickData,setQuickData]=useState<{accounts:EntryReference[];categories:EntryReference[]}|null>(null),[quickError,setQuickError]=useState('');
   function closeQuickExpense() {quickRequest.current?.abort();setIsAddExpenseOpen(false);}

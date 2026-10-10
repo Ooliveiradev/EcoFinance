@@ -2,6 +2,7 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Download, RefreshCw, Inbox } from 'lucide-react';
 import { formatCents, moneyToCents, monthLabel, type MetricsQuery, type MetricsReport, type MonthProjection } from '@ecofinance/shared';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { buttonVariants } from '@/components/ui/button-variants';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { PendingImportsNotice } from '@/components/pending-imports-notice';
 import type { ChartPoint, ChartSeries } from './reports-chart';
 
 const ReportsChart = dynamic(() => import('./reports-chart'), {
@@ -31,7 +33,7 @@ const EXPENSES = { competence: 'Despesas', cash: 'Saídas' } as const;
 
 export interface ReportsClientProps {
   query: MetricsQuery;
-  data: { report: MetricsReport; projection: MonthProjection } | null;
+  data: { report: MetricsReport; projection: MonthProjection; pendingImports: number } | null;
   notice?: string;
   error?: string;
 }
@@ -65,6 +67,9 @@ export default function ReportsClient({ query, data, notice, error }: ReportsCli
             </select>
           </label>
           <Button type="submit" className="touch-target">Aplicar</Button>
+          <Link href={`/?mes=${query.to}`} className={cn(buttonVariants({ variant: 'outline' }), 'touch-target')}>
+            Meu mês de {monthLabel(query.to)}
+          </Link>
           {data && (
             <a href={exportHref} download className={cn(buttonVariants({ variant: 'outline' }), 'touch-target')}>
               <Download className="w-4 h-4 mr-1.5" />
@@ -95,6 +100,7 @@ export default function ReportsClient({ query, data, notice, error }: ReportsCli
           </Button>
         </div>
       )}
+      {data && <PendingImportsNotice count={data.pendingImports} />}
       {data && <ReportBody report={data.report} />}
     </div>
   );

@@ -26,18 +26,18 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { usePreferences } from '@/lib/preferences-context';
+import { usePreferences, useResolvedTheme } from '@/lib/preferences-context';
 
 function useSettingsState() {
   const {
     preferences,
-    resolvedTheme,
     setTheme,
     setFavoriteCategory,
     toggleCardVisibility,
     moveCard,
     resetPreferences,
   } = usePreferences();
+  const resolvedTheme = useResolvedTheme();
 
   // Real backend connection test state (no fake timeouts)
   const [connectionStatus, setConnectionStatus] = useState<

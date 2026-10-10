@@ -1,12 +1,12 @@
 import { resolveMonthParam, shiftMonth, percentChange, describeTrend, metricsReport, monthProjection, formatCents, decimalCents, moneyToCents } from '@ecofinance/shared';
 import { displayMoney } from './financial-read';
-import { readMetricsData, consolidatedBalance } from './metrics-read';
+import { readMetricsData, consolidatedBalance, pendingImports } from './metrics-read';
 import type { DashboardClientProps } from '@/app/dashboard-client';
 export async function loadDashboardData(userId:string,resolved:ReturnType<typeof resolveMonthParam>,now=new Date()):Promise<DashboardClientProps> {
   const base={month:resolved.month,isCurrentMonth:resolved.isCurrent,monthValid:resolved.valid};
   try {
     const previous=shiftMonth(resolved.month,-1);
-    const data=await readMetricsData(userId,previous?[previous,resolved.month]:[resolved.month]);
+    const [data,pending]=await Promise.all([readMetricsData(userId,previous?[previous,resolved.month]:[resolved.month]),pendingImports(userId)]);
     // The cards, the category chart/table and /reports share metricsReport, so
     // the same month always shows the same exact totals.
     const report=metricsReport(data.input,{from:previous??resolved.month,to:resolved.month,basis:'competence'});
@@ -21,7 +21,8 @@ export async function loadDashboardData(userId:string,resolved:ReturnType<typeof
       income:{...money(current.income),trend:current.trend.income},
       expenses:{...money(current.expenses),trend:current.trend.expenses},
       transactionsCount:{value:current.count,trend:describeTrend(last && last.count?percentChange(current.count,last.count):null)},
-      categoryData:monthCategories.map(c=>({id:c.id,name:c.name,value:displayMoney(moneyToCents(c.amount)),formatted:formatCents(moneyToCents(c.amount)),color:c.color})),
+      categoryData:monthCategories.map(c=>({id:c.id,name:c.name,value:displayMoney(moneyToCents(c.amount)),formatted:formatCents(moneyToCents(c.amount)),share:c.share,color:c.color})),
+      pendingImports:pending,
       projection:monthProjection(data.input,resolved.month,balance),
       recentTransactions:currentRows.toSorted((a,b)=>b.purchaseDate.localeCompare(a.purchaseDate)||b.id.localeCompare(a.id)).slice(0,10).map(tx=>({id:tx.id,date:tx.purchaseDate,description:tx.description,category:tx.category,categoryName:categoryMap.get(tx.categoryId)?.name,amount:tx.amount,source:tx.source})),
       upcomingBills:[
