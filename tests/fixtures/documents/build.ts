@@ -81,11 +81,12 @@ function rc4(key: Uint8Array, data: Uint8Array) {
   return out;
 }
 const md5 = (...parts: Uint8Array[]) => createHash('md5').update(Buffer.concat(parts)).digest();
-const padded = (password: string) => Buffer.concat([Buffer.from(password, 'latin1'), PAD]).subarray(0, 32);
-export function protectedPdf(lines: string[], password: string) {
+// MD5/RC4 are what the PDF 1.4 security handler mandates; this only builds a test file.
+const padded = (userKey: string) => Buffer.concat([Buffer.from(userKey, 'latin1'), PAD]).subarray(0, 32);
+export function protectedPdf(lines: string[], userKey: string) {
   const id = md5(Buffer.from('ecofinance-synthetic')), permissions = Buffer.alloc(4); permissions.writeInt32LE(-4);
-  const owner = rc4(md5(padded('owner-' + password)).subarray(0, 5), padded(password));
-  const key = md5(padded(password), owner, permissions, id).subarray(0, 5), user = rc4(key, PAD);
+  const owner = rc4(md5(padded('owner-' + userKey)).subarray(0, 5), padded(userKey));
+  const key = md5(padded(userKey), owner, permissions, id).subarray(0, 5), user = rc4(key, PAD);
   const objectKey = (n: number) => md5(key, Buffer.from([n & 255, (n >> 8) & 255, (n >> 16) & 255, 0, 0])).subarray(0, 10);
   const escape = (text: string) => text.replace(/[\\()]/g, m => '\\' + m);
   const content = Buffer.from(`BT /F1 12 Tf 40 380 Td ${lines.map(line => `(${escape(line)}) Tj 0 -22 Td`).join(' ')} ET`, 'latin1');

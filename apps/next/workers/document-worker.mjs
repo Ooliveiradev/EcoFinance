@@ -19,6 +19,8 @@ const RETRY_BELOW = 70;
 class Failure extends Error { constructor(code) { super(code); this.code = code; } }
 const progress = (page, pages, stage) => parentPort.postMessage({ type: 'progress', page, pages, stage });
 const alnum = text => (text.match(/[\p{L}\p{N}]/gu) ?? []).length;
+// Strictly one step at a time: a single OCR engine, and one page in memory at once.
+const inOrder = (items, step) => items.reduce((previous, item) => previous.then(async done => [...done, await step(item)]), Promise.resolve([]));
 
 let canvasModule, tesseract;
 async function canvas() { return canvasModule ??= await load('@napi-rs/canvas'); }
@@ -57,10 +59,10 @@ async function readImage(source, scale, page, pages) {
   if (!ocrAllowed) throw new Failure('OCR_UNAVAILABLE');
   progress(page, pages, 'ocr');
   let best = { rotation: 0, image: source, ...(await recognize(source)) };
-  if (best.confidence < RETRY_BELOW || best.score < RETRY_BELOW) for (const rotation of [90, 180, 270]) {
+  if (best.confidence < RETRY_BELOW || best.score < RETRY_BELOW) await inOrder([90, 180, 270], async rotation => {
     const image = await rotated(source, rotation), attempt = await recognize(image);
     if (attempt.score > best.score) best = { rotation, image, ...attempt };
-  }
+  });
   return {
     page, width: best.image.width / scale, height: best.image.height / scale, method: 'ocr', rotation: best.rotation,
     confidence: best.words.length ? best.confidence : null,
@@ -82,8 +84,7 @@ async function readPdf() {
     throw new Failure('CORRUPT_FILE');
   }
   if (document.numPages > limits.pages) throw new Failure('PAGE_LIMIT');
-  const result = [];
-  for (let number = 1; number <= document.numPages; number++) {
+  const result = await inOrder(Array.from({ length: document.numPages }, (_, i) => i + 1), async number => {
     progress(number, document.numPages, 'text');
     const page = await document.getPage(number), viewport = page.getViewport({ scale: 1 });
     const content = await page.getTextContent();
@@ -92,18 +93,19 @@ async function readPdf() {
       return { text: item.str, x: matrix[4], y: matrix[5] - height, width: item.width * viewport.scale, height, confidence: null };
     });
     if (alnum(words.map(w => w.text).join('')) >= 10) {
-      result.push({ page: number, width: viewport.width, height: viewport.height, method: 'text', rotation: 0, confidence: null, words });
-    } else {
-      // A page without a text layer is scanned: render it within the pixel budget and read it.
-      const scale = Math.min(3, Math.sqrt(limits.renderPixels / (viewport.width * viewport.height)));
-      const view = page.getViewport({ scale }), { createCanvas } = await canvas();
-      const image = createCanvas(Math.floor(view.width), Math.floor(view.height)), context = image.getContext('2d');
-      context.fillStyle = '#fff'; context.fillRect(0, 0, image.width, image.height);
-      await page.render({ canvas: image, canvasContext: context, viewport: view }).promise;
-      result.push(await readImage(image, scale, number, document.numPages));
+      page.cleanup();
+      return { page: number, width: viewport.width, height: viewport.height, method: 'text', rotation: 0, confidence: null, words };
     }
+    // A page without a text layer is scanned: render it within the pixel budget and read it.
+    const scale = Math.min(3, Math.sqrt(limits.renderPixels / (viewport.width * viewport.height)));
+    const view = page.getViewport({ scale }), { createCanvas } = await canvas();
+    const image = createCanvas(Math.floor(view.width), Math.floor(view.height)), context = image.getContext('2d');
+    context.fillStyle = '#fff'; context.fillRect(0, 0, image.width, image.height);
+    await page.render({ canvas: image, canvasContext: context, viewport: view }).promise;
+    const read = await readImage(image, scale, number, document.numPages);
     page.cleanup();
-  }
+    return read;
+  });
   await task.destroy();
   return result;
 }
