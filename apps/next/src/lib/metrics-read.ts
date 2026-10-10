@@ -54,10 +54,20 @@ export function consolidatedBalance(data:Pick<MetricsData,'accounts'|'rows'>,mon
   return active.reduce((sum,account)=>sum+(balances.get(account.id)??0n),0n);
 }
 
+export const PENDING_IMPORTS_LIMIT=20;
+/**
+ * Import batches still in review (capped at PENDING_IMPORTS_LIMIT). Their rows are
+ * previews kept in import items, so the screens state that confirmed totals
+ * exclude them. Read outside the metrics transaction: it is a notice, not a total.
+ */
+export async function pendingImports(ownerId:string,store:Database=db) {
+  return (await store.owned('importBatches',ownerId,{where:[{field:'state',value:'review'}],limit:PENDING_IMPORTS_LIMIT})).length;
+}
+
 /** Report for the reports page, its export and the mobile API: one snapshot, one calculation. */
 export async function loadReport(ownerId:string,query:unknown,now=new Date(),store:Database=db) {
   const parsed:MetricsQuery=metricsQuerySchema.parse(query);
   const before=shiftMonth(parsed.from,-1),months=monthsBetween(parsed.from,parsed.to);
-  const data=await readMetricsData(ownerId,before?[before,...months]:months,store);
-  return {report:metricsReport(data.input,parsed),projection:monthProjection(data.input,parsed.to,consolidatedBalance(data,parsed.to,now))};
+  const [data,pending]=await Promise.all([readMetricsData(ownerId,before?[before,...months]:months,store),pendingImports(ownerId,store)]);
+  return {report:metricsReport(data.input,parsed),projection:monthProjection(data.input,parsed.to,consolidatedBalance(data,parsed.to,now)),pendingImports:pending};
 }
