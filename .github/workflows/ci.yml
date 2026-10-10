@@ -188,6 +188,22 @@ jobs:
             ! touch apps/next/server.js 2>/dev/null'
           docker run --rm -w /app/apps/next --entrypoint node ecofinance-web:ci -e \
             "require('firebase-admin/app'); require('@node-rs/argon2').hash('synthetic').then(() => console.log('native modules ok'))"
+      - name: Document worker runs from the traced standalone files
+        run: |
+          # A PNG with a dot and a blank PDF page load pdf.js, the native canvas, the
+          # tesseract.js WebAssembly and the Portuguese model as the import does, offline.
+          docker run --rm --network none -w /app/apps/next --entrypoint node ecofinance-web:ci -e "
+            const { Worker } = require('node:worker_threads');
+            const { createCanvas } = require('@napi-rs/canvas');
+            const canvas = createCanvas(64, 64), context = canvas.getContext('2d'); context.fillStyle = '#fff'; context.fillRect(0, 0, 64, 64); context.fillStyle = '#000'; context.fillRect(30, 30, 4, 4);
+            const pdf = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
+            const limits = { pages: 1, imagePixels: 1e6, renderPixels: 1e6 };
+            const run = (bytes, format) => new Promise((resolve, reject) => {
+              const worker = new Worker('/app/apps/next/workers/document-worker.mjs', { workerData: { bytes, format, limits, ocr: true }, stdout: true, stderr: true });
+              worker.on('message', m => { if (m.type !== 'progress') { void worker.terminate(); m.type === 'result' && m.extraction.pages[0].method === 'ocr' ? resolve() : reject(new Error(m.code)); } });
+              worker.on('error', reject);
+            });
+            Promise.all([run(canvas.toBuffer('image/png'), 'png'), run(pdf, 'pdf')]).then(() => console.log('document worker ok'), error => { console.error(error); process.exit(1); });"
       - name: Start container and require healthy /api/health
         run: |
           docker run --detach --name web --publish 8080:8080 --health-interval 2s \

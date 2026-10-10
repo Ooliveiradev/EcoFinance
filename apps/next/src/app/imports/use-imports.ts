@@ -3,8 +3,29 @@ import { useReducer, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { IMPORT_LIMITS, type ImportBatchView } from '@ecofinance/shared';
 import type { ImportHistory, ImportsClientProps } from './imports-client';
+/**
+ * Phone photos are usually larger than the upload limit. Before upload, a PNG, JPEG
+ * or WebP over the limit is redrawn upright (EXIF orientation) as a smaller JPEG.
+ * The reduced copy is what gets analysed; the screen says so next to the file.
+ */
+async function fitImage(file: File): Promise<File> {
+  if (file.size <= IMPORT_LIMITS.bytes || !/^image\/(?:png|jpeg|webp)$/.test(file.type) || typeof createImageBitmap !== 'function') return file;
+  let bitmap: ImageBitmap;
+  try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { return file; }
+  try {
+    for (const side of [2400, 2000, 1600, 1280]) for (const quality of [0.85, 0.7, 0.55]) {
+      const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height)), canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext('2d'); if (!context) return file;
+      context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (blob && blob.size <= IMPORT_LIMITS.bytes) return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+    }
+  } finally { bitmap.close(); }
+  return file;
+}
 interface ImportState {
-  files: { id: string; file: File }[]; target: string; batches: ImportBatchView[]; history: ImportHistory[];
+  files: { id: string; file: File; reducedFrom?: number }[]; target: string; batches: ImportBatchView[]; history: ImportHistory[];
   historyPage: number; hasMore: boolean; busy: boolean; error: string; message: string; uploadVersion: number;
   dirtyRows: Record<string, string>;
 }
@@ -42,9 +63,17 @@ export function useImports(props: ImportsClientProps) {
   }
   async function mutate(batch: ImportBatchView, action: string, input: unknown = {}, item?: { id: string; revision: string }) {
     const url = '/api/imports/' + batch.id + (item ? '/items/' + item.id : '/' + action), expected = item?.revision ?? batch.revision;
-    const signature = JSON.stringify([url, expected, input]);
-    if(action==='process')dispatch({type:'loaded',batch:{...batch,state:'processing'}});
-    const response = await fetch(url, { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey(signature), 'If-Match': expected }, body: JSON.stringify(input) });
+    // A PDF password never becomes part of a remembered request signature.
+    const signature = JSON.stringify([url, expected, action === 'process' ? {} : input]);
+    let polling: ReturnType<typeof setInterval> | undefined;
+    if (action === 'process') {
+      dispatch({ type: 'loaded', batch: { ...batch, state: 'processing', progress: null } });
+      // Analysis answers only when finished; reading the batch meanwhile shows page progress.
+      polling = setInterval(() => { void fetch('/api/imports/' + batch.id, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then((current: ImportBatchView | null) => { if (polling && current?.state === 'processing') dispatch({ type: 'loaded', batch: current }); }).catch(() => {}); }, 1500);
+    }
+    let response: Response;
+    try { response = await fetch(url, { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey(signature), 'If-Match': expected }, body: JSON.stringify(input) }); }
+    finally { clearInterval(polling); polling = undefined; }
     const data = await response.json(); if (!response.ok) throw new Error(data.message ?? 'Falha ao salvar. Tente novamente com os mesmos dados.');
     await read(action==='repeat'||action==='map'?data.id:batch.id); keys.current.delete(signature);
     if (action === 'undo' || action === 'confirm') router.refresh();
@@ -55,7 +84,7 @@ export function useImports(props: ImportsClientProps) {
   }
   async function upload() {
     const files = state.files.map(entry => entry.file);
-    if (!state.target || !files.length || files.length > IMPORT_LIMITS.files || files.some(f => f.size > IMPORT_LIMITS.bytes)) throw new Error('Escolha um destino e de 1 a 10 arquivos, com até 256 KiB cada.');
+    if (!state.target || !files.length || files.length > IMPORT_LIMITS.files || files.some(f => f.size > IMPORT_LIMITS.bytes)) throw new Error('Escolha um destino e de 1 a 10 arquivos, com até 256 KiB cada. Para PDF, envie só as páginas com movimentações.');
     const form = new FormData(), [type, id] = state.target.split(':');
     form.append(type === 'card' ? 'cardId' : 'accountId', id!); for (const file of files) form.append('files', file);
     const signature = JSON.stringify(['upload', state.target, state.files.map(f => f.id)]);
@@ -77,7 +106,11 @@ export function useImports(props: ImportsClientProps) {
     const data = await response.json(); dispatch({ type: 'history', batches: data.batches, page, hasMore: data.hasMore });
   }
   return { ...state, guarded, mutate, read, upload, moreHistory,
-    setFiles: (files: File[]) => patch({ files: files.map(file => ({ id: crypto.randomUUID(), file })) }),
+    setFiles: (files: File[]) => guarded(async () => patch({ files: await Promise.all(files.map(async original => { const file = await fitImage(original); return { id: crypto.randomUUID(), file, ...(file !== original ? { reducedFrom: original.size } : {}) }; })) })),
+    /** Cancel an analysis in progress: the server stops the extraction worker. */
+    cancelProcessing: async (batch: ImportBatchView) => {
+      try { await mutate(batch, 'cancel'); } catch (e) { patch({ error: e instanceof Error ? e.message : 'Não foi possível cancelar. Tente novamente.' }); }
+    },
     setTarget: (target: string) => patch({ target }),
     markDirty: (row: { id: string; revision: string }) => dispatch({ type: 'dirty', ...row }),
   };

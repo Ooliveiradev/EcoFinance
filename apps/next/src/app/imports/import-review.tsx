@@ -51,7 +51,7 @@ function ConfirmSelection({ busy, dirty, count, onConfirm }: { busy: boolean; di
 function ImportEvidence({ row }: { row: ImportRowView }) {
   const warnings = [...new Set(row.warnings)];
   return <div className="space-y-3">
-    <p className="text-xs text-muted">Origem: {row.provenance.page && `página ${row.provenance.page} · `}linha {row.provenance.row ?? row.position}{row.provenance.cell && ' · célula ' + row.provenance.cell}</p>
+    <p className="text-xs text-muted">Origem: {row.provenance.page && `página ${row.provenance.page} · `}linha {row.provenance.row ?? row.position}{row.provenance.cell && ' · célula ' + row.provenance.cell}{row.provenance.region && ` · a ${Math.round(row.provenance.region.y * 100)}% do topo e ${Math.round(row.provenance.region.x * 100)}% da margem esquerda`}{row.provenance.method === 'ocr' ? ` · leitura óptica${row.provenance.confidence !== undefined ? ` (confiança ${row.provenance.confidence}%)` : ''}` : row.provenance.method === 'text' ? ' · texto do PDF' : ''}</p>
     <pre className="text-xs whitespace-pre-wrap break-all max-h-28 overflow-auto">{row.provenance.excerpt}</pre>
     {warnings.length > 0 && <ul className="text-xs text-muted list-disc pl-5">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
     {row.undoReason && <p role="status" className="text-sm">{row.undoReason}</p>}

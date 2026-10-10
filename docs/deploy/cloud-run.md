@@ -84,6 +84,31 @@ Mudar esses valores exige PR no `deploy.yml`. O orçamento abaixo **alerta, mas 
 bloqueia** gastos. A contenção real vem de `max-instances`, do limite de login
 compartilhado e do [corte de emergência](#corte-de-emergência).
 
+### PDF, fotos e OCR
+
+A [leitura de documentos](../refatoracao/documentos.md) roda num `worker_thread` da
+instância, durante a requisição de análise, com limite de 45 s (abaixo do
+`--timeout`) e **uma leitura por instância**. As demais esperam até 10 s e depois
+recebem "repita em instantes".
+
+- **PDF com texto** usa poucos MiB além do Next e menos de 1 s por documento
+  sintético.
+- **OCR** (PDF escaneado e fotos) mede até ~250 MiB além do Next, que usa ~150 MiB
+  em repouso. O servidor só inicia um OCR quando o RSS atual + 320 MiB cabe no
+  limite do contêiner (`process.constrainedMemory()`). Sem essa folga, o OCR é
+  recusado com orientação, sem derrubar a instância, e o PDF com texto continua
+  funcionando.
+- `IMPORT_OCR=off` em `--set-env-vars` desliga o OCR por completo, como corte
+  rápido.
+- Se recusas de OCR por memória ficarem frequentes, o ajuste é `--memory 1Gi` no
+  `deploy.yml`. Isso dobra o componente de memória da cobrança por requisição;
+  revise o orçamento antes do merge.
+
+A imagem já contém pdf.js, a binding canvas, o WASM do tesseract.js e o modelo
+`por`. Nada é baixado em tempo de execução. O passo "Document worker runs from the
+traced standalone files" do job `container` da CI comprova isso, executado sem
+rede.
+
 ## Pré-requisitos
 
 - Use o [Cloud Shell](https://shell.cloud.google.com/?project=ecofinance-912de) (bash,
