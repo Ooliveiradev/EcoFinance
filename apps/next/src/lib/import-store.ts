@@ -6,6 +6,8 @@ import { stableId } from './planning-lock';
 import { activeCard, cardReference } from './card-store';
 import { ImportParseError, type ImportFile } from './import-parsers';
 import { parseImportFile } from './import-document';
+import { learnRule, suggestImportCategories } from './category-rules';
+import { assistConfig } from './assist-ollama';
 
 export function importIdentity(batch: Models['importBatches'], item: Models['importItems']) {
   const scope = batch.cardId ? ['card', batch.cardId] : ['account', batch.accountId];
@@ -99,7 +101,7 @@ function watchAnalysis(db: Database, owner: string, id: string, token: string) {
 export async function processImport(db: Database, owner: string, id: string, expected: string, input: unknown = {}) {
   // The password reaches only the extraction worker: it is not persisted, logged or returned.
   const { password } = importProcessSchema.parse(input ?? {});
-  const token = randomUUID();
+  const token = randomUUID(), started = Date.now();
   const batch = await db.transaction(async tx => {
     const old = await owned(tx, 'importBatches', id, owner); checkRevision(old, expected);
     if (!['received', 'processing', 'failed'].includes(old.state) || old.payload == null) fail('BATCH_STATE', 409, 'Este lote não pode ser analisado novamente.');
@@ -114,6 +116,9 @@ export async function processImport(db: Database, owner: string, id: string, exp
     const target = parsed.documentKind === 'invoice' && !batch.cardId ? ['O documento parece uma fatura de cartão, mas o destino é uma conta. Confira o destino antes de confirmar.']
       : parsed.documentKind === 'statement' && batch.cardId ? ['O documento parece um extrato de conta, mas o destino é um cartão. Confira o destino antes de confirmar.'] : [];
     parsed.warnings.push(...target);
+    // Category suggestions only; the local model is skipped when the analysis already took long.
+    const assist = await suggestImportCategories(db, owner, parsed.rows.map((row, i) => ({ position: i + 1, description: row.description, amount: row.amount })), Date.now() - started < 30_000 ? assistConfig() : null);
+    parsed.warnings.push(...assist.warnings);
     await db.transaction(async tx => {
       const current = await owned(tx, 'importBatches', id, owner);
       if (current.state !== 'processing' || current.processId !== token) fail('BATCH_STATE', 409, 'A análise foi cancelada ou substituída. Recarregue o lote.');
@@ -126,7 +131,7 @@ export async function processImport(db: Database, owner: string, id: string, exp
           kind: row.amount?.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income',
           competenceMonth: row.purchaseDate ? row.purchaseDate.slice(0, 7) + '-01' : null,
           warnings: [...parsed.warnings, ...row.warnings], state: valid ? 'pending' : 'invalid', selected: false,
-          resolution: 'new', duplicateId: null, revision: randomUUID(), createdAt: now, updatedAt: now };
+          resolution: 'new', duplicateId: null, suggestion: assist.suggestions.get(i + 1) ?? null, revision: randomUUID(), createdAt: now, updatedAt: now };
         const identity = importIdentity({...batch,source:parsed.source}, item);
         item.candidates = accountEntries.filter(e => !e.archivedAt && (invoiceCards ? !!e.invoiceId && invoiceCards.has(e.invoiceId) : !e.invoiceId) && (e.id === identity || e.amount === item.amount && e.purchaseDate === item.purchaseDate && e.description.trim().toLowerCase() === item.description?.trim().toLowerCase())).slice(0, 20).map(e => ({ id: e.id, description: e.description, amount: e.amount, purchaseDate: e.purchaseDate, categoryId:e.categoryId,competenceMonth:e.competenceMonth,status:e.status,exact: e.id === identity }));
         if (item.candidates.length) item.warnings.push('Possível duplicata: revise e escolha criar, vincular ou excluir.');
@@ -158,6 +163,8 @@ export async function reviewImportItem(db: Database, owner: string, key: string,
       if (!sameImportEntry(existing, { ...item, ...data }, batch)) fail('DUPLICATE_CONFLICT', 409, 'O lançamento existente não corresponde a valor, data, descrição, competência, categoria e destino.');
       if (batch.cardId && (await owned(tx, 'invoices', existing.invoiceId!, owner)).cardId !== batch.cardId) fail('DUPLICATE_CONFLICT', 409, 'Escolha um lançamento deste cartão.');
     }
+    // The chosen category becomes a learned rule for the next imports (reads happen before writes).
+    if (data.resolution !== 'exclude') await learnRule(tx, owner, data.description, data.categoryId);
     const next = { ...item, ...data, duplicateId: data.resolution === 'link' ? data.duplicateId : null, kind: data.amount.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income', state: data.resolution === 'exclude' ? 'excluded' : 'valid', revision: randomUUID(), updatedAt: new Date() };
     const nextBatch = { ...batch, revision: randomUUID(), updatedAt: new Date() };
     // Staging is ordered: the item is persisted before its parent revision changes.
@@ -193,7 +200,7 @@ export async function loadImport(db: Database, owner: string, id: string): Promi
       owned(tx, 'importBatches', id, owner),
       tx.owned('importItems', owner, { where: [{ field: 'batchId', value: id }], order: [{ field: 'position', direction: 'asc' }] }),
     ]);
-    const rows: ImportRowView[] = items.map(item => ({ id: item.id, position: item.position, state: item.state, revision: revision(item), description: item.description, amount: item.amount, purchaseDate: item.purchaseDate, competenceMonth: item.competenceMonth, categoryId: item.categoryId, selected: item.selected ?? false, resolution: item.resolution ?? 'new', duplicateId: item.duplicateId ?? null, warnings: item.warnings, provenance: item.provenance, candidates: item.candidates ?? [], undoReason: item.undoReason ?? null }));
+    const rows: ImportRowView[] = items.map(item => ({ id: item.id, position: item.position, state: item.state, revision: revision(item), description: item.description, amount: item.amount, purchaseDate: item.purchaseDate, competenceMonth: item.competenceMonth, categoryId: item.categoryId, selected: item.selected ?? false, resolution: item.resolution ?? 'new', duplicateId: item.duplicateId ?? null, warnings: item.warnings, provenance: item.provenance, candidates: item.candidates ?? [], undoReason: item.undoReason ?? null, suggestion: item.suggestion ?? null }));
     // The preview rechecks deterministic identities so a concurrent import cannot
     // keep showing an additional expense after another batch has committed it.
     const existing = batch.state === 'review' ? await Promise.all(items.map(item => tx.get('transactions', importIdentity(batch,item)))) : [];

@@ -14,7 +14,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #8 | Concluída no PR #53: upload múltiplo, detecção extensível, staging/revisão/prévia, confirmação atômica/idempotente, duplicidades e desfazer protegido; evidência em importacoes.md |
 | #9 | Concluída no PR #56: OFX/QFX SGML/XML, CSV/TSV com encodings e datas ambíguas, XLS/XLSX com aba e célula de origem, mapeamento assistido e corpus sintético; evidência em formatos.md |
 | #10 | PDF digital/escaneado e fotos com OCR local, evidência por página e região, senha transitória, progresso, cancelamento e limites de memória/tempo; evidência em documentos.md (PR deste incremento) |
-| #11 | Chat externo desativado; faltam adapters e assistência opt-in/local |
+| #11 | Sugestão de categoria por regras do usuário e aprendidas na revisão, e modelo local opcional (Ollama) com saída restrita e sem provedor externo; avaliação do modelo pendente de Ollama instalado (assistencia.md) |
 | #12 | Concluída nos PRs #52 e #80, com serviço único e jornada de revisão/correção/confirmação/desfazer validada em dashboard, gráficos, tabelas, API e CSV em competência/caixa; CI completa aprovada |
 | #13 | PR #55 entrega telas nativas, cache/rascunhos por usuário, replay idempotente e conflitos; este incremento acrescenta correção de campos e linhas inválidas na importação, salvamento explícito e bloqueio de confirmação com rascunhos pendentes (mobile.md). Validação iOS e jornadas restantes pendentes |
 | #14 | Concluída no PR #57: CSV seguro, backup versionado do usuário, restauração com prévia/atomicidade, exclusão confirmada; evidência em dados.md |
