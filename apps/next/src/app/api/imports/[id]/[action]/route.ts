@@ -13,10 +13,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (action === 'undo') return undoImport(db, owner, key, id, expected, input);
     if (action === 'map') return mapImport(db, owner, key, id, expected, input);
     operationId(owner, key);
+    if (action === 'process') return processImport(db, owner, id, expected, input);
     if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) fail('INVALID_INPUT', 400, 'Esta ação não aceita campos.');
     if (action === 'cancel') return cancelImport(db, owner, key, id, expected);
     if (action === 'repeat') return repeatImport(db, owner, key, id, expected);
-    if (action === 'process') return processImport(db, owner, id, expected);
     return Promise.resolve(fail('NOT_FOUND', 404, 'Ação não encontrada.'));
   });
 }

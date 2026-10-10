@@ -24,6 +24,8 @@ const aliases: Record<Role, string[]> = {
   credit: ['credito', 'creditos', 'credit', 'entrada', 'entradas', 'valor credito'],
 };
 const roleOf = new Map(Object.entries(aliases).flatMap(([role, names]) => names.map(name => [name, role as Role])));
+/** Column role named by a header text, shared with the document reader's table headers. */
+export const headerRole = (text: string): Role | null => roleOf.get(normalizeHeader(text)) ?? null;
 const scanRows = 20;
 
 function roles(row: TableRow) {

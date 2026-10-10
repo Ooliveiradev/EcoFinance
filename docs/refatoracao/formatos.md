@@ -22,7 +22,7 @@ no formato do lote (`CSV/TSV · ponto e vírgula · Windows-1252`). Bytes sem
 correspondência em Windows-1252 (`0x81`, `0x8D`, `0x8F`, `0x90`, `0x9D`) e UTF-16
 inválido são recusados como `UNSUPPORTED_ENCODING`.
 
-PDF continua na #10. Não há promessa de compatibilidade universal: a matriz acima é
+PDF e imagens estão em [documentos.md](documentos.md) (#10). Não há promessa de compatibilidade universal: a matriz acima é
 o que o corpus comprova.
 
 ## Detecção por conteúdo
@@ -30,7 +30,7 @@ o que o corpus comprova.
 A extensão e o MIME nunca escolhem o parser; divergências viram aviso no lote.
 
 1. Vazio ou acima de 256 KiB → erro antes de qualquer leitura.
-2. Assinatura binária: `%PDF` → orientação para a #10; `PK\x03\x04` ou OLE
+2. Assinatura binária: `%PDF`, PNG, JPEG ou WebP → leitor de documentos (#10); `PK\x03\x04` ou OLE
    (`D0 CF 11 E0`) → leitor de planilhas, que valida o contêiner e recusa ZIP/OLE que
    não sejam pastas de trabalho.
 3. Texto decodificado (BOM, UTF-8 estrito, charset declarado no cabeçalho OFX/XML,

@@ -1,10 +1,13 @@
 import { randomUUID, createHash } from 'node:crypto';
 import type { Database, Models } from '@ecofinance/db';
-import { IMPORT_LIMITS, IMPORT_MAPPING_LIMITS, importMapRequestSchema, importReviewSchema, importPreview, importTargetSchema, type ImportBatchView, type ImportLayout, type ImportMapping, type ImportRowView } from '@ecofinance/shared';
+import { IMPORT_LIMITS, IMPORT_MAPPING_LIMITS, importMapRequestSchema, importProcessSchema, importReviewSchema, importPreview, importTargetSchema, type ImportBatchView, type ImportLayout, type ImportMapping, type ImportProgress, type ImportRowView } from '@ecofinance/shared';
 import { operation, owned, checkRevision, revision, fail, FinanceError } from './finance-operation';
 import { stableId } from './planning-lock';
 import { activeCard, cardReference } from './card-store';
-import { parseImport, ImportParseError, type ImportFile } from './import-parsers';
+import { ImportParseError, type ImportFile } from './import-parsers';
+import { parseImportFile } from './import-document';
+import { learnRule, suggestImportCategories } from './category-rules';
+import { assistConfig } from './assist-ollama';
 
 export function importIdentity(batch: Models['importBatches'], item: Models['importItems']) {
   const scope = batch.cardId ? ['card', batch.cardId] : ['account', batch.accountId];
@@ -79,16 +82,43 @@ export async function mapImport(db: Database, owner: string, key: string, id: st
   const target = String(result.id), current = await db.get('importBatches', target);
   return current?.state === 'received' && current.revision === result.revision ? processImport(db, owner, target, String(result.revision)) : loadImport(db, owner, target);
 }
-export async function processImport(db: Database, owner: string, id: string, expected: string) {
-  const token = randomUUID();
+/**
+ * Document extraction reports pages while it runs. Progress is informational: it
+ * does not change the batch revision, so a cancellation sent with the revision the
+ * user sees still applies. Cancellation or a newer analysis stops the worker.
+ */
+function watchAnalysis(db: Database, owner: string, id: string, token: string) {
+  const controller = new AbortController();
+  let pending = Promise.resolve();
+  const step = (progress: ImportProgress | null) => { pending = pending.then(() => db.transaction(async tx => {
+    const current = await owned(tx, 'importBatches', id, owner);
+    if (current.state !== 'processing' || current.processId !== token) { controller.abort(); return; }
+    if (progress) await tx.put('importBatches', { ...current, progress });
+  })).catch(() => {}); };
+  const timer = setInterval(() => step(null), 2000);
+  return { signal: controller.signal, onProgress: (progress: ImportProgress) => step(progress), stop: async () => { clearInterval(timer); await pending; } };
+}
+export async function processImport(db: Database, owner: string, id: string, expected: string, input: unknown = {}) {
+  // The password reaches only the extraction worker: it is not persisted, logged or returned.
+  const { password } = importProcessSchema.parse(input ?? {});
+  const token = randomUUID(), started = Date.now();
   const batch = await db.transaction(async tx => {
     const old = await owned(tx, 'importBatches', id, owner); checkRevision(old, expected);
     if (!['received', 'processing', 'failed'].includes(old.state) || old.payload == null) fail('BATCH_STATE', 409, 'Este lote não pode ser analisado novamente.');
-    const next = { ...old, state: 'processing', processId: token, error: null, revision: randomUUID(), updatedAt: new Date() };
+    const next = { ...old, state: 'processing', processId: token, error: null, errorCode: null, progress: null, revision: randomUUID(), updatedAt: new Date() };
     await tx.put('importBatches', next); return next;
   });
+  const watch = watchAnalysis(db, owner, id, token);
   try {
-    const parsed = parseImport({ name: batch.filename!, mime: batch.mime!, bytes: Buffer.from(batch.payload!, 'base64') }, { mapping: batch.mapping ?? null, profiles: await importProfiles(db, owner) });
+    let parsed;
+    try { parsed = await parseImportFile({ name: batch.filename!, mime: batch.mime!, bytes: Buffer.from(batch.payload!, 'base64') }, { mapping: batch.mapping ?? null, profiles: await importProfiles(db, owner), password, signal: watch.signal, onProgress: watch.onProgress }); }
+    finally { await watch.stop(); }
+    const target = parsed.documentKind === 'invoice' && !batch.cardId ? ['O documento parece uma fatura de cartão, mas o destino é uma conta. Confira o destino antes de confirmar.']
+      : parsed.documentKind === 'statement' && batch.cardId ? ['O documento parece um extrato de conta, mas o destino é um cartão. Confira o destino antes de confirmar.'] : [];
+    parsed.warnings.push(...target);
+    // Category suggestions only; the local model is skipped when the analysis already took long.
+    const assist = await suggestImportCategories(db, owner, parsed.rows.map((row, i) => ({ position: i + 1, description: row.description, amount: row.amount })), Date.now() - started < 30_000 ? assistConfig() : null);
+    parsed.warnings.push(...assist.warnings);
     await db.transaction(async tx => {
       const current = await owned(tx, 'importBatches', id, owner);
       if (current.state !== 'processing' || current.processId !== token) fail('BATCH_STATE', 409, 'A análise foi cancelada ou substituída. Recarregue o lote.');
@@ -101,7 +131,7 @@ export async function processImport(db: Database, owner: string, id: string, exp
           kind: row.amount?.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income',
           competenceMonth: row.purchaseDate ? row.purchaseDate.slice(0, 7) + '-01' : null,
           warnings: [...parsed.warnings, ...row.warnings], state: valid ? 'pending' : 'invalid', selected: false,
-          resolution: 'new', duplicateId: null, revision: randomUUID(), createdAt: now, updatedAt: now };
+          resolution: 'new', duplicateId: null, suggestion: assist.suggestions.get(i + 1) ?? null, revision: randomUUID(), createdAt: now, updatedAt: now };
         const identity = importIdentity({...batch,source:parsed.source}, item);
         item.candidates = accountEntries.filter(e => !e.archivedAt && (invoiceCards ? !!e.invoiceId && invoiceCards.has(e.invoiceId) : !e.invoiceId) && (e.id === identity || e.amount === item.amount && e.purchaseDate === item.purchaseDate && e.description.trim().toLowerCase() === item.description?.trim().toLowerCase())).slice(0, 20).map(e => ({ id: e.id, description: e.description, amount: e.amount, purchaseDate: e.purchaseDate, categoryId:e.categoryId,competenceMonth:e.competenceMonth,status:e.status,exact: e.id === identity }));
         if (item.candidates.length) item.warnings.push('Possível duplicata: revise e escolha criar, vincular ou excluir.');
@@ -109,14 +139,14 @@ export async function processImport(db: Database, owner: string, id: string, exp
         return item;
       });
       await tx.putMany('importItems', rows);
-      await tx.put('importBatches', { ...current, source: parsed.source, format: parsed.format, accountHint: parsed.accountHint, layout: parsed.layout ?? null, state: 'review', processId: null, revision: randomUUID(), updatedAt: new Date() });
+      await tx.put('importBatches', { ...current, source: parsed.source, format: parsed.format, accountHint: parsed.accountHint, layout: parsed.layout ?? null, state: 'review', processId: null, progress: null, revision: randomUUID(), updatedAt: new Date() });
     });
   } catch (error) {
     // Persist the actionable parser diagnostic, but never overwrite cancellation/newer work.
     await db.transaction(async tx => {
       const current = await owned(tx, 'importBatches', id, owner);
       if (current.state !== 'processing' || current.processId !== token) return;
-      await tx.put('importBatches', { ...current, state: 'failed', format:error instanceof ImportParseError?error.format:current.format, layout: error instanceof ImportParseError ? error.layout : null,error: error instanceof FinanceError ? error.message : 'Análise interrompida. Repita com os mesmos arquivos; nenhum lançamento foi criado.', processId: null, revision: randomUUID(), updatedAt: new Date() });
+      await tx.put('importBatches', { ...current, state: 'failed', format:error instanceof ImportParseError?error.format:current.format, layout: error instanceof ImportParseError ? error.layout : null,error: error instanceof FinanceError ? error.message : 'Análise interrompida. Repita com os mesmos arquivos; nenhum lançamento foi criado.', errorCode: error instanceof FinanceError ? error.code : 'INTERRUPTED', processId: null, progress: null, revision: randomUUID(), updatedAt: new Date() });
     });
   }
   return loadImport(db, owner, id);
@@ -133,6 +163,8 @@ export async function reviewImportItem(db: Database, owner: string, key: string,
       if (!sameImportEntry(existing, { ...item, ...data }, batch)) fail('DUPLICATE_CONFLICT', 409, 'O lançamento existente não corresponde a valor, data, descrição, competência, categoria e destino.');
       if (batch.cardId && (await owned(tx, 'invoices', existing.invoiceId!, owner)).cardId !== batch.cardId) fail('DUPLICATE_CONFLICT', 409, 'Escolha um lançamento deste cartão.');
     }
+    // The chosen category becomes a learned rule for the next imports (reads happen before writes).
+    if (data.resolution !== 'exclude') await learnRule(tx, owner, data.description, data.categoryId);
     const next = { ...item, ...data, duplicateId: data.resolution === 'link' ? data.duplicateId : null, kind: data.amount.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income', state: data.resolution === 'exclude' ? 'excluded' : 'valid', revision: randomUUID(), updatedAt: new Date() };
     const nextBatch = { ...batch, revision: randomUUID(), updatedAt: new Date() };
     // Staging is ordered: the item is persisted before its parent revision changes.
@@ -144,7 +176,7 @@ export async function cancelImport(db: Database, owner: string, key: string, id:
   return operation(db, owner, key, 'cancel-import', { id, expected }, async tx => {
     const batch = await owned(tx, 'importBatches', id, owner); checkRevision(batch, expected);
     if (!['received', 'processing', 'review', 'failed'].includes(batch.state)) fail('BATCH_STATE', 409, 'Só lotes ainda não confirmados podem ser cancelados.');
-    const row = { ...batch, state: 'cancelled', payload: null, processId: null, revision: randomUUID(), updatedAt: new Date() };
+    const row = { ...batch, state: 'cancelled', payload: null, processId: null, progress: null, revision: randomUUID(), updatedAt: new Date() };
     await tx.put('importBatches', row); return { id, revision: row.revision };
   });
 }
@@ -168,7 +200,7 @@ export async function loadImport(db: Database, owner: string, id: string): Promi
       owned(tx, 'importBatches', id, owner),
       tx.owned('importItems', owner, { where: [{ field: 'batchId', value: id }], order: [{ field: 'position', direction: 'asc' }] }),
     ]);
-    const rows: ImportRowView[] = items.map(item => ({ id: item.id, position: item.position, state: item.state, revision: revision(item), description: item.description, amount: item.amount, purchaseDate: item.purchaseDate, competenceMonth: item.competenceMonth, categoryId: item.categoryId, selected: item.selected ?? false, resolution: item.resolution ?? 'new', duplicateId: item.duplicateId ?? null, warnings: item.warnings, provenance: item.provenance, candidates: item.candidates ?? [], undoReason: item.undoReason ?? null }));
+    const rows: ImportRowView[] = items.map(item => ({ id: item.id, position: item.position, state: item.state, revision: revision(item), description: item.description, amount: item.amount, purchaseDate: item.purchaseDate, competenceMonth: item.competenceMonth, categoryId: item.categoryId, selected: item.selected ?? false, resolution: item.resolution ?? 'new', duplicateId: item.duplicateId ?? null, warnings: item.warnings, provenance: item.provenance, candidates: item.candidates ?? [], undoReason: item.undoReason ?? null, suggestion: item.suggestion ?? null }));
     // The preview rechecks deterministic identities so a concurrent import cannot
     // keep showing an additional expense after another batch has committed it.
     const existing = batch.state === 'review' ? await Promise.all(items.map(item => tx.get('transactions', importIdentity(batch,item)))) : [];
@@ -177,6 +209,6 @@ export async function loadImport(db: Database, owner: string, id: string): Promi
       rows[index]!.candidates.push({id:entry.id,description:entry.description,amount:entry.amount,purchaseDate:entry.purchaseDate,categoryId:entry.categoryId,competenceMonth:entry.competenceMonth,status:entry.status,archived:!!entry.archivedAt,exact:true});
     }
     const dates = rows.flatMap(r => r.purchaseDate ? [r.purchaseDate] : []).sort();
-    return { id, filename: batch.filename ?? 'Lote legado', format: batch.format ?? batch.source, state: batch.state, revision: revision(batch), error: batch.error ?? null, accountId: batch.accountId, cardId: batch.cardId, period: dates.length ? `${dates[0]} — ${dates.at(-1)}` : null, createdAt: batch.createdAt.toISOString(), layout: batch.layout ?? null, mapping: batch.mapping ?? null, rows, preview: importPreview(rows.map(r => ({ ...r, resolution: r.candidates.some(c => c.exact && !c.archived) ? 'link' : r.resolution })), !!batch.cardId) };
+    return { id, filename: batch.filename ?? 'Lote legado', format: batch.format ?? batch.source, state: batch.state, revision: revision(batch), error: batch.error ?? null, errorCode: batch.errorCode ?? null, progress: batch.state === 'processing' ? batch.progress ?? null : null, accountId: batch.accountId, cardId: batch.cardId, period: dates.length ? `${dates[0]} — ${dates.at(-1)}` : null, createdAt: batch.createdAt.toISOString(), layout: batch.layout ?? null, mapping: batch.mapping ?? null, rows, preview: importPreview(rows.map(r => ({ ...r, resolution: r.candidates.some(c => c.exact && !c.archived) ? 'link' : r.resolution })), !!batch.cardId) };
   });
 }

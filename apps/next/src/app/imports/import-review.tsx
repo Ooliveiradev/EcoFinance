@@ -6,7 +6,7 @@ import type { ImportReference } from './imports-client';
 type Save = (row: ImportRowView, input: unknown) => Promise<void>;
 interface Draft { description: string; amount: string; purchaseDate: string; month: string; categoryId: string; selected: boolean; resolution: ImportRowView['resolution']; duplicateId: string }
 function initialDraft(row: ImportRowView): Draft {
-  return { description: row.description ?? '', amount: row.amount ?? '', purchaseDate: row.purchaseDate ?? '', month: row.competenceMonth?.slice(0, 7) ?? '', categoryId: row.categoryId ?? '', selected: row.selected, resolution: row.resolution, duplicateId: row.duplicateId ?? '' };
+  return { description: row.description ?? '', amount: row.amount ?? '', purchaseDate: row.purchaseDate ?? '', month: row.competenceMonth?.slice(0, 7) ?? '', categoryId: row.categoryId ?? row.suggestion?.categoryId ?? '', selected: row.selected, resolution: row.resolution, duplicateId: row.duplicateId ?? '' };
 }
 const patchDraft = (draft: Draft, patch: Partial<Draft>): Draft => ({ ...draft, ...patch });
 const fieldClass = 'w-full min-w-0 rounded-lg border border-border bg-surface p-2 text-sm';
@@ -51,7 +51,7 @@ function ConfirmSelection({ busy, dirty, count, onConfirm }: { busy: boolean; di
 function ImportEvidence({ row }: { row: ImportRowView }) {
   const warnings = [...new Set(row.warnings)];
   return <div className="space-y-3">
-    <p className="text-xs text-muted">Origem: {row.provenance.page && `página ${row.provenance.page} · `}linha {row.provenance.row ?? row.position}{row.provenance.cell && ' · célula ' + row.provenance.cell}</p>
+    <p className="text-xs text-muted">Origem: {row.provenance.page && `página ${row.provenance.page} · `}linha {row.provenance.row ?? row.position}{row.provenance.cell && ' · célula ' + row.provenance.cell}{row.provenance.region && ` · a ${Math.round(row.provenance.region.y * 100)}% do topo e ${Math.round(row.provenance.region.x * 100)}% da margem esquerda`}{row.provenance.method === 'ocr' ? ` · leitura óptica${row.provenance.confidence !== undefined ? ` (confiança ${row.provenance.confidence}%)` : ''}` : row.provenance.method === 'text' ? ' · texto do PDF' : ''}</p>
     <pre className="text-xs whitespace-pre-wrap break-all max-h-28 overflow-auto">{row.provenance.excerpt}</pre>
     {warnings.length > 0 && <ul className="text-xs text-muted list-disc pl-5">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
     {row.undoReason && <p role="status" className="text-sm">{row.undoReason}</p>}
@@ -75,6 +75,7 @@ function ImportLine({ row, categories, disabled, onDirty, onSave }: { row: Impor
         <fieldset disabled={disabled} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <legend className="sr-only">Revisar linha {row.position}</legend>
           <ImportLineFields draft={draft} position={row.position} categories={categories} change={change} />
+          {row.suggestion && !row.categoryId && <p className="text-xs text-muted sm:col-span-2 lg:col-span-3">Categoria pré-selecionada: {categories.find(c => c.id === row.suggestion!.categoryId)?.name ?? 'indisponível'} — {row.suggestion.reason} Ela só vale depois de salvar a linha.</p>}
           <DuplicateFields draft={draft} row={row} categories={categories} change={change} />
           <label className="text-sm flex items-center gap-3">
             <input aria-label={'Selecionar linha ' + row.position} type="checkbox" checked={draft.selected} onChange={e => change({ selected: e.target.checked })} />Selecionar para confirmar
