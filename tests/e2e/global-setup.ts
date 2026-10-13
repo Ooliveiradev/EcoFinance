@@ -11,7 +11,9 @@ export default async function setup() {
  for(const [email,ownerId] of [['a@example.test',OWNER_A],['b@example.test',OWNER_B]] as const) await provisionUser(db,{email,password:TEST_PASSWORD,ownerId});
  // Dedicated owner for backup/restore/deletion journeys, which replace all of its data.
  await provisionUser(db,{email:'c@example.test',password:TEST_PASSWORD,name:'Backup E2E'});
+ // Dedicated owner for the import → metrics journey: other specs leave batches in review.
+ await provisionUser(db,{email:'d@example.test',password:TEST_PASSWORD,name:'Relatórios E2E'});
  // Output payloads must not enter another journey's backup/restore graph.
- await provisionUser(db,{email:'d@example.test',password:TEST_PASSWORD,name:'Output E2E'});
+ await provisionUser(db,{email:'e@example.test',password:TEST_PASSWORD,name:'Output E2E'});
  await db.firestore.terminate();
 }

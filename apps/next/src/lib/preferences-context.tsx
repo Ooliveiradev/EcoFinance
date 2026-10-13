@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useSyncExternalStore } from 'react';
 import {
   type Preferences,
   type ThemePreference,
@@ -18,7 +18,6 @@ const STORAGE_KEY = 'ecofinance_preferences';
 
 interface PreferencesContextValue {
   preferences: Preferences;
-  resolvedTheme: 'light' | 'dark';
   setTheme: (theme: ThemePreference) => void;
   setFavoriteCategory: (category: string | null) => void;
   toggleCardVisibility: (id: DashboardCardId) => void;
@@ -28,10 +27,20 @@ interface PreferencesContextValue {
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
-function getSystemTheme(): 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+// The system theme is never provider state. React treats any provider value that
+// changes above a streamed Suspense boundary not yet revealed as an update to
+// that boundary: it discards the server HTML and renders the page on the client
+// while the hidden streamed copy is still in the document (two copies of the
+// page until React's reveal script removes it). Only the components that show
+// the theme subscribe to it.
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+function subscribeSystemTheme(onChange: () => void) {
+  const media = window.matchMedia(DARK_QUERY);
+  media.addEventListener('change', onChange);
+  return () => media.removeEventListener('change', onChange);
 }
+const systemTheme = (): 'light' | 'dark' => (window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light');
+const serverTheme = (): 'light' | 'dark' => 'dark';
 
 function applyThemeToDocument(theme: 'light' | 'dark') {
   if (typeof document === 'undefined') return;
@@ -40,36 +49,27 @@ function applyThemeToDocument(theme: 'light' | 'dark') {
 }
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
-  const [preferences, setPreferencesState] = useState<Preferences>(() => {
-    if (typeof window === 'undefined') return defaultPreferences();
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return parsePreferences(stored).preferences;
-    } catch {
-      return defaultPreferences();
-    }
-  });
-
-  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>('dark');
+  // Server and first client render use the defaults, so hydration matches; the
+  // stored choice is applied right after mount, and only when it differs.
+  const [preferences, setPreferencesState] = useState<Preferences>(defaultPreferences);
 
   useEffect(() => {
-    setSystemTheme(getSystemTheme());
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const listener = (e: MediaQueryListEvent) => {
-      setSystemTheme(e.matches ? 'dark' : 'light');
-    };
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
+    try {
+      const stored = parsePreferences(localStorage.getItem(STORAGE_KEY)).preferences;
+      setPreferencesState(current => (serializePreferences(current) === serializePreferences(stored) ? current : stored));
+    } catch {
+      // Storage unavailable: keep the defaults
+    }
   }, []);
 
-  const resolvedTheme: 'light' | 'dark' = useMemo(() => {
-    if (preferences.theme === 'system') return systemTheme;
-    return preferences.theme;
-  }, [preferences.theme, systemTheme]);
-
+  // The inline script in layout.tsx applied the theme before paint; this keeps
+  // the document in sync with later preference and system changes.
   useEffect(() => {
-    applyThemeToDocument(resolvedTheme);
-  }, [resolvedTheme]);
+    if (preferences.theme !== 'system') return applyThemeToDocument(preferences.theme);
+    const apply = () => applyThemeToDocument(systemTheme());
+    apply();
+    return subscribeSystemTheme(apply);
+  }, [preferences.theme]);
 
   const savePreferences = useCallback((newPrefs: Preferences) => {
     setPreferencesState(newPrefs);
@@ -127,7 +127,6 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const value = useMemo(
     () => ({
       preferences,
-      resolvedTheme,
       setTheme,
       setFavoriteCategory,
       toggleCardVisibility,
@@ -136,7 +135,6 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }),
     [
       preferences,
-      resolvedTheme,
       setTheme,
       setFavoriteCategory,
       toggleCardVisibility,
@@ -154,4 +152,11 @@ export function usePreferences(): PreferencesContextValue {
     throw new Error('usePreferences must be used within a PreferencesProvider');
   }
   return context;
+}
+
+/** Theme applied to the document. Hydrates as 'dark' and updates only the calling component. */
+export function useResolvedTheme(): 'light' | 'dark' {
+  const { preferences } = usePreferences();
+  const system = useSyncExternalStore(subscribeSystemTheme, systemTheme, serverTheme);
+  return preferences.theme === 'system' ? system : preferences.theme;
 }
