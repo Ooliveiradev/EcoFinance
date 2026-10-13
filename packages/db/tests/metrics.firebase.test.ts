@@ -83,7 +83,7 @@ it('keeps owners isolated, reports empty months without invented trends and expo
 });
 
 it('propagates read failures and invalid filters instead of returning zero totals',async()=>{
-  const broken={transaction:async()=>{throw new Error('unavailable');}} as unknown as DocumentStore;
+  const unavailable=async()=>{throw new Error('unavailable');},broken={transaction:unavailable,owned:unavailable} as unknown as DocumentStore;
   await expect(loadReport(owner,{from:month,to:month},now,broken)).rejects.toThrow('unavailable');
   await expect(loadReport(owner,{from:month,to:'2030-03'},now,db)).rejects.toMatchObject({name:'ZodError'});
   await expect(loadReport(owner,{from:month,to:month,ownerId:other},now,db)).rejects.toMatchObject({name:'ZodError'});

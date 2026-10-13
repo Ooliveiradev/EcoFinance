@@ -161,7 +161,10 @@
 
 @layer base {
   html {
-    scroll-behavior: smooth;
+    /* Automatic focus/scroll-into-view must settle before interaction. A
+       global smooth animation can move controls under the sticky mobile bars. */
+    scroll-behavior: auto;
+    scroll-padding-block: 4rem 5rem;
     -webkit-text-size-adjust: 100%;
   }
 

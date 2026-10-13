@@ -48,6 +48,7 @@ import { usePreferences } from '@/lib/preferences-context';
 import { MonthSelector } from '@/components/month-selector';
 import { UpcomingBillsCard, type UpcomingBill } from '@/components/upcoming-bills-card';
 import { AddExpenseModal } from '@/components/add-expense-modal';
+import { PendingImportsNotice } from '@/components/pending-imports-notice';
 
 const CategoryChart = dynamic(() => import('./category-chart'), {
   ssr: false,
@@ -66,6 +67,8 @@ export type UpcomingBillItem = UpcomingBill;
 export interface CategoryData {
   id?: string;
   formatted?: string;
+  /** Exact share from the metrics report (one decimal), the same value /reports shows. */
+  share?: string;
   name: string;
   value: number;
   color: string;
@@ -94,6 +97,8 @@ interface DashboardMetrics {
   accounts?: Array<{ id: string; name: string }>;
   categories?: Array<{ id: string; name: string }>;
   projection?: MonthProjection;
+  /** Import batches in review; their previews are never part of these numbers. */
+  pendingImports?: number;
 }
 interface DashboardBase { month: string; isCurrentMonth: boolean; monthValid?: boolean }
 /** A failed read carries no numbers, so the page cannot present zeros as real totals. */
@@ -227,6 +232,8 @@ export default function DashboardClient(props: DashboardClientProps) {
           </Link>
         </div>
       </header>
+
+      {props.error === undefined && <PendingImportsNotice count={props.pendingImports ?? 0} />}
 
       {/* Dynamic Cards Rendered in User Preferred Order & Visibility */}
       {props.error === undefined && (
@@ -530,7 +537,7 @@ function CategoriesCard({ categoryData, formattedMonth, totalExpenses, formatted
                     </TableHeader>
                     <TableBody>
                       {categoryData.map((cat) => {
-                        const pct = totalExpenses > 0 ? (cat.value / totalExpenses) * 100 : 0;
+                        const pct = cat.share ?? (totalExpenses > 0 ? ((cat.value / totalExpenses) * 100).toFixed(1) : '0.0');
                         const label = cat.id ? cat.name : TRANSACTION_CATEGORY_LABELS[cat.name as TransactionCategory] ?? cat.name;
                         const color = cat.color || CATEGORY_COLORS[cat.name] || CATEGORY_COLORS.desconhecido;
 
@@ -550,7 +557,7 @@ function CategoriesCard({ categoryData, formattedMonth, totalExpenses, formatted
                               {cat.formatted ?? formatBRL(cat.value)}
                             </TableCell>
                             <TableCell className="text-xs text-muted text-right">
-                              {pct.toFixed(1).replace('.', ',')}%
+                              {pct.replace('.', ',')}%
                             </TableCell>
                           </TableRow>
                         );
