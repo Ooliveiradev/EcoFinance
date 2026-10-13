@@ -128,6 +128,9 @@ Use Java 21 e `firebase-tools@15.32.1`. As fixtures recusam modificar projeto re
    de todas as coleções e claims, com codecs tipados para timestamps/maps/arrays e
    hash do conjunto completo. `restore <backup.json>` restaura em destino vazio e
    reconcilia. Não sobrescreve destinos diferentes nem arquivos existentes.
+   Sessões, verificações de acesso e suas claims de unicidade são retiradas na
+   restauração: um backup não reativa tokens revogados. Contas de login, dados
+   financeiros e recibos de idempotência são preservados. Todos entram novamente.
 7. Teste login/leituras/isolamento na nova revisão antes de reabrir escritas. Este
    banco começou sem usuários; provisione o primeiro acesso pelo operador.
 

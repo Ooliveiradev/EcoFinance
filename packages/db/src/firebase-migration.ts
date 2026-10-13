@@ -142,7 +142,20 @@ export async function backupFirebase(store:DocumentStore):Promise<FirebaseBackup
 export async function restoreFirebase(store:DocumentStore,input:unknown) {
   const backup=input as FirebaseBackup;
   if(!backup || backup.format!=='ecofinance-firestore-v1' || !Array.isArray(backup.records) || hash(backup.records)!==backup.sha256)throw new Error('Invalid Firebase backup.');
-  await importRecords(store,backup.records);
+  checkSize(backup.records);
+  // A backup must not resurrect revoked device sessions or password-reset tokens.
+  // Keep financial records and idempotency receipts, removing their credential
+  // uniqueness markers together with the credentials themselves.
+  const credential = (path:string) => /^(authSessions|authVerifications)\//.test(path);
+  const records = backup.records.filter(record => {
+    if(credential(record.path))return false;
+    if(record.path.startsWith('_unique/')) {
+      const value=decode(record.data) as {path?:unknown};
+      if(typeof value?.path==='string' && credential(value.path))return false;
+    }
+    return true;
+  });
+  await importRecords(store,records);
 }
 // Current writes are included: this is not a return to an old source snapshot.
 export async function exportPortableFirebase(store:DocumentStore):Promise<PortableSnapshot> {
