@@ -53,6 +53,21 @@ export async function deleteRule(db: Database, owner: string, key: string, id: s
     return { id };
   });
 }
+/** Editing a learned rule makes the user's explicit choice take precedence. */
+export async function editRule(db: Database, owner: string, key: string, id: string, input: unknown) {
+  const data = categoryRuleInputSchema.parse(input), pattern = ruleKey(data.pattern);
+  if (pattern.length < CATEGORY_RULE_LIMITS.minimum) fail('INVALID_RULE', 400, 'Use ao menos três letras no texto da regra.');
+  return operation(db, owner, key, 'edit-category-rule', { id, pattern, categoryId: data.categoryId }, async tx => {
+    const rules = await categoryRules(tx, owner);
+    if (!rules.some(rule => rule.id === id)) fail('NOT_FOUND', 404, 'Regra não encontrada.');
+    await cardReference(tx, owner, 'categories', data.categoryId);
+    if (rules.some(rule => rule.id !== id && rule.source === 'user' && rule.pattern === pattern)) fail('RULE_EXISTS', 409, 'Já existe uma regra sua com esse texto. Edite a regra existente.');
+    await writeRules(tx, owner, all => all.map(rule => rule.id === id
+      ? { ...rule, pattern, categoryId: data.categoryId, source: 'user', match: 'contains', updatedAt: new Date().toISOString() }
+      : rule));
+    return { id };
+  });
+}
 export interface SuggestionInput { position: number; description: string | null; amount: string | null }
 /**
  * Suggestions for analysed rows: the user's rules first, then the local model for

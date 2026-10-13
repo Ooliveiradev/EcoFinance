@@ -3,7 +3,7 @@ import { randomUUID, randomBytes } from 'node:crypto';
 import { testStore, clearTestCollections } from './firestore-fixture';
 import { saveAccount, saveCategory, archiveReference } from '../../../apps/next/src/lib/manual-finance-service';
 import { receiveImports, processImport, reviewImportItem } from '../../../apps/next/src/lib/import-store';
-import { categoryRules, deleteRule, saveUserRule, suggestImportCategories } from '../../../apps/next/src/lib/category-rules';
+import { categoryRules, deleteRule, editRule, learnRule, saveUserRule, suggestImportCategories } from '../../../apps/next/src/lib/category-rules';
 import type { ImportBatchView } from '../../shared/src';
 
 /** Category assistance (#11): rules learned in review, user rules and the local model, never auto-applied. */
@@ -59,7 +59,12 @@ it('asks the local model only for rows without a rule and keeps the manual flow 
   const asked: string[] = [];
   const fetcher = (async (_url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body)); asked.push(body.messages[1].content);
-    return new Response(JSON.stringify({ message: { content: JSON.stringify({ sugestoes: [{ n: 1, categoria: 'c2', motivo: 'Corrida de aplicativo' }] }) } }));
+    // Firestore orders by document id, not category creation order. Resolve the
+    // offered alias from the actual request, as a model would do by its name.
+    const data = JSON.parse(body.messages[1].content.split('\n').slice(1).join('\n'));
+    const category = data.categorias.find((item: { nome: string; codigo: string }) => item.nome === 'Transporte');
+    expect(category).toBeDefined();
+    return new Response(JSON.stringify({ message: { content: JSON.stringify({ sugestoes: [{ n: 1, categoria: category.codigo, motivo: 'Corrida de aplicativo' }] }) } }));
   }) as unknown as typeof fetch;
   const config = { url: 'http://ollama.test', model: 'qwen2.5:3b', timeoutMs: 1000 };
   const result = await suggestImportCategories(db, owner, [{ position: 1, description: 'PADARIA CENTRAL', amount: '-5.00' }, { position: 2, description: 'UBER VIAGEM', amount: '-30.00' }], config, fetcher);
@@ -69,4 +74,27 @@ it('asks the local model only for rows without a rule and keeps the manual flow 
   expect(asked).toHaveLength(1); expect(asked[0]).not.toContain('PADARIA');
   const down = await suggestImportCategories(db, owner, [{ position: 1, description: 'UBER', amount: '-1.00' }], config, (async () => { throw new TypeError('offline'); }) as unknown as typeof fetch);
   expect(down.suggestions.size).toBe(0); expect(down.warnings[0]).toContain('indisponível');
+});
+it('edits learned rules with explicit precedence, replay protection and owner isolation', async () => {
+  await db.transaction(tx => learnRule(tx, owner, 'PADARIA CENTRAL', food));
+  const learned = (await categoryRules(db, owner))[0]!;
+  const key = randomUUID(), input = { pattern: 'Padaria', categoryId: transport };
+  const edited = await editRule(db, owner, key, learned.id, input);
+  expect(await editRule(db, owner, key, learned.id, input)).toEqual(edited);
+  expect(await categoryRules(db, owner)).toMatchObject([{ id: learned.id, pattern: 'padaria', categoryId: transport, source: 'user', match: 'contains' }]);
+  await db.transaction(tx => learnRule(tx, owner, 'PADARIA', food));
+  expect((await categoryRules(db, owner))[0]!.categoryId).toBe(transport);
+  expect((await analyse(['25/10/2026;PADARIA CENTRO;-12,00'])).rows[0]!.suggestion?.categoryId).toBe(transport);
+  const other = '10000000-0000-4000-8000-000000000002', now = new Date();
+  await db.put('users', { id: other, displayName: 'Synthetic B', email: null, emailVerified: false, image: null, createdAt: now, updatedAt: now });
+  const otherCategory = await saveCategory(db, other, randomUUID(), { name: 'Privada', color: '#336699' });
+  await expect(editRule(db, other, randomUUID(), learned.id, { pattern: 'Padaria', categoryId: otherCategory.id })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  await expect(editRule(db, owner, randomUUID(), learned.id, { pattern: 'Padaria', categoryId: otherCategory.id })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  await saveUserRule(db, owner, randomUUID(), { pattern: 'Mercado', categoryId: food });
+  await expect(editRule(db, owner, randomUUID(), learned.id, { pattern: 'Mercado', categoryId: food })).rejects.toMatchObject({ code: 'RULE_EXISTS' });
+  await expect(editRule(db, owner, randomUUID(), learned.id, { pattern: '123', categoryId: food })).rejects.toMatchObject({ code: 'INVALID_RULE' });
+  const current = (await db.get('categories', transport))!;
+  await archiveReference(db, owner, randomUUID(), 'categories', transport, current.revision!, true);
+  await expect(editRule(db, owner, randomUUID(), learned.id, input)).rejects.toMatchObject({ code: 'ARCHIVED_REFERENCE' });
+  expect((await categoryRules(db, owner)).find(rule => rule.id === learned.id)).toMatchObject({ pattern: 'padaria', categoryId: transport });
 });

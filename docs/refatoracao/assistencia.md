@@ -20,6 +20,14 @@ Sem regra e sem modelo, a linha fica sem sugestão e o fluxo manual segue igual.
 Categorias arquivadas nunca são sugeridas. Uma regra que aponte para uma categoria
 arquivada fica sem efeito e aparece assim na tela.
 
+Em Configurações, **Editar** permite mudar texto e categoria sem excluir a regra.
+**Cancelar edição** preserva os dados salvos. Ao editar uma regra aprendida, ela
+passa a ser uma regra do usuário e tem precedência sobre o aprendizado. Um texto
+já usado por outra regra do usuário é recusado, sem sobrescrevê-la. A API valida
+proprietário, categoria ativa e identificador de envio; repetir o mesmo envio não
+aplica a edição novamente. As mudanças valem para novas análises; não alteram
+lançamentos confirmados nem sugestões já apresentadas em outros lotes.
+
 ### Normalização e casamento
 
 `ruleKey` coloca o texto em minúsculas e remove acentos, dígitos, datas e
@@ -101,6 +109,9 @@ adequado, deixe `OLLAMA_URL` vazio e as regras continuam funcionando.
 - `POST /api/category-rules`: `{ pattern, categoryId }` cria uma regra do usuário
   (`Idempotency-Key`). A categoria precisa ser ativa e do próprio usuário.
 - `DELETE /api/category-rules/{id}`: exclui uma regra, aprendida ou do usuário.
+- `PATCH /api/category-rules/{id}`: `{ pattern, categoryId }` edita uma regra
+  (`Idempotency-Key`); regra/categoria de outro proprietário retorna 404, categoria
+  arquivada ou texto já usado retorna 409. A regra mantém seu id.
 - As linhas de `GET /api/imports/{id}` trazem `suggestion` com `categoryId`,
   `source` (`rule` ou `model`), `reason`, e `ruleId` ou `model`.
 
@@ -120,8 +131,27 @@ adequado, deixe `OLLAMA_URL` vazio e as regras continuam funcionando.
   - Precedência da regra do usuário e categoria arquivada.
   - Exclusão de regra.
   - Modelo chamado só para linhas sem regra, e falha do modelo.
+  - Edição de regra aprendida, precedência explícita, reenvio idempotente,
+    isolamento entre usuários, categoria arquivada e colisão de texto.
 - `tests/e2e/category-rules.spec.ts`: regra criada nas configurações e categoria
-  pré-selecionada na revisão, com a linha ainda pendente.
+  pré-selecionada na revisão, com a linha ainda pendente; edição cancelada/salva e
+  persistência após recarregar.
+
+Retomada de 13/10/2026: a falha da CI #38016001491 vinha do teste que fixava
+`c2` como Transporte, embora Firestore retornasse categorias por ids aleatórios.
+O modelo falso agora resolve o alias pelo nome fornecido na requisição. Não houve
+troca da ordem das categorias em produção para acomodar o teste.
+
+Validação da retomada (Windows, Node 24.16.0, Java 26.0.1, emulador Firestore
+1.22.0 Enterprise, somente dados sintéticos): instalação frozen-lockfile offline,
+tipos/lint, 302 testes unitários e gate de cobertura, quatro integrações de regras,
+build web com canários e verificações de privacidade. A jornada de criar, cancelar
+edição, editar, recarregar e sugerir categoria passou em Chromium, WebKit e
+mobile-web. O formulário agora aguarda o carregamento antes de aceitar edição,
+evitando perder digitação durante a hidratação no WebKit. Na suíte Firestore
+completa, 94/95 passaram; o teste de cancelamento de OCR excedeu cinco segundos
+sob carga e passou na repetição isolada. A avaliação do Ollama real permanece
+pulada. A CI remota do novo commit é necessária antes da integração.
 
 ## Fora deste incremento
 
