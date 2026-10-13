@@ -8,7 +8,7 @@ const headers=()=>({origin,'Idempotency-Key':randomUUID()});
 test.setTimeout(120000);
 test.beforeEach(async({page})=>{
   await clearTestCollections(db,['authRateLimits']);
-  expect((await page.request.post('/api/auth/sign-in/email',{headers:{origin},data:{email:'c@example.test',password:TEST_PASSWORD}})).status()).toBe(200);
+  expect((await page.request.post('/api/auth/sign-in/email',{headers:{origin},data:{email:'d@example.test',password:TEST_PASSWORD}})).status()).toBe(200);
 });
 test.afterAll(async()=>{await db.firestore.terminate();});
 test('HTML, URL and spreadsheet payloads stay inert while monetary values remain exact',async({page})=>{
