@@ -113,6 +113,13 @@ $env:FIRESTORE_EMULATOR_HOST='127.0.0.1:8085'
 pnpm exec vitest run --config vitest.firebase.config.ts packages/db/tests/recovery-rehearsal.firebase.test.ts
 ```
 
+Para o ensaio HTTP local após build de produção, configure também
+`RECOVERY_LOCAL_HTTP=1`. Ele inicia processos Next.js em loopback nas portas
+8086–8088 e executa o mesmo fluxo, sem Docker. Em 13/10/2026 esse modo mediu
+11.102 ms de recuperação, RPO observado de 20 ms e zero operações duplicadas.
+O login nativo usa HTTP sem metadados de navegador, reproduzindo o transporte
+do app; o login web mantém Origin. Nenhuma proteção de origem é desativada.
+
 Na CI Linux, o job de imagem executa o mesmo ensaio com `RECOVERY_IMAGE` apontando
 para a imagem standalone produzida pelo Dockerfile: inicia containers Next.js
 reais em loopback, recusa login do candidate mal configurado, preserva o serviço
