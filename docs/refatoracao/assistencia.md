@@ -153,6 +153,11 @@ completa, 94/95 passaram; o teste de cancelamento de OCR excedeu cinco segundos
 sob carga e passou na repetição isolada. A avaliação do Ollama real permanece
 pulada. A CI remota do novo commit é necessária antes da integração.
 
+A primeira CI da retomada detectou novos patches exigidos pelo catálogo do SDK:
+Expo 57.0.28 e expo-crypto 57.0.4. Manifesto e lockfile foram alinhados dentro do
+SDK 57; `pnpm mobile:check` voltou a passar. A validação nativa Android continua
+no gate remoto.
+
 ## Fora deste incremento
 
 - Assistência ao mapeamento de colunas ambíguas (#9) e à organização do texto de
