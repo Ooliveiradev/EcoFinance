@@ -9,9 +9,11 @@ import { createAuth } from '../../../apps/next/src/lib/auth';
 import { provisionUser } from '../../../apps/next/src/lib/provision-user';
 import { monthTotals } from '../../shared/src';
 import { hash } from '../../../apps/next/src/lib/finance-operation';
-import { execFile } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
 
 // The testStore guard refuses any non-demo/non-loopback target.
 const suffix=randomBytes(6).toString('hex'), sourceId='incident-source-'+suffix, restoredId='incident-restored-'+suffix;
@@ -20,19 +22,42 @@ const origin='http://127.0.0.1:3000', secret='synthetic-incident-secret'.repeat(
 const owners=['10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001'];
 const password='synthetic-incident-password', replacement='synthetic-incident-replacement';
 const run=promisify(execFile), containers=new Set<string>(), image=process.env.RECOVERY_IMAGE;
+const localHttp=process.env.RECOVERY_LOCAL_HTTP==='1', servers=new Set<ChildProcess>();
+const require=createRequire(import.meta.url);
 interface Release {
   login(pass?:string,web?:boolean):Promise<Response>;
   session(headers:Record<string,string>):Promise<{user:{id:string}}|null>;
   stop():Promise<void>;
   url?:string;
 }
+// Native clients do not send browser fetch metadata. Node's fetch adds it even
+// when an empty override is supplied, so use HTTP directly for this fixture.
+function httpLogin(url:string,pass:string,web:boolean):Promise<Response> {
+  const body=JSON.stringify({email:'incident@example.test',password:pass});
+  return new Promise((resolve,reject)=> {
+    const request=httpRequest(url+'/api/auth/sign-in/email',{method:'POST',headers:{
+      'Content-Type':'application/json','Content-Length':Buffer.byteLength(body),...(web?{origin:url}:{}),
+    }},response=> {
+      const chunks:Buffer[]=[];
+      response.on('data',chunk=>chunks.push(Buffer.from(chunk)));
+      response.on('end',()=> {
+        const headers=new Headers();
+        for(let i=0;i<response.rawHeaders.length;i+=2)headers.append(response.rawHeaders[i]!,response.rawHeaders[i+1]!);
+        resolve(new Response(Buffer.concat(chunks),{status:response.statusCode!,headers}));
+      });
+      response.on('error',reject);
+    });
+    request.on('error',reject);request.setTimeout(15000,()=>request.destroy(new Error('Recovery login timeout.')));request.end(body);
+  });
+}
 async function stop(name:string) { await run('docker',['rm','--force',name]);containers.delete(name); }
 afterAll(async()=> {
   for(const name of containers) await stop(name);
+  for(const server of servers)server.kill();
   for(const db of [source,restored]) {await clearTestCollections(db);await db.firestore.terminate();}
 });
 async function release(db:typeof source,databaseId:string,key:string,port=8086):Promise<Release> {
-  if(!image) {
+  if(!image && !localHttp) {
     const auth=createAuth(db,origin,key);
     return {
       login: (pass=password,web=false)=>auth.handler(new Request(origin+'/api/auth/sign-in/email',{method:'POST',headers:{'Content-Type':'application/json',...(web?{origin}:{})},body:JSON.stringify({email:'incident@example.test',password:pass})})),
@@ -40,13 +65,24 @@ async function release(db:typeof source,databaseId:string,key:string,port=8086):
       stop: async()=>{},
     };
   }
-  if(!/^[a-z0-9][a-z0-9./:_-]+$/i.test(image) || !/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST??'')) throw new Error('Invalid recovery fixture target.');
+  if((image && !/^[a-z0-9][a-z0-9./:_-]+$/i.test(image)) || !/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST??'')) throw new Error('Invalid recovery fixture target.');
   const name='ef-recovery-'+randomBytes(6).toString('hex'), url='http://127.0.0.1:'+port;
-  await run('docker',['run','--detach','--rm','--name',name,'--network','host',
-    '--env','HOSTNAME=127.0.0.1','--env','PORT='+port,'--env','AUTH_URL='+url,'--env','AUTH_SECRET='+key,
-    '--env','FIREBASE_PROJECT_ID=demo-ecofinance','--env','FIRESTORE_DATABASE_ID='+databaseId,
-    '--env','FIRESTORE_EMULATOR_HOST='+process.env.FIRESTORE_EMULATOR_HOST,image]);
-  containers.add(name);
+  let halt:()=>Promise<void>;
+  if(image) {
+    await run('docker',['run','--detach','--rm','--name',name,'--network','host',
+      '--env','HOSTNAME=127.0.0.1','--env','PORT='+port,'--env','AUTH_URL='+url,'--env','AUTH_SECRET='+key,
+      '--env','FIREBASE_PROJECT_ID=demo-ecofinance','--env','FIRESTORE_DATABASE_ID='+databaseId,
+      '--env','FIRESTORE_EMULATOR_HOST='+process.env.FIRESTORE_EMULATOR_HOST,image]);
+    containers.add(name);halt=()=>stop(name);
+  } else {
+    // The same HTTP rehearsal can run locally where Docker is unavailable.
+    // CI still requires the production container mode above.
+    const server=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'start','--hostname','127.0.0.1','--port',String(port)],{
+      cwd:'apps/next',stdio:'ignore',env:{...process.env,AUTH_URL:url,AUTH_SECRET:key,FIREBASE_PROJECT_ID:'demo-ecofinance',FIRESTORE_DATABASE_ID:databaseId},
+    });
+    servers.add(server);
+    halt=()=>new Promise(resolve=>{server.once('exit',()=>{servers.delete(server);resolve();});server.kill();});
+  }
   let healthy=false;
   for(let i=0;i<120;i++) {
     healthy=await fetch(url+'/api/health').then(r=>r.ok).catch(()=>false);
@@ -56,16 +92,13 @@ async function release(db:typeof source,databaseId:string,key:string,port=8086):
   if(!healthy)throw new Error('Recovery fixture container failed to start.');
   return {
     url,
-    // Undici adds Sec-Fetch-Mode automatically; a native client sends no fetch
-    // metadata. An explicit empty value reproduces that native request without
-    // weakening the application's browser origin checks.
-    login: (pass=password,web=false)=>fetch(url+'/api/auth/sign-in/email',{method:'POST',headers:{'Content-Type':'application/json',...(web?{origin:url}:{'sec-fetch-mode':''})},body:JSON.stringify({email:'incident@example.test',password:pass})}),
+    login: (pass=password,web=false)=>httpLogin(url,pass,web),
     session: async headers=>{
       const response=await fetch(url+'/api/auth/get-session',{headers});
       if(!response.ok)throw new Error('Recovery session check failed.');
       return response.json();
     },
-    stop: ()=>stop(name),
+    stop: halt,
   };
 }
 it('recovers from failed configuration/corruption, revokes restored credentials and replays imports once',async()=> {
@@ -95,7 +128,7 @@ it('recovers from failed configuration/corruption, revokes restored credentials 
   const started=Date.now();
   // CI also runs the real standalone Next.js image over HTTP. A candidate with
   // invalid configuration must fail login even if its liveness route returns 200.
-  if(image) {
+  if(image || localHttp) {
     const candidate=await release(source,sourceId,'short',8087);
     expect((await candidate.login()).status).not.toBe(200); await candidate.stop();
   } else expect(()=>createAuth(source,origin,'short')).toThrow('AUTH_SECRET');
@@ -150,7 +183,7 @@ it('recovers from failed configuration/corruption, revokes restored credentials 
   }
   const elapsedMs=Date.now()-started, rpoMs=started-backedUpAt;
   expect(elapsedMs).toBeLessThan(60*60*1000); expect(rpoMs).toBeLessThan(24*60*60*1000);
-  const evidence={scenario:'synthetic-configuration-corruption-credential-recovery',mode:image?'production-container-http':'application-factory',revision:process.env.GITHUB_SHA??null,elapsedMs,rpoMs,duplicateOperations:0};
+  const evidence={scenario:'synthetic-configuration-corruption-credential-recovery',mode:image?'production-container-http':localHttp?'production-build-http':'application-factory',revision:process.env.GITHUB_SHA??null,elapsedMs,rpoMs,duplicateOperations:0};
   await mkdir('.ci-diagnostics',{recursive:true});
   await writeFile('.ci-diagnostics/recovery-evidence.json',JSON.stringify(evidence)+'\n');
   console.info(JSON.stringify(evidence));
