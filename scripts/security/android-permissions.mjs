@@ -15,7 +15,9 @@ export function permissionFindings(xml) {
     if(!name || !releasePermissions.has(name))findings.push('unexpected release permission: '+(name??'missing name'));
   }
   for(const [tag]of xml.matchAll(/<(?:activity|activity-alias|service|receiver|provider)\b[^>]*>/g)) {
-    if(attribute(tag,'android:exported')==='true' && !['.MainActivity','com.ecofinance.app.MainActivity'].includes(attribute(tag,'android:name')))findings.push('unexpected exported component: '+attribute(tag,'android:name'));
+    // DUMP is signature|privileged|development: only adb/Play can reach AndroidX's profile installer.
+    const systemOnly=attribute(tag,'android:permission')==='android.permission.DUMP';
+    if(attribute(tag,'android:exported')==='true' && !systemOnly && !['.MainActivity','com.ecofinance.app.MainActivity'].includes(attribute(tag,'android:name')))findings.push('unexpected exported component: '+attribute(tag,'android:name'));
   }
   return findings;
 }
