@@ -3,10 +3,16 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { validateDependencyPolicy } from './dependency-policy.mjs';
 
 // npm does not account for pnpm patches. Accept only this exact patched artifact,
 // after checking its bytes and exercising the public signature verifier.
 const require = createRequire(import.meta.url);
+const patchReviews = validateDependencyPolicy(JSON.parse(readFileSync(new URL('./dependency-policy.json', import.meta.url), 'utf8')));
+const reviewed = (advisory, name, version) => {
+  const review = patchReviews.get(advisory.github_advisory_id);
+  return review?.package === name && review.version === version;
+};
 // GHSA-vfj7-8cjw-p6xm has no published fixed version. Only these exact
 // locally patched parser/walker artifacts may satisfy its audit finding.
 const bracesHashes = {
@@ -68,12 +74,12 @@ const report = JSON.parse(raw);
 if (report.error || !report.metadata?.vulnerabilities || !report.advisories) throw new Error('Incomplete dependency audit');
 let blocked = 0;
 for (const advisory of Object.values(report.advisories)) {
-  if (advisory.github_advisory_id === 'GHSA-vfj7-8cjw-p6xm' && advisory.module_name === 'braces' &&
+  if (reviewed(advisory, 'braces', '3.0.3') && advisory.github_advisory_id === 'GHSA-vfj7-8cjw-p6xm' && advisory.module_name === 'braces' &&
       advisory.findings.length && advisory.findings.every(finding => finding.version === '3.0.3')) {
     console.log('GHSA-vfj7-8cjw-p6xm: installed pnpm patch verified by SHA-256 and nesting regressions.');
     continue;
   }
-  if (advisory.github_advisory_id === 'GHSA-86w9-cpqp-85rv' && advisory.module_name === 'node-forge' &&
+  if (reviewed(advisory, 'node-forge', '1.4.0') && advisory.github_advisory_id === 'GHSA-86w9-cpqp-85rv' && advisory.module_name === 'node-forge' &&
       advisory.findings.length && advisory.findings.every(finding => finding.version === '1.4.0')) {
     console.log('CVE-2026-85393: installed pnpm patch verified by SHA-256 and malformed-signature regression.');
     continue;

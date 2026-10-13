@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { migrate, readMigrations } from '../src/migrations';
 import { compareSnapshots, exportSnapshot } from '../src/portable-snapshot';
+import { buildSnapshot } from '../src/portable-snapshot';
+import { restorePortable } from '../src/portable-restore';
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error('TEST_DATABASE_URL required; this suite creates a disposable database.');
@@ -57,5 +59,32 @@ describe('read-only PostgreSQL portable export', () => {
     expect(() => compareSnapshots(before, before)).not.toThrow();
     const after = await exportSnapshot(sql);
     expect(() => compareSnapshots(before, after)).not.toThrow();
+  });
+  it('round-trips hostile values as parameters and rejects hostile schema identifiers before SQL', async () => {
+    const hostile = "'; DROP TABLE users; -- ${pg_sleep(30)} OR 1=1";
+    const owner = (await sql`SELECT id FROM users ORDER BY id LIMIT 1`)[0]!.id;
+    await sql`UPDATE users SET display_name=${hostile} WHERE id=${owner}`;
+    const snapshot = await exportSnapshot(sql);
+    expect(snapshot.tables.users!.rows.find(row => row.id === owner)!.display_name).toBe(hostile);
+    const unsafe = structuredClone(snapshot) as unknown as { tables: Record<string, unknown> };
+    unsafe.tables['users; DROP TABLE accounts; --'] = unsafe.tables.users;
+    await expect(restorePortable(sql, unsafe)).rejects.toThrow('schema mismatch');
+    const tables = Object.fromEntries(Object.entries(snapshot.tables).map(([name, table]) => [name, table.rows]));
+    const tampered = structuredClone(tables);
+    tampered.users![0]!['display_name) VALUES (1); DROP TABLE users; --'] = hostile;
+    expect(() => buildSnapshot(tampered)).toThrow('columns');
+    const targetName = `ecofinance_test_${randomBytes(8).toString('hex')}`;
+    await admin`CREATE DATABASE ${admin(targetName)}`;
+    const isolated = new URL(url!); isolated.pathname = `/${targetName}`;
+    const target = postgres(isolated.toString(), { max: 1, prepare: false, onnotice: () => {} });
+    try {
+      await migrate(target, await readMigrations(fileURLToPath(new URL('../migrations', import.meta.url))));
+      await restorePortable(target, snapshot);
+      expect((await target`SELECT display_name FROM users WHERE id=${owner}`)[0]!.display_name).toBe(hostile);
+      expect((await target`SELECT count(*)::int AS n FROM accounts`)[0]!.n).toBe(snapshot.tables.accounts!.count);
+    } finally {
+      await target.end({ timeout: 5 });
+      await admin`DROP DATABASE ${admin(targetName)}`;
+    }
   });
 });

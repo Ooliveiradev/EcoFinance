@@ -26,6 +26,15 @@ it('retries concurrent creation once, refuses changed payload, and isolates requ
   await expect(saveEntry(db,owner,request,expense({amount:'0.20'}))).rejects.toMatchObject({code:'REQUEST_CONFLICT'});
   expect((await saveAccount(db,other,request,{...accountInput,name:'Mesmo ID em outro dono'})).id).toBeTypeOf('string');
 });
+it('treats hostile filters as literal data and rejects identifiers, ownership and sorting injection',async()=> {
+  const description = "'; DROP TABLE transactions; -- OR 1=1";
+  const saved = await saveEntry(db,owner,randomUUID(),expense({description}));
+  expect((await listEntries(db,owner,{description})).entries.map(row=>row.id)).toEqual([saved.id]);
+  expect((await listEntries(db,other,{description})).entries).toHaveLength(0);
+  expect((await listEntries(db,owner,{description:"' OR '1'='1"})).entries).toHaveLength(0);
+  for(const input of [{accountId:description},{sort:'purchaseDate; DROP TABLE users'},{ownerId:other},{page:'1;SELECT 1'}]) await expect(listEntries(db,owner,input)).rejects.toThrow();
+  await archiveEntry(db,owner,randomUUID(),String(saved.id),String(saved.revision),true);
+});
 it('edits money and notes with optimistic concurrency, deletes reversibly, and updates exact balances',async()=> {
   const saved=await saveEntry(db,owner,randomUUID(),expense({description:'Fluxo CRUD'}));
   const id=String(saved.id);

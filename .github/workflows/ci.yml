@@ -268,7 +268,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Includes development dependencies; registry errors also fail the job.
+      - run: node scripts/security/inventory.mjs > dependency-inventory.json
       - run: pnpm security:audit
+      - name: Dependency inventory evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-inventory
+          path: dependency-inventory.json
+          if-no-files-found: error
+          retention-days: 7
 
   secrets:
     name: Git history, working tree and source privacy

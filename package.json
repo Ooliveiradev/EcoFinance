@@ -20,6 +20,7 @@
     "db:push": "turbo db:push",
     "clean": "turbo clean",
     "security:audit": "node scripts/security/audit.mjs",
+    "security:inventory": "node scripts/security/inventory.mjs",
     "db:verify-recovery": "tsx packages/db/scripts/verify-recovery.ts",
     "auth:user": "pnpm --filter @ecofinance/next auth:user",
     "db:firebase": "tsx packages/db/scripts/firebase.ts",
@@ -43,7 +44,8 @@
     "turbo": "^2.11.7",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "yaml": "2.9.1"
   },
   "packageManager": "pnpm@9.15.0",
   "engines": {
