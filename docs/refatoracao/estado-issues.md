@@ -28,14 +28,14 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #31 | Login tem rate limit; falta cobertura operacional de todas as superfícies/rajadas/recuperação |
 | #32 | Schemas/limites existentes; cobertura completa das fronteiras precisa ser demonstrada |
 | #33 | React codifica saídas; falta auditoria/testes contextualizados de todas as fontes |
-| #34 | Consultas parametrizadas existem; falta matriz explícita de entradas hostis e inventário de SQL indireto |
+| #34 | Inventário de SQL direto/indireto, restrição de drivers no runtime, round-trip de valores hostis e recusa de identificadores externos; matriz em ../security/sql-injection.md, encerramento vinculado à integração com CI completa |
 | #35 | Migrations/backup existentes; falta runbook de rollback de código/configuração/dados e ensaio completo |
 | #37 | Segredos server-only e scanners existentes; faltam rotação/revogação e evidência operacional |
 | #38 | Concluída no PR #54: allowlist CORS exata (somente AUTH_URL), preflight e origem negada antes da autenticação, inventário em cors.md |
 | #39 | Logs de auth desativados para evitar vazamentos; trilha de eventos/retencão/correlação não entregue |
 | #40 | SecureStore e hashes não comprovam criptografia de volumes, arquivos e backups |
-| #41 | Lockfile, patches, auditoria, Dependabot e Actions fixas existem; política de prazos/exceções e inventário formal incompletos |
-| #42 | Significado de PMP ainda depende da confirmação registrada no ticket |
+| #41 | Inventário reproduzível de pacotes/Actions/imagens, hooks instalados, política de prazos e revisão de patches com expiração testada; ../security/dependencies.md, encerramento vinculado à integração com CI completa |
+| #42 | Mantenedor confirmou em 13/10/2026: Princípio do Menor Privilégio. Falta concluir inventário/redução de permissões e testes de acesso |
 | #43 | Health endpoint não comprova métricas, alertas e simulações de incidentes |
 | #44 | Restauração sintética existe; RPO/RTO, responsáveis e runbook de incidente completos ainda pendentes |
 | #47 | Concluída no PR #48, com Firestore Enterprise em São Paulo, runtime/autenticação, regras, backup/reversão e CI incluindo Android nativo |

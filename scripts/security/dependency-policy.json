@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "owner": "repository-maintainer",
+  "remediationDays": { "critical": 1, "high": 7, "moderate": 30, "low": 90 },
+  "patchedAdvisories": [
+    {
+      "id": "GHSA-86w9-cpqp-85rv",
+      "package": "node-forge",
+      "version": "1.4.0",
+      "reviewedAt": "2026-10-13",
+      "expiresAt": "2026-11-12",
+      "reason": "No upstream fix; exact installed RSA patch hashes and malformed-signature regression are required."
+    },
+    {
+      "id": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "version": "3.0.3",
+      "reviewedAt": "2026-10-13",
+      "expiresAt": "2026-11-12",
+      "reason": "No upstream fix; exact installed parser/walker hashes and nesting regressions are required."
+    }
+  ]
+}

@@ -34,6 +34,17 @@ async function reviewed(batch: ImportBatchView, patches: Record<string, unknown>
   return loadImport(db, owner, batch.id);
 }
 const confirm = (batch: ImportBatchView, store = db, key = randomUUID()) => confirmImport(store, owner, key, batch.id, batch.revision, { confirmed: true });
+it('imports hostile document text literally and keeps owner boundaries during review and confirmation', async () => {
+  const hostile = "' OR 1=1 -- DROP TABLE users";
+  const batch = await staged(csv(`2026-10-01;${hostile};-0.10`));
+  expect(batch.rows[0]!.description).toBe(hostile);
+  expect(await db.owned('transactions', owner)).toHaveLength(0);
+  await expect(loadImport(db, other, batch.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  const ready = await reviewed(batch); await confirm(ready);
+  expect((await db.owned('transactions', owner)).map(row => row.description)).toEqual([hostile]);
+  expect(await db.owned('transactions', other)).toHaveLength(0);
+  expect(await db.query('users')).toHaveLength(2);
+});
 it('stages multi-file uploads and provenance without changing any financial totals, and selects only saved valid rows', async () => {
   const received = await receiveImports(db, owner, randomUUID(), [csv('2026-10-01;Mercado;-10.25\ninvalid;;bad'), csv('2026-10-02;Salário;20')], { accountId: account, cardId: null });
   expect(received.batches).toHaveLength(2); expect(await db.owned('transactions', owner)).toHaveLength(0);

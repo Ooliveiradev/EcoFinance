@@ -19,6 +19,13 @@ O workflow roda em todos os PRs, inclusive rascunhos/forks, pushes na main, merg
 
 Artifacts de cobertura, Playwright e SARIF duram sete dias. Bancos, dumps e bundles não são publicados. Dependabot propõe atualizações semanais, sem merge automático.
 
+A [política de dependências](security/dependencies.md) define inventário por
+lockfile/Actions/imagens, prazos de correção e revisão de patches com expiração
+obrigatória. A CI publica `dependency-inventory` por sete dias; `security:audit`
+recusa revisões expiradas, além de verificar bytes e regressões dos patches.
+A [matriz SQL](security/sql-injection.md) inventaria consultas do runtime e
+ferramentas históricas, com testes de valores hostis e identificadores recusados.
+
 ## Correções auditáveis
 
 Em 06/10/2026, a auditoria do PR de preparação da migração Firebase detectou

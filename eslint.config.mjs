@@ -34,6 +34,13 @@ export default tseslint.config(
     rules: reactHooks.configs.recommended.rules,
   },
   {
+    files: ['apps/next/src/**/*.{ts,tsx}', 'packages/shared/src/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/*.integration.test.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [{ group: ['postgres', 'postgres/*', 'pg', 'pg/*', 'drizzle-orm', 'drizzle-orm/*'], message: 'Runtime uses Firestore. SQL belongs only in reviewed offline migration/recovery tools (#34).' }] }],
+    },
+  },
+  {
     files: ['apps/next/**/*.{ts,tsx}'],
     rules: {
       ...next.configs.recommended.rules,
