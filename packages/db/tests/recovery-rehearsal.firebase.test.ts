@@ -56,7 +56,10 @@ async function release(db:typeof source,databaseId:string,key:string,port=8086):
   if(!healthy)throw new Error('Recovery fixture container failed to start.');
   return {
     url,
-    login: (pass=password,web=false)=>fetch(url+'/api/auth/sign-in/email',{method:'POST',headers:{'Content-Type':'application/json',...(web?{origin:url}:{})},body:JSON.stringify({email:'incident@example.test',password:pass})}),
+    // Undici adds Sec-Fetch-Mode automatically; a native client sends no fetch
+    // metadata. An explicit empty value reproduces that native request without
+    // weakening the application's browser origin checks.
+    login: (pass=password,web=false)=>fetch(url+'/api/auth/sign-in/email',{method:'POST',headers:{'Content-Type':'application/json',...(web?{origin:url}:{'sec-fetch-mode':''})},body:JSON.stringify({email:'incident@example.test',password:pass})}),
     session: async headers=>{
       const response=await fetch(url+'/api/auth/get-session',{headers});
       if(!response.ok)throw new Error('Recovery session check failed.');
