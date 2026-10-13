@@ -322,6 +322,10 @@ Nesse caso, avalie `--no-invoker-iam-check` com o administrador.
 O environment já existe, com @Ooliveiradev como revisor obrigatório, sem bypass de
 admin e com deploy só da branch `main`. Para reproduzir:
 
+Conferência e correção pela API em 13/10/2026: revisor obrigatório ativo,
+`can_admins_bypass=false` e política de branch exata `main`. A configuração do
+environment não provisiona a infraestrutura GCP nem autoriza um deploy.
+
 ```bash
 gh api -X PUT repos/Ooliveiradev/EcoFinance/environments/production --input - <<'EOF'
 {"wait_timer": 0, "prevent_self_review": false, "can_admins_bypass": false,

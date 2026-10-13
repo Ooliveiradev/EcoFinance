@@ -1,0 +1,5 @@
+{
+  "score": 5,
+  "summary": "Fronteira cliente Firestore deny-all adequada ao backend exclusivo. Emulador recusa leitura, listagem, criação, atualização e exclusão anônimas e autenticadas, inclusive com claims admin forjadas, em dados financeiros, autenticação e metadados. Autoridade não depende de campos do documento; limites e tipos são aplicados no servidor porque não existe escrita cliente permitida. IAM/Admin SDK e implantação real estão fora desta avaliação e permanecem na matriz de menor privilégio.",
+  "findings": []
+}
