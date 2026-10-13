@@ -56,7 +56,7 @@ test('import filename, description and model suggestion are rendered as plain te
   await batch.getByRole('button',{name:'Recarregar lote',exact:true}).click();
   await expect(batch).toContainText('Em revisão');
   await batch.locator('summary').filter({hasText:'Linha 1 ·'}).click();
-  await expect(batch).toContainText(payload);
+  await expect(batch.getByText('Categoria pré-selecionada:',{exact:false})).toContainText(payload);
   await expect(batch.getByLabel('Descrição da linha 1',{exact:true})).toHaveValue(payload);
   expect(await page.evaluate(()=>Reflect.get(window,'__efxss'))).toBeUndefined();
   await expect(batch.locator('svg[onload],img[src="x"]')).toHaveCount(0);

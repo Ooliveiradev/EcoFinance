@@ -27,7 +27,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #30 | MFA não implementado |
 | #31 | Login tem rate limit; falta cobertura operacional de todas as superfícies/rajadas/recuperação |
 | #32 | Schemas/limites existentes; cobertura completa das fronteiras precisa ser demonstrada |
-| #33 | React codifica saídas; falta auditoria/testes contextualizados de todas as fontes |
+| #33 | Inventário de HTML/Markdown/URLs/relatórios/downloads em ../security/output-safety.md, restrições de HTML bruto e E2E com payloads persistidos/XSS/CSV; fechamento depende do gate completo |
 | #34 | Inventário de SQL direto/indireto, restrição de drivers no runtime, round-trip de valores hostis e recusa de identificadores externos; matriz em ../security/sql-injection.md, encerramento vinculado à integração com CI completa |
 | #35 | Runbook de código/configuração/dados e ensaio de falha/rollback no emulador, ampliado para HTTP na imagem de produção; ../security/recovery.md. Fechamento depende do gate desse incremento |
 | #37 | Segredos server-only e scanners existentes; faltam rotação/revogação e evidência operacional |

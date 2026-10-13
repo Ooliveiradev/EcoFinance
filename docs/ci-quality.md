@@ -25,6 +25,9 @@ obrigatória. A CI publica `dependency-inventory` por sete dias; `security:audit
 recusa revisões expiradas, além de verificar bytes e regressões dos patches.
 A [matriz SQL](security/sql-injection.md) inventaria consultas do runtime e
 ferramentas históricas, com testes de valores hostis e identificadores recusados.
+A [matriz de saídas](security/output-safety.md) cobre texto web/nativo, URLs,
+tema, sugestões e downloads, com restrições de HTML bruto e cenários XSS/CSV
+nos três perfis de navegador.
 
 ## Correções auditáveis
 

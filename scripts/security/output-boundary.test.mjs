@@ -17,4 +17,18 @@ test('the raw theme bootstrap remains a static module constant without interpola
   const declarations=source.statements.filter(ts.isVariableStatement).flatMap(statement=>statement.declarationList.declarations);
   const script=declarations.find(declaration=>ts.isIdentifier(declaration.name) && declaration.name.text==='themeInitScript');
   assert.ok(script?.initializer && (ts.isNoSubstitutionTemplateLiteral(script.initializer) || ts.isStringLiteral(script.initializer)));
+  const sinks=[];
+  const visit=node=> {
+    if(ts.isJsxAttribute(node) && node.name.getText(source)==='dangerouslySetInnerHTML')sinks.push(node);
+    ts.forEachChild(node,visit);
+  };
+  visit(source);
+  assert.equal(sinks.length,1);
+  const sink=sinks[0], element=sink.parent.parent;
+  assert.equal(element.tagName.getText(source),'script');
+  assert.ok(sink.initializer && ts.isJsxExpression(sink.initializer));
+  const value=sink.initializer.expression;
+  assert.ok(value && ts.isObjectLiteralExpression(value) && value.properties.length===1);
+  const property=value.properties[0];
+  assert.ok(ts.isPropertyAssignment(property) && property.name.getText(source)==='__html' && ts.isIdentifier(property.initializer) && property.initializer.text==='themeInitScript');
 });
