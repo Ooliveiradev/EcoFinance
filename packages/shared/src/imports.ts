@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { civilDateSchema, competenceSchema, moneySchema, moneyToCents } from './finance';
 import { decimalCents } from './manual-finance';
+import type { CategorySuggestion } from './assist';
 
 /** Small bounded files keep staging and confirmation within one atomic commit. */
 export const IMPORT_LIMITS = { files: 10, bytes: 256 * 1024, rows: 60 } as const;
@@ -68,6 +69,8 @@ export interface ImportRowView {
   description: string | null; amount: string | null; purchaseDate: string | null; competenceMonth: string | null;
   categoryId: string | null; selected: boolean; resolution: 'new' | 'link' | 'exclude'; duplicateId: string | null;
   warnings: string[]; provenance: ImportOrigin; candidates: ImportCandidate[]; undoReason: string | null;
+  /** Category proposed by a rule or the local model; never applied without review. */
+  suggestion: CategorySuggestion | null;
 }
 export interface ImportBatchView {
   id: string; filename: string; format: string; state: string; revision: string; error: string | null;
