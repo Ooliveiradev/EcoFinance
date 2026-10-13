@@ -41,6 +41,17 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/next/src/**/*.{ts,tsx}', 'apps/expo/src/**/*.{ts,tsx}'],
+    ignores: ['apps/next/src/app/layout.tsx', '**/*.test.ts'],
+    rules: {
+      'no-restricted-properties': ['error',
+        { property: 'innerHTML', message: 'Render untrusted content as text; introducing an HTML renderer requires a reviewed sanitizer policy (#33).' },
+        { property: 'outerHTML', message: 'Render untrusted content as text (#33).' },
+        { object: 'document', property: 'write', message: 'Document writes are not an allowed output context (#33).' }],
+      'no-restricted-syntax': ['error', { selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]', message: 'Untrusted raw HTML is forbidden. The only exception is the static theme bootstrap in the root layout (#33).' }],
+    },
+  },
+  {
     files: ['apps/next/**/*.{ts,tsx}'],
     rules: {
       ...next.configs.recommended.rules,

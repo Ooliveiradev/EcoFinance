@@ -1,0 +1,63 @@
+import { randomUUID } from 'node:crypto';
+import { test, expect } from '@playwright/test';
+import { TEST_PASSWORD } from './credentials';
+import { e2eDatabase } from './database';
+import { clearTestCollections } from '../../packages/db/tests/firestore-fixture';
+const db=e2eDatabase(), origin='http://127.0.0.1:3000';
+const headers=()=>({origin,'Idempotency-Key':randomUUID()});
+test.setTimeout(120000);
+test.beforeEach(async({page})=>{
+  await clearTestCollections(db,['authRateLimits']);
+  expect((await page.request.post('/api/auth/sign-in/email',{headers:{origin},data:{email:'c@example.test',password:TEST_PASSWORD}})).status()).toBe(200);
+});
+test.afterAll(async()=>{await db.firestore.terminate();});
+test('HTML, URL and spreadsheet payloads stay inert while monetary values remain exact',async({page})=>{
+  const suffix=randomUUID().slice(0,8), payload='<img src=x onerror=globalThis.__efxss=1> '+suffix;
+  const account=await page.request.post('/api/accounts',{headers:headers(),data:{name:'Synthetic output '+suffix,type:'banco',openingBalance:'0.00',openingDate:'2020-03-01'}});
+  const category=await page.request.post('/api/categories',{headers:headers(),data:{name:payload,color:'#336699'}});
+  expect(account.status()).toBe(201);expect(category.status()).toBe(201);
+  const accountId=(await account.json()).id,categoryId=(await category.json()).id;
+  for(const [description,amount]of [[payload,'0.10'],['@SUM(1+1) '+suffix,'0.20']]) {
+    const response=await page.request.post('/api/entries',{headers:headers(),data:{accountId,categoryId,description,amount,kind:'expense',status:'settled',purchaseDate:'2020-03-02',competenceMonth:'2020-03-01',dueDate:null,paidDate:'2020-03-02',notes:'javascript:globalThis.__efxss=1'}});
+    expect(response.status()).toBe(201);
+  }
+  await page.addInitScript(value=>localStorage.setItem('ecofinance_preferences',JSON.stringify({theme:value})),payload);
+  await page.goto('/transactions?mes=2020-03&description='+encodeURIComponent(suffix));
+  await expect(page.getByRole('main').getByText(payload,{exact:true}).filter({visible:true}).first()).toBeVisible();
+  expect(await page.evaluate(()=>Reflect.get(window,'__efxss'))).toBeUndefined();
+  await expect(page.locator('img[src="x"],a[href^="javascript:"]')).toHaveCount(0);
+  expect(['light','dark']).toContain(await page.locator('html').getAttribute('data-theme'));
+  const csv=await page.request.get('/api/data/entries?from=2020-03-01&to=2020-03-31');
+  expect(csv.status()).toBe(200);expect(csv.headers()['x-content-type-options']).toBe('nosniff');
+  expect(csv.headers()['content-disposition']).toContain('attachment;');
+  const text=await csv.text();expect(text).toContain(payload);expect(text).toContain("'@SUM(1+1) "+suffix);
+  expect(text).toContain('-0.10');expect(text).toContain('-0.20');
+  const accounts=await(await page.request.get('/api/accounts')).json();
+  expect(accounts.accounts.find((row:{id:string})=>row.id===accountId).balance).toBe('-0.30');
+});
+test('import filename, description and model suggestion are rendered as plain text',async({page})=>{
+  const suffix=randomUUID().slice(0,8), payload='<svg onload=globalThis.__efxss=1> '+suffix, filename=payload+'.csv';
+  const account=await page.request.post('/api/accounts',{headers:headers(),data:{name:'Synthetic import output '+suffix,type:'banco',openingBalance:'0.00',openingDate:'2020-03-01'}});
+  const category=await page.request.post('/api/categories',{headers:headers(),data:{name:'Synthetic category '+suffix,color:'#336699'}});
+  expect(account.status()).toBe(201);expect(category.status()).toBe(201);
+  const accountId=(await account.json()).id,categoryId=(await category.json()).id;
+  await page.goto('/imports');
+  const main=page.getByRole('main');
+  await main.getByRole('combobox',{name:'Conta ou cartão de destino',exact:true}).selectOption('account:'+accountId);
+  await main.getByLabel('Arquivos para revisão',{exact:true}).setInputFiles({name:filename,mimeType:'text/csv',buffer:Buffer.from('data;descricao;valor\n2020-03-02;'+payload+';-0.10\n')});
+  const received=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/imports' && response.request().method()==='POST');
+  await main.getByRole('button',{name:'Carregar e analisar',exact:true}).click();
+  const id=(await(await received).json()).batches[0].id;
+  const batch=page.getByRole('article',{name:'Lote '+filename,exact:true});
+  await expect(batch).toContainText('Em revisão');
+  const data=await(await page.request.get('/api/imports/'+id)).json(),row=data.rows[0];
+  const stored=(await db.get('importItems',row.id))!;
+  await db.put('importItems',{...stored,suggestion:{categoryId,source:'model',model:'synthetic-model',reason:payload}});
+  await batch.getByRole('button',{name:'Recarregar lote',exact:true}).click();
+  await expect(batch).toContainText('Em revisão');
+  await batch.locator('summary').filter({hasText:'Linha 1 ·'}).click();
+  await expect(batch).toContainText(payload);
+  await expect(batch.getByLabel('Descrição da linha 1',{exact:true})).toHaveValue(payload);
+  expect(await page.evaluate(()=>Reflect.get(window,'__efxss'))).toBeUndefined();
+  await expect(batch.locator('svg[onload],img[src="x"]')).toHaveCount(0);
+});
