@@ -8,6 +8,7 @@ import { confirmImport } from '../../../apps/next/src/lib/import-commit';
 import { createAuth } from '../../../apps/next/src/lib/auth';
 import { provisionUser } from '../../../apps/next/src/lib/provision-user';
 import { monthTotals } from '../../shared/src';
+import { hash } from '../../../apps/next/src/lib/finance-operation';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -100,6 +101,14 @@ it('recovers from failed configuration/corruption, revokes restored credentials 
   await source.put('transactions',{...corrupt,amount:'-999.00'});
   expect(monthTotals(await source.owned('transactions',owner),'2026-10').expenses).not.toBe(30n);
   await expect(restoreFirebase(restored,{...backup,sha256:'invalid'})).rejects.toThrow('Invalid Firebase backup');
+  // A freshly recomputed checksum cannot bypass document/reference invariants.
+  for(const field of ['amount','ownerId']) {
+    const forged=structuredClone(backup), record=forged.records.find(item=>item.path==='transactions/'+manual.id)!;
+    if(record.data && typeof record.data==='object' && record.data.type==='map')record.data.values[field]=field==='amount'?'invalid-money':other;
+    forged.sha256=hash(forged.records);
+    await expect(restoreFirebase(restored,forged)).rejects.toThrow();
+    expect(await restored.query('users')).toHaveLength(0);
+  }
   expect(await restored.query('users')).toHaveLength(0);
   await expect(restoreFirebase(source,backup)).rejects.toThrow('not empty');
   await restoreFirebase(restored,backup); await restoreFirebase(restored,backup);

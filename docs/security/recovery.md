@@ -123,7 +123,11 @@ por HTTP. Os containers usam somente credenciais sintéticas e o emulador.
 O artifact `recovery-evidence` registra modo, SHA da CI, duração, idade observada
 do backup e ausência de operações duplicadas; não contém registros financeiros,
 cookies, tokens ou senhas. O gate exige RPO/RTO dentro das metas. Repita o ensaio
-em cada mudança de autenticação, schema, backup, importação ou deploy.
+em cada mudança de autenticação, schema, backup, importação ou deploy. O ensaio
+local de 13/10/2026 mediu 2.697 ms de recuperação e backup com idade observada de
+15 ms, sem duplicidade; é uma fixture pequena, não um benchmark de produção.
+Backups com hash recalculado também são recusados quando dinheiro, identidade,
+referências de proprietário ou claims de unicidade violam o catálogo.
 
 Limites: esse teste não certifica IAM, indisponibilidade regional, performance de
 uma base maior que o limite atômico, restauração gerenciada em produção nem

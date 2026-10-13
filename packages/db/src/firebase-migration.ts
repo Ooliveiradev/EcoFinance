@@ -7,7 +7,7 @@ import * as auth from './auth-schema';
 import { buildSnapshot, validateSnapshot, type PortableRow, type PortableSnapshot, snapshotCatalog } from './portable-snapshot';
 import { collections, type DocumentStore } from './firestore';
 import type { Collection } from './models';
-import { uniqueKeys, validateDocument } from './firestore-validation';
+import { uniqueKeys, validateDocument, references } from './firestore-validation';
 
 const mappings = Object.entries({...finance,...auth} as Record<string,unknown>).filter((entry): entry is [string,PgTable]=>is(entry[1],PgTable)).map(([key,table])=>({collection:key as Collection,table:getTableConfig(table).name,columns:Object.entries(table).filter(([,v])=>v && typeof v==='object' && 'name' in v).map(([key,v])=>({key,name:(v as {name:string}).name}))}));
 function canonical(value: unknown): string {
@@ -111,10 +111,35 @@ async function readRecords(store: DocumentStore): Promise<BackupRow[]> {
 async function importRecords(store: DocumentStore, records: BackupRow[]) {
   checkSize(records);
   if(new Set(records.map(r=>r.path)).size!==records.length)throw new Error('Duplicate backup identity.');
+  const decoded=new Map<string,Record<string,unknown>>();
   for(const record of records) {
     if(!/^[^/]+\/[^/]+$/.test(record.path) || !backupCollections.includes(record.path.split('/')[0]!)) throw new Error('Invalid backup path.');
     const data=decode(record.data);
     if (!data || typeof data!=='object' || Array.isArray(data)) throw new Error('Invalid backup document.');
+    decoded.set(record.path,data as Record<string,unknown>);
+  }
+  const claims=new Map<string,string>();
+  for(const [path,row] of decoded) {
+    const [name,id]=path.split('/');
+    if(!collections.includes(name as Collection))continue;
+    const collection=name as Collection;
+    if(row.id!==id)throw new Error('Backup identity differs from its document path.');
+    validateDocument(collection,row);
+    for(const ref of references(collection)) {
+      const values=ref.fields.map(key=>row[key]);
+      if(values.some(value=>value==null))continue;
+      const parent=decoded.get(ref.collection+'/'+String(values[ref.target.indexOf('id')]));
+      if(!parent || ref.target.some((key,index)=>parent[key]!==values[index]))throw new Error('Backup reference or owner differs.');
+    }
+    for(const key of uniqueKeys(collection,row)) {
+      const claim='_unique/'+key;
+      if(claims.has(claim) && claims.get(claim)!==path)throw new Error('Duplicate backup unique value.');
+      claims.set(claim,path);
+    }
+  }
+  for(const [path,target] of claims)if(decoded.get(path)?.path!==target)throw new Error('Backup uniqueness claim is missing or differs.');
+  for(const [path,row]of decoded) {
+    if(path.startsWith('_unique/') && (Object.keys(row).length!==1 || claims.get(path)!==row.path))throw new Error('Orphan backup uniqueness claim.');
   }
   await store.firestore.runTransaction(async tx=> {
     const existing:BackupRow[]=[];
