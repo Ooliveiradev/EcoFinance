@@ -35,7 +35,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #39 | Logs de auth desativados para evitar vazamentos; trilha de eventos/retencão/correlação não entregue |
 | #40 | SecureStore e hashes não comprovam criptografia de volumes, arquivos e backups |
 | #41 | Inventário reproduzível de pacotes/Actions/imagens, hooks instalados, política de prazos e revisão de patches com expiração testada; ../security/dependencies.md, encerramento vinculado à integração com CI completa |
-| #42 | Mantenedor confirmou em 13/10/2026: Princípio do Menor Privilégio. Falta concluir inventário/redução de permissões e testes de acesso |
+| #42 | PMP confirmado. Redução de permissões Android, guard do manifesto release, matriz e testes em ../security/least-privilege.md; production GitHub exige revisor/main/sem bypass. Listagem de contas IAM retornou 403: revisão efetiva da nuvem ainda pendente |
 | #43 | Health endpoint não comprova métricas, alertas e simulações de incidentes |
 | #44 | Responsável, RPO/RTO, contenção/rotação/restauração e ensaio com replay idempotente em ../security/recovery.md. Restore revoga credenciais e revalida grafo; fechamento depende do gate completo |
 | #47 | Concluída no PR #48, com Firestore Enterprise em São Paulo, runtime/autenticação, regras, backup/reversão e CI incluindo Android nativo |

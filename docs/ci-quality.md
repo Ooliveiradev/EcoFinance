@@ -31,6 +31,8 @@ nos três perfis de navegador.
 A [política de segredos](security/secrets.md) inventaria credenciais, ambientes,
 rotação e revogação. O ensaio de assinatura mantém sessões persistidas para
 provar que a chave antiga é recusada, antes de testar reset e revogação.
+A [matriz de menor privilégio](security/least-privilege.md) registra escopos de
+identidades, guard do manifesto Android release e limites da auditoria IAM.
 
 ## Correções auditáveis
 
