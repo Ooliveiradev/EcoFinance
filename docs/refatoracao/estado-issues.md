@@ -1,6 +1,6 @@
 # Revisão das issues em 13/10/2026
 
-Base: `origin/main` em `94db07b`, incluindo os PRs #80, #81 e #82. Conferência direta no GitHub: 17 issues encerradas (#1–#10, #12, #14, #15, #29, #36, #38 e #47) e 20 abertas. Nenhuma issue integralmente resolvida estava aberta. #18 é agregadora; seu checklist foi atualizado com #8, #9, #10, #12, #14 e #15 concluídas.
+Base: `origin/main` em `008a505`, incluindo os PRs #83 e #85. Conferência direta no GitHub: 19 issues encerradas (#1–#10, #12, #14, #15, #29, #34, #36, #38, #41 e #47) e 18 abertas. #34/#41 foram encerradas após a CI completa e o merge do PR #85. #18 é agregadora; seu checklist foi atualizado com #8, #9, #10, #12, #14 e #15 concluídas.
 Entregas desta rodada: [importação unificada #8](importacoes.md) (PR #53), [métricas #12 parcial](metricas.md) (PR #52), [CORS #38](cors.md) (PR #54), [Expo #13 parcial](mobile.md) (PR #55), [formatos estruturados #9](formatos.md) (PR #56), [dados e backup #14](dados.md) (PR #57), segurança do repositório (PR #60) e [deploy Cloud Run](../deploy/cloud-run.md) (PR #61, infraestrutura GCP ainda não provisionada).
 
 Modelo/tela existente não equivale a um fluxo completo. A revisão abaixo registra
@@ -14,7 +14,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #8 | Concluída no PR #53: upload múltiplo, detecção extensível, staging/revisão/prévia, confirmação atômica/idempotente, duplicidades e desfazer protegido; evidência em importacoes.md |
 | #9 | Concluída no PR #56: OFX/QFX SGML/XML, CSV/TSV com encodings e datas ambíguas, XLS/XLSX com aba e célula de origem, mapeamento assistido e corpus sintético; evidência em formatos.md |
 | #10 | Concluída no PR #82 integrado: PDF digital/escaneado e fotos com OCR local, evidência por página e região, senha transitória, progresso, cancelamento e limites de memória/tempo; evidência em documentos.md |
-| #11 | PR #83 parcial: sugestões por regras e modelo local opcional. Retomada resolve conflitos com main, corrige teste que assumia ordem fixa de categorias e acrescenta edição de regras com isolamento e reenvio idempotente. Avaliação real de Ollama e assistência à extração/mapeamento continuam pendentes (assistencia.md) |
+| #11 | PR #83 integrado com CI completa: sugestões por regras, edição, isolamento e modelo local opcional. O mantenedor informou não haver Ollama disponível; avaliação real e assistência à extração/mapeamento continuam pendentes (assistencia.md) |
 | #12 | Concluída nos PRs #52 e #80, com serviço único e jornada de revisão/correção/confirmação/desfazer validada em dashboard, gráficos, tabelas, API e CSV em competência/caixa; CI completa aprovada |
 | #13 | PR #55 entrega telas nativas, cache/rascunhos por usuário, replay idempotente e conflitos; este incremento acrescenta correção de campos e linhas inválidas na importação, salvamento explícito e bloqueio de confirmação com rascunhos pendentes (mobile.md). Validação iOS e jornadas restantes pendentes |
 | #14 | Concluída no PR #57: CSV seguro, backup versionado do usuário, restauração com prévia/atomicidade, exclusão confirmada; evidência em dados.md |
@@ -27,17 +27,17 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #30 | MFA não implementado |
 | #31 | Login tem rate limit; falta cobertura operacional de todas as superfícies/rajadas/recuperação |
 | #32 | Schemas/limites existentes; cobertura completa das fronteiras precisa ser demonstrada |
-| #33 | React codifica saídas; falta auditoria/testes contextualizados de todas as fontes |
+| #33 | Inventário de HTML/Markdown/URLs/relatórios/downloads em ../security/output-safety.md, restrições de HTML bruto e E2E com payloads persistidos/XSS/CSV; fechamento depende do gate completo |
 | #34 | Inventário de SQL direto/indireto, restrição de drivers no runtime, round-trip de valores hostis e recusa de identificadores externos; matriz em ../security/sql-injection.md, encerramento vinculado à integração com CI completa |
-| #35 | Migrations/backup existentes; falta runbook de rollback de código/configuração/dados e ensaio completo |
-| #37 | Segredos server-only e scanners existentes; faltam rotação/revogação e evidência operacional |
+| #35 | Runbook de código/configuração/dados e ensaio de falha/rollback no emulador, ampliado para HTTP na imagem de produção; ../security/recovery.md. Fechamento depende do gate desse incremento |
+| #37 | Inventário/procedimento em ../security/secrets.md e ensaio sintético de rotação de assinatura com sessões retidas, reset/revogação e finanças preservadas; fechamento depende do gate completo |
 | #38 | Concluída no PR #54: allowlist CORS exata (somente AUTH_URL), preflight e origem negada antes da autenticação, inventário em cors.md |
 | #39 | Logs de auth desativados para evitar vazamentos; trilha de eventos/retencão/correlação não entregue |
 | #40 | SecureStore e hashes não comprovam criptografia de volumes, arquivos e backups |
 | #41 | Inventário reproduzível de pacotes/Actions/imagens, hooks instalados, política de prazos e revisão de patches com expiração testada; ../security/dependencies.md, encerramento vinculado à integração com CI completa |
 | #42 | Mantenedor confirmou em 13/10/2026: Princípio do Menor Privilégio. Falta concluir inventário/redução de permissões e testes de acesso |
 | #43 | Health endpoint não comprova métricas, alertas e simulações de incidentes |
-| #44 | Restauração sintética existe; RPO/RTO, responsáveis e runbook de incidente completos ainda pendentes |
+| #44 | Responsável, RPO/RTO, contenção/rotação/restauração e ensaio com replay idempotente em ../security/recovery.md. Restore revoga credenciais e revalida grafo; fechamento depende do gate completo |
 | #47 | Concluída no PR #48, com Firestore Enterprise em São Paulo, runtime/autenticação, regras, backup/reversão e CI incluindo Android nativo |
 
 As issues só são encerradas após a CI completa do PR correspondente. O site ainda não está publicado: o workflow de deploy falha de propósito até o GCP ser provisionado conforme `docs/deploy/cloud-run.md`.

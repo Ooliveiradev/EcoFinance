@@ -13,5 +13,7 @@ export default async function setup() {
  await provisionUser(db,{email:'c@example.test',password:TEST_PASSWORD,name:'Backup E2E'});
  // Dedicated owner for the import → metrics journey: other specs leave batches in review.
  await provisionUser(db,{email:'d@example.test',password:TEST_PASSWORD,name:'Relatórios E2E'});
+ // Output payloads must not enter another journey's backup/restore graph.
+ await provisionUser(db,{email:'e@example.test',password:TEST_PASSWORD,name:'Output E2E'});
  await db.firestore.terminate();
 }
