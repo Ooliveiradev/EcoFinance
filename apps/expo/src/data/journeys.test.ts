@@ -4,10 +4,10 @@ const secure = vi.hoisted(() => ({ value: null as string | null }));
 vi.mock('expo-secure-store', () => ({
   getItemAsync: async () => secure.value, setItemAsync: async () => undefined, deleteItemAsync: async () => undefined, WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'device-only',
 }));
-import type { CardRecord, ImportRowView, InvoiceView, ManualAccountRecord, PlanningOccurrence } from '@ecofinance/shared';
+import type { CardRecord, ImportRowView, InvoiceView, ManualAccountRecord, PlanningOccurrence, PlanningRule } from '@ecofinance/shared';
 import { archiveCardMutation, cardMutation, paymentMutation, purchasePreview } from './cards';
 import { batchAction, checkPicked, hasPendingReview, intentKey, pendingReview, reviewBody, reviewForm, reviewFormBody, reviewItem, uploadImports, uploadSignature } from './imports';
-import { budgetForm, budgetMutation, generateMutation, occurrenceMutation, ruleMutation } from './planning';
+import { budgetForm, budgetMutation, categoryField, generateMutation, monthStateMutation, occurrenceMutation, ruleForm, ruleMutation } from './planning';
 import { accountForm, accountMutation, archiveReferenceMutation, categoryMutation } from './references';
 
 const ACCOUNT = '30000000-0000-4000-8000-000000000001', CATEGORY = '40000000-0000-4000-8000-000000000001';
@@ -31,11 +31,33 @@ describe('accounts and categories', () => {
 describe('planning', () => {
   const occurrence = { id: '70000000-0000-4000-8000-000000000001', description: 'Aluguel', amount: '1500.00', revision: 'o1' } as PlanningOccurrence;
   it('creates a budget with If-Match "new" and keeps web category limits on edit', () => {
-    expect(budgetForm(null)).toEqual({ limit: '', expectedIncome: '', reserve: '0,00' });
-    expect(budgetMutation('2026-10', null, { limit: '3.000,00', expectedIncome: '5000', reserve: '0' })).toMatchObject({ ok: true, mutation: { method: 'PUT', path: '/api/planning/2026-10', ifMatch: 'new', body: { limit: '3000.00', expectedIncome: '5000.00', reserve: '0.00', categories: [] } } });
+    expect(budgetForm(null)).toEqual({ limit: '', expectedIncome: '', reserve: '0,00', categories: {} });
+    expect(budgetMutation('2026-10', null, { limit: '3.000,00', expectedIncome: '5000', reserve: '0', categories: {} })).toMatchObject({ ok: true, mutation: { method: 'PUT', path: '/api/planning/2026-10', ifMatch: 'new', body: { limit: '3000.00', expectedIncome: '5000.00', reserve: '0.00', categories: [] } } });
     const plan = { id: 'b', revision: 'b1', limit: '1.00', expectedIncome: '1.00', reserve: '0.00', categories: [{ categoryId: CATEGORY, limit: '10.00' }] };
     expect(budgetMutation('2026-10', plan, budgetForm(plan))).toMatchObject({ ok: true, mutation: { ifMatch: 'b1', body: { categories: plan.categories } } });
-    expect(budgetMutation('2026-10', null, { limit: '-1', expectedIncome: '1', reserve: '0' })).toMatchObject({ ok: false });
+    expect(budgetMutation('2026-10', null, { limit: '-1', expectedIncome: '1', reserve: '0', categories: {} })).toMatchObject({ ok: false });
+  });
+  it('edits category limits: empty removes, zero is a limit, invalid values point at the category', () => {
+    const OTHER = '40000000-0000-4000-8000-000000000002';
+    const plan = { id: 'b', revision: 'b1', limit: '2000.00', expectedIncome: '5000.00', reserve: '100.00', categories: [{ categoryId: CATEGORY, limit: '300.00' }, { categoryId: OTHER, limit: '50.00' }] };
+    const form = budgetForm(plan);
+    expect(form.categories).toEqual({ [CATEGORY]: '300,00', [OTHER]: '50,00' });
+    expect(budgetMutation('2026-10', plan, { ...form, categories: { [CATEGORY]: '0', [OTHER]: ' ' } })).toMatchObject({ ok: true, mutation: { body: { categories: [{ categoryId: CATEGORY, limit: '0.00' }] }, ifMatch: 'b1' } });
+    expect(budgetMutation('2026-10', plan, { ...form, categories: { [CATEGORY]: 'abc' } })).toEqual({ ok: false, errors: { [categoryField(CATEGORY)]: expect.stringContaining('deixe vazio') } });
+    expect(budgetMutation('2026-10', plan, { ...form, categories: { [OTHER]: '-5' } })).toMatchObject({ ok: false, errors: { [categoryField(OTHER)]: 'Informe um valor não negativo.' } });
+  });
+  it('copies a reviewed plan under both revisions without re-applying a conflict blindly', () => {
+    const source = { limit: '1500.00', expectedIncome: '4000.00', reserve: '0.00', categories: [{ categoryId: CATEGORY, limit: '200.00' }] };
+    const built = budgetMutation('2026-11', { ...source, id: 'b', revision: 'target-1' }, { ...budgetForm(source), limit: '1.600,00' }, { sourceMonth: '2026-10', sourceRevision: 'src-1' });
+    expect(built).toMatchObject({ ok: true, mutation: {
+      method: 'POST', path: '/api/planning/2026-11/copy', ifMatch: 'target-1', resource: null, kind: 'planning:copy',
+      body: { sourceMonth: '2026-10', sourceRevision: 'src-1', plan: { limit: '1600.00', categories: [{ categoryId: CATEGORY, limit: '200.00' }] } },
+    } });
+    expect(budgetMutation('2026-11', null, budgetForm(source), { sourceMonth: '2026-10', sourceRevision: 'src-1' })).toMatchObject({ ok: true, mutation: { ifMatch: 'new' } });
+  });
+  it('closes and reopens a month under its revision', () => {
+    expect(monthStateMutation({ month: '2026-10', closed: false, monthRevision: 'm1' })).toMatchObject({ method: 'POST', path: '/api/planning/2026-10/state', body: { action: 'close' }, ifMatch: 'm1', resource: { type: 'month', month: '2026-10' } });
+    expect(monthStateMutation({ month: '2026-10', closed: true, monthRevision: 'm2' })).toMatchObject({ body: { action: 'reopen' }, ifMatch: 'm2', label: 'Reabrir o mês 2026-10' });
   });
   it('pays, postpones and cancels occurrences under their revision', () => {
     expect(occurrenceMutation(occurrence, '2026-10', 'pay', { amount: '1.500,00', date: '2026-10-10' })).toMatchObject({ ok: true, mutation: { path: `/api/occurrences/${occurrence.id}/pay`, body: { amount: '1500.00', paidDate: '2026-10-10' }, ifMatch: 'o1', resource: { type: 'occurrence', id: occurrence.id, month: '2026-10' } } });
@@ -45,9 +67,28 @@ describe('planning', () => {
     expect(generateMutation('2026-10')).toMatchObject({ path: '/api/planning/2026-10/generate', body: {}, ifMatch: null });
   });
   it('builds a recurrence version starting in the viewed month', () => {
-    const form = { description: 'Internet', amount: '99,90', accountId: ACCOUNT, categoryId: CATEGORY, dueDay: '31', startDate: '2026-10-01', estimated: false };
-    expect(ruleMutation('2026-10', form)).toMatchObject({ ok: true, mutation: { path: '/api/recurrences', body: { fromMonth: '2026-10', schedule: { amount: '99.90', dueDay: 31, endDate: null, paused: false } } } });
+    const form = { ...ruleForm('2026-10'), description: 'Internet', amount: '99,90', accountId: ACCOUNT, categoryId: CATEGORY, dueDay: '31' };
+    expect(ruleMutation('2026-10', form)).toMatchObject({ ok: true, mutation: { path: '/api/recurrences', body: { fromMonth: '2026-10', schedule: { amount: '99.90', dueDay: 31, endDate: null, reminderDays: null, paused: false } } } });
     expect(ruleMutation('2026-10', { ...form, dueDay: '32' })).toMatchObject({ ok: false, errors: { dueDay: 'Revise este campo.' } });
+    expect(ruleMutation('2026-10', { ...form, dueDay: '1.5' })).toMatchObject({ ok: false, errors: { dueDay: 'Revise este campo.' } });
+  });
+  it('starts a new rule at its own start month when that is after the viewed month', () => {
+    const form = { ...ruleForm('2026-10'), description: 'Escola', amount: '800', accountId: ACCOUNT, categoryId: CATEGORY, startDate: '2027-02-01' };
+    expect(ruleMutation('2026-10', form)).toMatchObject({ ok: true, mutation: { body: { fromMonth: '2027-02' } } });
+    expect(ruleMutation('2026-10', { ...form, endDate: '2027-01-31' })).toMatchObject({ ok: false, errors: { schedule: 'Fim anterior ao início.' } });
+  });
+  it('edits or pauses a rule from a chosen month, keeping fields the phone did not touch', () => {
+    const rule: PlanningRule = { id: '80000000-0000-4000-8000-000000000001', revision: 'r1', fromMonth: '2026-10', accountId: ACCOUNT, categoryId: CATEGORY, description: 'Academia', amount: '120.00', startDate: '2026-01-05', endDate: '2027-12-31', dueDay: 5, estimated: true, reminderDays: 3, paused: false };
+    const form = ruleForm('2026-10', rule);
+    expect(form).toMatchObject({ amount: '120,00', endDate: '2027-12-31', reminderDays: '3', fromMonth: '2026-10', estimated: true });
+    expect(ruleMutation('2026-10', { ...form, fromMonth: '2026-12', paused: true }, rule)).toMatchObject({ ok: true, mutation: {
+      method: 'PATCH', path: `/api/recurrences/${rule.id}`, ifMatch: 'r1', kind: 'recurrence:update', label: expect.stringMatching(/^Pausar recorrência: Academia/),
+      resource: { type: 'recurrence', id: rule.id, month: '2026-10' },
+      body: { fromMonth: '2026-12', schedule: { amount: '120.00', startDate: '2026-01-05', endDate: '2027-12-31', dueDay: 5, estimated: true, reminderDays: 3, paused: true } },
+    } });
+    expect(ruleMutation('2026-10', { ...form, fromMonth: '2025-12' }, rule)).toMatchObject({ ok: false, errors: { fromMonth: expect.stringContaining('início da recorrência') } });
+    expect(ruleMutation('2026-10', { ...form, fromMonth: '2026-13' }, rule)).toMatchObject({ ok: false, errors: { fromMonth: expect.any(String) } });
+    expect(ruleMutation('2026-10', { ...form, reminderDays: '45' }, rule)).toMatchObject({ ok: false, errors: { reminderDays: 'Revise este campo.' } });
   });
 });
 
