@@ -1,5 +1,5 @@
 import type {
-  CardRecord, ImportBatchView, InvoiceView, ManualAccountRecord, ManualCategoryRecord, ManualEntryRecord,
+  BudgetPlan, CardRecord, ImportBatchView, InvoiceView, ManualAccountRecord, ManualCategoryRecord, ManualEntryRecord,
   MetricsReport, MonthProjection, PlanningView,
 } from '@ecofinance/shared';
 import { apiRequest } from './api';
@@ -9,6 +9,7 @@ import type { ResourceRef } from './outbox';
 export interface EntriesPage { entries: ManualEntryRecord[]; page: number; hasMore: boolean }
 export interface ImportSummary { id: string; filename: string; state: string; format: string; createdAt: string }
 export interface References { accounts: ManualAccountRecord[]; categories: ManualCategoryRecord[] }
+export interface CopyPreview { sourceMonth: string; sourceRevision: string; plan: BudgetPlan }
 
 /** Read endpoints shared with the web; every number comes from the server's shared calculation. */
 export const read = {
@@ -29,6 +30,7 @@ export const read = {
     return null;
   },
   planning: (month: string) => apiRequest<PlanningView>({ path: `/api/planning/${month}` }),
+  copyPreview: (from: string) => apiRequest<CopyPreview>({ path: '/api/planning/copy-preview', query: { from } }),
   cards: () => apiRequest<{ cards: CardRecord[] }>({ path: '/api/cards' }),
   invoice: (cardId: string, month: string) => apiRequest<InvoiceView>({ path: `/api/cards/${cardId}/invoices/${month}` }),
   imports: () => apiRequest<{ batches: ImportSummary[]; hasMore: boolean }>({ path: '/api/imports' }),
@@ -58,6 +60,14 @@ export async function currentVersion(ref: ResourceRef): Promise<CurrentVersion |
     case 'occurrence': {
       const row = (await read.planning(ref.month)).occurrences.find(item => item.id === ref.id);
       return row ? { revision: row.revision, summary: `${row.description} · ${money(row.amount)} · ${row.status}` } : null;
+    }
+    case 'recurrence': {
+      const row = (await read.planning(ref.month)).rules.find(item => item.id === ref.id);
+      return row ? { revision: row.revision, summary: `${row.description} · ${money(row.amount)} · dia ${row.dueDay}${row.paused ? ' · pausada' : ''}` } : null;
+    }
+    case 'month': {
+      const view = await read.planning(ref.month);
+      return { revision: view.monthRevision, summary: `Mês ${ref.month} ${view.closed ? 'fechado' : 'aberto'}` };
     }
     case 'budget': {
       const plan = (await read.planning(ref.month)).plan;

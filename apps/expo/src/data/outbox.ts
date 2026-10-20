@@ -5,8 +5,8 @@ import { readLocal, writeLocal } from './local-store';
 /** What a queued change refers to, so a conflict can be re-read and resolved. */
 export type ResourceRef =
   | { type: 'entry' | 'account' | 'category' | 'card'; id: string }
-  | { type: 'occurrence'; id: string; month: string }
-  | { type: 'budget'; month: string }
+  | { type: 'occurrence' | 'recurrence'; id: string; month: string }
+  | { type: 'budget' | 'month'; month: string }
   | { type: 'invoice'; cardId: string; month: string };
 export interface Mutation {
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';

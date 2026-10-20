@@ -1,6 +1,6 @@
 # Aplicativo de gestão Android e iOS — EF-13 (#13)
 
-Atualizado em 09/10/2026. Este documento cobre os incrementos entregues como **Parte de #13**. Ele descreve as jornadas nativas, a camada de dados e sessão do Expo e as pendências para fechar a issue. Não certifica produção nem build iOS assinado.
+Atualizado em 20/10/2026. Este documento cobre os incrementos entregues como **Parte de #13**. Ele descreve as jornadas nativas, a camada de dados e sessão do Expo e as pendências para fechar a issue. Não certifica produção nem build iOS assinado.
 
 ## Decisão
 
@@ -20,7 +20,7 @@ Captura de notificações bancárias, localização (GPS) e conexão Pluggy fora
 | Meu mês: receitas, despesas, resultado, saldo, projeção e despesas por categoria | `month` | `GET /api/reports?from&to&basis=competence` | Entregue |
 | Lançamentos: listar por mês, criar, editar, excluir e restaurar (receita, despesa, transferência) | `entries`, `entry-form` | `/api/entries`, `/api/entries/:id` | Entregue |
 | Contas e categorias: listar com saldo, criar, editar, arquivar e restaurar | `references` | `/api/accounts`, `/api/categories` | Entregue |
-| Planejamento: orçamento do mês, previstos (pagar, adiar, cancelar, restaurar), gerar previstos, nova recorrência | `planning` | `/api/planning/:month`, `/api/occurrences/:id/:action`, `/api/recurrences` | Entregue |
+| Planejamento: orçamento do mês com limites por categoria, cópia revisada de outro mês, fechar/reabrir mês, previstos (pagar, adiar, cancelar, restaurar), gerar previstos, criar, editar e pausar recorrências a partir de um mês | `planning`, `planning-forms` | `/api/planning/:month`, `/api/planning/:month/copy`, `/api/planning/:month/state`, `/api/planning/copy-preview`, `/api/occurrences/:id/:action`, `/api/recurrences`, `/api/recurrences/:id` | Entregue |
 | Cartões e faturas: cadastrar cartão, ver fatura do mês com totais e divergência, compra parcelada com prévia, pagar fatura | `cards` | `/api/cards`, `/api/cards/:id/invoices/:month`, `/api/cards/:id/purchases`, `/api/invoices/:id/pay` | Entregue |
 | Importação: seletor de arquivos, destino conta/cartão, análise no servidor, correção de linhas inválidas, revisão de descrição/valor/data/competência/categoria, criar/vincular/excluir, seleção explícita, confirmar, desfazer e cancelar | `imports` | `/api/imports`, `/api/imports/:id/:action`, `/api/imports/:id/items/:itemId` | Entregue (requer conexão) |
 | Pendências e conflitos | `pending` | — | Entregue |
@@ -69,6 +69,8 @@ Código em `apps/expo/src/data`:
 
 ### Conflito por `If-Match`
 
+Recorrências e fechamento/reabertura de mês também podem ser comparados com a versão do servidor. A cópia de orçamento verifica duas revisões, a do plano de origem e a do mês de destino. Por isso, em conflito ela não é reaplicada sobre a versão nova: descarte e carregue a cópia de novo.
+
 - `409 REVISION_CONFLICT` marca a alteração como **conflito** sem bloquear as outras.
 - Em Pendências, “Ver versão atual do servidor” lê o registro atual (lançamento, conta, categoria, cartão, previsto, orçamento ou fatura). A pessoa escolhe entre “Aplicar minha alteração sobre esta versão”, que reenvia com a revisão revisada e chave nova, e “Descartar minha alteração”.
 - Outras recusas (400, `LINKED_ENTRY`, `ARCHIVED_REFERENCE`, mês fechado etc.) ficam como **recusadas**, com a mensagem do servidor. Rascunhos de lançamento recusados podem ser corrigidos no formulário.
@@ -104,6 +106,7 @@ Testes vitest da camada de dados e sessão (`apps/expo/src/**/*.test.ts`, na su�
 - `outbox.test.ts`: pendente offline e replay com a mesma chave; resposta perdida reenviada com a mesma chave e o mesmo `If-Match`; intenção enviada não é editada; conflito e `reapply` com revisão nova; recusa corrigível; ordem preservada; sessão expirada sem contar tentativa; isolamento por usuário; replays concorrentes com um único envio; recusa de reenvio com credencial de outra conta.
 - `session.test.ts`: logout revoga e depois limpa; falha de rede mantém os dados; saída offline limpa e notifica; troca de conta não herda dados.
 - `entries.test.ts` e `journeys.test.ts`: entrada de valores em pt-BR sem ponto flutuante (R$ 0,10 + R$ 0,20 = R$ 0,30), payloads validados pelos schemas compartilhados para lançamentos, contas, categorias, orçamento, previstos, recorrências, cartões, compra 300 em 3x100, pagamento de fatura, limites e multipart de importação e chave por intenção.
+- `journeys.test.ts` cobre o planejamento: limite por categoria vazio (remove), zero (limite de R$ 0,00) e inválido ou negativo (erro no campo da categoria); cópia enviada com a revisão de origem e a de destino; fechar e reabrir sob a revisão do mês; recorrência nova começando no mês do início quando ele é posterior ao mês visto; edição/pausa a partir de um mês, preservando fim, lembrete e valor estimado; mês anterior ao início e lembrete fora de 0–30 recusados.
 - `journeys.test.ts` cobre também reparo de campos ausentes, sinal e centavos, competência independente da data, seleção explícita/exclusão, erros simultâneos de valor/data/competência, rascunho preservado diante de revisão divergente, espera pela prévia atualizada e resposta de salvamento perdida repetida com a mesma chave e revisão.
 
 React Doctor (`npx react-doctor@0.9.14 apps/expo`): 100/100, sem achados.
@@ -115,7 +118,7 @@ React Doctor (`npx react-doctor@0.9.14 apps/expo`): 100/100, sem achados.
 - **E2E mobile:** não há suíte (Maestro ou Detox). Ela deve cobrir login, sessão expirada, offline/reconexão, conflito entre dispositivos, arquivos e leitores de tela (TalkBack/VoiceOver).
 - **Detecção de rede:** a reconexão é tentada ao abrir, voltar ao primeiro plano, salvar e manualmente. Um listener de rede (`@react-native-community/netinfo`) aceleraria o replay.
 - **Cache em repouso:** o AsyncStorage fica no sandbox do app, sem criptografia própria. `allowBackup=false` cobre o Android; no iOS, os arquivos podem entrar no backup do aparelho. Avaliar criptografia com chave no SecureStore ou exclusão do backup.
-- **Funções ainda só na web:** limites por categoria no orçamento (preservados ao editar no telefone), fechar/reabrir mês, copiar plano, editar e pausar recorrências, itens de fatura (juros, tarifa, crédito, estorno), conciliação de cartão e repetir importação.
+- **Funções ainda só na web:** itens de fatura (juros, tarifa, crédito, estorno), conciliação de cartão e de previstos com lançamentos importados, ajuste individual de uma ocorrência e repetir importação.
 - **Lembretes locais:** opcionais na issue, não implementados.
 - **Seletor de data nativo:** as datas são digitadas como `AAAA-MM-DD` e validadas pelo schema compartilhado.
 
