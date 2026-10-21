@@ -34,7 +34,7 @@ função ── token OIDC da Vercel ── STS do Google (pool "vercel", provid
 | --- | --- | --- |
 | `FIREBASE_PROJECT_ID` | texto | `ecofinance-912de` |
 | `FIRESTORE_DATABASE_ID` | texto | `ecofinance` |
-| `AUTH_URL` | texto | domínio de produção da Vercel, por exemplo `https://ecofinance.vercel.app` (sem barra final) |
+| `AUTH_URL` | texto | `https://ecofinance-ooliveiradev.vercel.app` (domínio de produção fixo do projeto, sem barra final) |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | texto | impresso pelo script: `projects/<número>/locations/global/workloadIdentityPools/vercel/providers/ecofinance` |
 | `GCP_SERVICE_ACCOUNT_EMAIL` | texto | `ecofinance-runtime@ecofinance-912de.iam.gserviceaccount.com` |
 | `AUTH_SECRET` | **Sensitive** | 64 caracteres hex aleatórios, criado por você no painel |
@@ -53,7 +53,7 @@ como esperado. Divulgue só o domínio de produção.
    bash scripts/deploy/provision-vercel-gcp.sh
    ```
 
-2. **Projeto Vercel:** importado do GitHub com *Root Directory* `apps/next`, framework
+2. **Projeto Vercel** (`ecofinance`, já criado): importado do GitHub com *Root Directory* `apps/next`, framework
    Next.js, previews desligadas e as variáveis acima em Production.
 3. **AUTH_SECRET:** gere no Cloud Shell com `openssl rand -hex 32` e cole em
    *Settings → Environment Variables*, tipo **Sensitive**, só Production. Não envie o valor
