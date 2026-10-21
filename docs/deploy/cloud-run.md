@@ -376,8 +376,8 @@ workflow.
 
 ### 11. Primeiro deploy
 
-1. Faça o merge do PR na `main`. O push dispara o `Deploy`. Também é possível rodar
-   manualmente em **Actions → Deploy → Run workflow** (branch `main`).
+1. O workflow é só manual (a hospedagem principal é a [Vercel](vercel.md)). Rode
+   em **Actions → Deploy → Run workflow** (branch `main`).
 2. Aprove em **Review deployments**. Sem aprovação, nada acessa o GCP.
 3. O workflow:
    - valida as variáveis;

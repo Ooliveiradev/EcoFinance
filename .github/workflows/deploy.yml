@@ -1,10 +1,9 @@
 name: Deploy
 
 # Publica apps/next no Cloud Run (southamerica-east1). Recursos GCP, IAM e
-# variáveis do environment: docs/deploy/cloud-run.md.
+# variáveis do environment: docs/deploy/cloud-run.md. A hospedagem principal é a
+# Vercel (docs/deploy/vercel.md); o Cloud Run fica como alternativa manual.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions: {}

@@ -42,13 +42,15 @@ Status: **disponível** = funciona na web e é coberto por testes automatizados 
 
 ## Publicar e usar
 
-A produção roda no Cloud Run em São Paulo, no mesmo projeto do Firestore, com deploy pelo GitHub Actions aprovado pelo mantenedor e sem chave de service account. O provisionamento cabe em um comando no Cloud Shell. Veja o [caminho rápido](docs/deploy/cloud-run.md#caminho-rápido-cloud-shell):
+A produção roda na Vercel, região São Paulo (`gru1`), com deploy a cada push na `main`. O acesso ao Firestore não usa chave: o token OIDC da Vercel vira uma credencial temporária do Google, aceita só para o ambiente Production. Passo a passo em [docs/deploy/vercel.md](docs/deploy/vercel.md). A parte do Google cabe em um comando no Cloud Shell:
 
 ```bash
-bash scripts/deploy/provision-gcp.sh --check
+bash scripts/deploy/provision-vercel-gcp.sh --check
 ```
 
-Custos: o Cloud Run tem cota gratuita mensal, mas o Firestore Enterprise exige faturamento ativo. O roteiro inclui orçamento com alertas e um corte de emergência. Distribuir o app nas lojas tem requisitos e custos próprios; a web responsiva funciona no celular sem instalar nada.
+O [Cloud Run](docs/deploy/cloud-run.md) continua documentado como alternativa, com deploy manual.
+
+Custos: o plano Hobby da Vercel é para uso pessoal, com cotas mensais, e o Firestore Enterprise exige faturamento ativo no Google. Distribuir o app nas lojas tem requisitos e custos próprios; a web responsiva funciona no celular sem instalar nada.
 
 ## Rodar localmente
 
@@ -104,7 +106,7 @@ npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofin
 | apps/expo | App nativo e sessão segura |
 | packages/shared | Contratos, dinheiro/calendário e regras puras |
 | packages/db | Persistência Firestore, validações e exportação/recuperação |
-| scripts/deploy | Provisionamento do Cloud Run e primeiro acesso |
+| scripts/deploy | Provisionamento do GCP (Vercel ou Cloud Run) e primeiro acesso |
 | scripts/demo | Mês sintético e capturas do README |
 
 Contribuições: [CONTRIBUTING.md](CONTRIBUTING.md). Licença MIT.

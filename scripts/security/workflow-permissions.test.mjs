@@ -10,7 +10,8 @@ test('PR jobs stay read-only and only the production main deployment receives OI
   for(const job of Object.values(ci.jobs))assert.equal(job.permissions,undefined);
   const deploy=parse(readFileSync('.github/workflows/deploy.yml','utf8'));
   assert.deepEqual(deploy.permissions,{});
-  assert.deepEqual(deploy.on.push.branches,['main']);
+  // Manual only (Vercel is the primary host); the job itself still refuses any ref but main.
+  assert.deepEqual(Object.keys(deploy.on),['workflow_dispatch']);
   assert.equal(deploy.on.pull_request,undefined);assert.equal(deploy.on.pull_request_target,undefined);
   assert.equal(Object.keys(deploy.jobs).length,1);
   const job=deploy.jobs.deploy;
