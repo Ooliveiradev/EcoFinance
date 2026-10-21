@@ -1,73 +1,110 @@
 # EcoFinance
 
-Gerenciador financeiro pessoal em evolução, com web Next.js, Expo e Cloud Firestore. O [plano de refatoração](docs/refatoracao/plano.md) acompanha os critérios de cada entrega.
+Gerenciador financeiro pessoal para planejar o mês: quanto já gastei, quanto ainda está comprometido e quanto sobra. Web responsiva em Next.js com Cloud Firestore, sem Open Finance pago nem IA externa obrigatória. O app Expo (Android/iOS) está em validação.
 
-A [migração para Firebase (#47)](docs/refatoracao/firebase-migration.md) usa Firestore Enterprise no projeto `ecofinance-912de`, banco `ecofinance`, em São Paulo. O runtime web e a autenticação persistem no Firebase; PostgreSQL permanece como ferramenta de exportação/reversão.
+![Meu mês com dados sintéticos](docs/screenshots/mes.png)
 
-## Estado da implementação
+> **Capturas reais, dados sintéticos.** Todas as imagens deste README saíram da web local (`next start` + emulador do Firestore) com o mês fictício de [scripts/demo/seed-demo.ts](scripts/demo/seed-demo.ts) e foram geradas por [scripts/demo/capture.ts](scripts/demo/capture.ts) em 21/10/2026, a partir da `main` em `9008cdd` mais a correção de datas do PR que as publicou. Viewport desktop 1440×900 (página inteira) e celular Pixel 7 (412×839, área visível). Nenhuma conta, valor ou fatura real.
 
-- Modelo financeiro por proprietário, dinheiro exato, datas civis e migration aditiva com backfill auditado.
+## O que está disponível
 
-- Autenticação local por email/senha, sessões revogáveis por dispositivo e isolamento de dashboard/contas/lançamentos.
+Status: **disponível** = funciona na web e é coberto por testes automatizados (domínio, integração com Firestore e E2E em Chromium, WebKit e mobile-web); **experimental** = existe, mas falta validação; **planejado** = ainda não existe.
 
-- Login web com cookie protegido; Expo com sessão no SecureStore; recuperação de acesso pelo operador sem serviço pago obrigatório.
+| Recurso | Status | Detalhes |
+| --- | --- | --- |
+| Login por email/senha, sessões revogáveis, isolamento por usuário | Disponível | Sem cadastro público: o operador cria os acessos ([autenticação](docs/refatoracao/autenticacao.md)) |
+| Meu mês: disponibilidade projetada, próximas contas, despesas por categoria | Disponível | Fórmula exibida na tela; competência e caixa separados ([métricas](docs/refatoracao/metricas.md)) |
+| Contas, categorias, receitas, despesas e transferências | Disponível | Centavos exatos, exclusão reversível, saldo derivado ([cadastro manual](docs/refatoracao/cadastro-manual.md)) |
+| Planejamento: recorrências, orçamento por categoria, pagar/adiar/conciliar, fechar mês | Disponível | Gerar previsões de novo não duplica contas ([planejamento](docs/refatoracao/planejamento.md)) |
+| Cartões, faturas e parcelas | Disponível | Pagamento da fatura não conta como gasto de novo ([cartões](docs/refatoracao/cartoes.md)) |
+| Importação com revisão: OFX/QFX, CSV/TSV, XLS/XLSX | Disponível | Nada muda nos saldos até você confirmar; desfazer protegido ([importações](docs/refatoracao/importacoes.md), [formatos](docs/refatoracao/formatos.md)) |
+| PDF digital/escaneado e fotos com OCR local | Disponível | Até 10 páginas por arquivo; OCR roda no servidor e é recusado se faltar memória ([documentos](docs/refatoracao/documentos.md)) |
+| Relatórios, gráficos e exportação CSV | Disponível | Os mesmos cálculos alimentam dashboard, tabelas, API e CSV |
+| Backup, restauração com prévia e exclusão de dados | Disponível | [Controle de dados](docs/refatoracao/dados.md) |
+| Sugestão de categoria por regras suas ou aprendidas | Disponível | Sem API externa ([assistência](docs/refatoracao/assistencia.md)) |
+| Sugestão por modelo local (Ollama) | Experimental | Implementado e desligado por padrão; sem avaliação em hardware real (#11) |
+| App Expo Android | Experimental | Telas nativas, cache e rascunhos por usuário; compila na CI, jornadas em aparelho pendentes ([mobile](docs/refatoracao/mobile.md), #13) |
+| App Expo iOS | Experimental | Bundle gerado na CI; não executado em simulador ou aparelho, pois não há Mac disponível (#13) |
+| Captura de gastos por notificações Android e e-mail | Planejado | Proposta em #19; a captura antiga foi removida |
+| Assistência à extração de documentos por IA | Planejado | Parsers e OCR determinísticos já funcionam sem IA (#11) |
 
-- CI com tipos, lint, domínio, migrações/backup, E2E, builds, bundles e verificações de segurança.
+**Removido** na transição (#15): Pluggy/Open Finance, captura antiga de notificações com GPS, mapa, recibos Uber, chat Gemini e o segredo global da API. Os lançamentos antigos continuam consultáveis e exportáveis ([transição](docs/refatoracao/transicao.md)).
 
-O [cadastro manual web (#5)](docs/refatoracao/cadastro-manual.md) permite manter contas, categorias, receitas, despesas e transferências, com exclusão reversível e saldos derivados de movimentos liquidados. Contas legadas sem data de saldo inicial exibem saldo incompleto. O [planejamento mensal web (#6)](docs/refatoracao/planejamento.md) acrescenta recorrências, pagamento/conciliação, orçamento, revisão de cópia e fechamento de mês. [Cartões e faturas (#7)](docs/refatoracao/cartoes.md) incluem parcelas confirmadas, pagamentos separados do gasto, estornos/encargos/créditos, divergência e vínculos de conciliação. A [importação unificada web (#8)](docs/refatoracao/importacoes.md) recebe múltiplos arquivos em staging, com detecção por conteúdo, revisão e prévia, confirmação atômica, duplicidades, cancelamento, repetição e desfazer protegido. Os [formatos estruturados (#9)](docs/refatoracao/formatos.md) incluem OFX/QFX/CSV/TSV/XLS/XLSX, mapeamento assistido e evidência por linha/célula. [PDF e fotos (#10)](docs/refatoracao/documentos.md) usam texto do PDF ou OCR local, sem serviço externo, com evidência por página e região, senha de PDF só durante a análise e conferência de totais. A [assistência de categorias (#11)](docs/refatoracao/assistencia.md) pré-seleciona categorias por regras suas ou aprendidas na revisão e, opcionalmente, por um modelo local Ollama, sem API paga.
+## Telas
 
-Os [relatórios mensais (#12)](docs/refatoracao/metricas.md) compartilham os cálculos entre dashboard, gráficos, tabelas, API e CSV, nas visões de competência e caixa. Revisar um lote altera somente a prévia; confirmar ou desfazer atualiza os números na próxima leitura. O [Expo (#13)](docs/refatoracao/mobile.md) já possui telas financeiras nativas, cache e rascunhos por usuário; funções restantes e validação em Android/iOS continuam pendentes.
+| Planejamento | Cartões e faturas |
+| --- | --- |
+| ![Planejamento do mês](docs/screenshots/planejamento.png) | ![Fatura do cartão com parcelas](docs/screenshots/cartoes.png) |
+| **Relatórios** | **Importação em revisão** |
+| ![Relatórios por competência](docs/screenshots/relatorios.png) | ![Lote CSV em revisão](docs/screenshots/importacoes.png) |
+| **Lançamentos** | **Celular (web responsiva)** |
+| ![Lista de lançamentos](docs/screenshots/lancamentos.png) | ![Meu mês no celular](docs/screenshots/mes-mobile.png) |
 
-A ingestão imediata antiga (Pluggy, notificações/GPS, Uber, seed, sessão global e a rota OFX direta) e o mapa foram removidos; os lançamentos que ela gravou continuam consultáveis e exportáveis. Inventário, motivos e retenção dos dados: [transição (#15)](docs/refatoracao/transicao.md). O chat externo está desativado até haver opt-in explícito e contratos autorizados. Nenhuma chave de Open Finance, IA externa ou conta paga é necessária para login, migrações e testes.
+## Publicar e usar
 
-## Executar a instalação pessoal
+A produção roda no Cloud Run em São Paulo, no mesmo projeto do Firestore, com deploy pelo GitHub Actions aprovado pelo mantenedor e sem chave de service account. O provisionamento cabe em um comando no Cloud Shell. Veja o [caminho rápido](docs/deploy/cloud-run.md#caminho-rápido-cloud-shell):
 
-Node >=22.13, pnpm 9.15 e acesso ADC ao projeto Firebase (ou Java 21 para o emulador). Consulte [.env.example](.env.example); mantenha os segredos somente no servidor.
-
-```sh
-pnpm install --frozen-lockfile
-gcloud auth application-default login --project ecofinance-912de
-pnpm db:firebase init-empty
-pnpm dev
+```bash
+bash scripts/deploy/provision-gcp.sh --check
 ```
 
-Configure AUTH_URL como a URL canônica da instalação e AUTH_SECRET aleatório de pelo menos 32 caracteres. Use HTTPS fora de localhost/emulador. O acesso público não permite cadastro automático. Provisione o primeiro login e eventual proprietário legado pelo [procedimento de autenticação](docs/refatoracao/autenticacao.md). A hospedagem em produção usa Cloud Run em São Paulo, com deploy aprovado pelo mantenedor e sem chave de service account: [runbook](docs/deploy/cloud-run.md).
+Custos: o Cloud Run tem cota gratuita mensal, mas o Firestore Enterprise exige faturamento ativo. O roteiro inclui orçamento com alertas e um corte de emergência. Distribuir o app nas lojas tem requisitos e custos próprios; a web responsiva funciona no celular sem instalar nada.
 
-A base real foi confirmada vazia e inicializada. Antes de qualquer importação futura, ensaie backup, restauração e reversão conforme o [runbook Firebase](docs/refatoracao/firebase-migration.md). O [modelo SQL histórico](docs/refatoracao/modelo-financeiro.md) permanece congelado para recuperação.
+## Rodar localmente
 
-No Expo, informe servidor/email/senha no login. A URL do servidor pode vir de EXPO_PUBLIC_API_URL; essa variável não contém senha nem token. Captura automática está desativada nesta transição. Bundles JS não comprovam execução nativa ou testes em aparelhos.
+Requer Node >= 22.13, pnpm 9.15 e Java 21+ (emulador do Firestore). Nenhuma chave externa é necessária.
+
+```bash
+pnpm install --frozen-lockfile
+npx firebase-tools@15.32.1 emulators:start --only firestore --project demo-ecofinance
+```
+
+Em outro terminal, com `AUTH_SECRET` aleatório de 32+ caracteres (veja [.env.example](.env.example)):
+
+```bash
+pnpm --filter @ecofinance/next build
+AUTH_URL=http://127.0.0.1:3000 AUTH_SECRET=... FIREBASE_PROJECT_ID=demo-ecofinance FIRESTORE_DATABASE_ID=ecofinance FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 pnpm --filter @ecofinance/next start --hostname 127.0.0.1
+```
+
+Para carregar o mês de demonstração (`demo@example.test`, senha pública no script) e refazer as capturas:
+
+```bash
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-ecofinance FIRESTORE_DATABASE_ID=ecofinance pnpm exec tsx scripts/demo/seed-demo.ts
+pnpm exec tsx scripts/demo/capture.ts
+```
+
+O seed recusa rodar sem o emulador. Nunca rode seed, migrações ou testes contra o projeto real.
+
+No Expo, informe servidor, email e senha no login. O endereço pode vir de `EXPO_PUBLIC_API_URL` (público, sem segredo); fora do emulador, o app só aceita HTTPS.
 
 ## Validação
 
-```sh
+```bash
 pnpm typecheck
 pnpm lint
 pnpm test:coverage
 pnpm security:selftest
 pnpm security:source
-pnpm security:audit
 pnpm mobile:check
 ```
 
-As fixtures são sintéticas. Java 21 e o emulador Firestore são necessários:
+Testes com Firestore e E2E (faça o build da web antes):
 
-```sh
+```bash
 npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-ecofinance "pnpm test:firebase && pnpm test:e2e"
 ```
 
-Execute o build web antes do E2E. PostgreSQL/PostGIS descartável com TEST_DATABASE_URL é usado somente por pnpm test:integration e pelo ensaio pnpm test:rollback executado dentro do emulador. Os testes recusam destinos de produção.
-
-[CI e gates](docs/ci-quality.md), [baseline](docs/refatoracao/baseline.md), [autenticação/recuperação](docs/refatoracao/autenticacao.md).
+[CI e gates](docs/ci-quality.md) · [estado das issues](docs/refatoracao/estado-issues.md) · [plano da refatoração](docs/refatoracao/plano.md) · [segurança](SECURITY.md)
 
 ## Organização
 
 | Pasta | Responsabilidade |
 | --- | --- |
 | apps/next | Web, API, autorização e serviços de aplicação |
-| apps/expo | Interface nativa e sessão segura |
+| apps/expo | App nativo e sessão segura |
 | packages/shared | Contratos, dinheiro/calendário e regras puras |
-| packages/db | Persistência Firestore, validações e ferramentas de exportação/recuperação |
+| packages/db | Persistência Firestore, validações e exportação/recuperação |
+| scripts/deploy | Provisionamento do Cloud Run e primeiro acesso |
+| scripts/demo | Mês sintético e capturas do README |
 
-Issues concluídas são vinculadas no PR com Closes #N. Uma entrega parcial mantém a issue aberta. O checklist e a evidência, incluindo limites de validação, determinam o encerramento.
-
-MIT. Nenhuma promessa de compatibilidade universal de arquivos ou captura automática antes dos respectivos testes.
+Contribuições: [CONTRIBUTING.md](CONTRIBUTING.md). Licença MIT.

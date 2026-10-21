@@ -43,7 +43,7 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table';
-import { cn, formatDate } from '@/lib/utils';
+import { cn, formatCivilDate } from '@/lib/utils';
 import { usePreferences } from '@/lib/preferences-context';
 import { MonthSelector } from '@/components/month-selector';
 import { UpcomingBillsCard, type UpcomingBill } from '@/components/upcoming-bills-card';
@@ -650,7 +650,7 @@ function RecentEntriesCard({ recentTransactions, formattedMonth, onAddExpense }:
                     return (
                       <TableRow key={tx.id}>
                         <TableCell className="text-xs text-muted whitespace-nowrap">
-                          {formatDate(tx.date)}
+                          {formatCivilDate(tx.date)}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-foreground max-w-[220px] truncate">
                           {tx.description}
