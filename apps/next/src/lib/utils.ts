@@ -5,3 +5,6 @@ const dateTime = new Intl.DateTimeFormat('pt-BR', { day:'2-digit',month:'short',
 export function cn(...inputs: ClassValue[]): string { return twMerge(clsx(inputs)); }
 export function formatBRL(value: number): string { return currency.format(value); }
 export function formatDate(dateStr: string | Date): string { return dateTime.format(new Date(dateStr)); }
+// Civil dates (YYYY-MM-DD) have no instant: formatting them as timestamps shifts the day in UTC-3.
+const civilDate = new Intl.DateTimeFormat('pt-BR', { day:'2-digit',month:'short',year:'numeric',timeZone:'UTC' });
+export function formatCivilDate(value: string): string { return civilDate.format(new Date(value + 'T00:00:00Z')); }
