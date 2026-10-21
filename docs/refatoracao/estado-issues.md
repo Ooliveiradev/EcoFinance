@@ -40,6 +40,6 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #44 | Responsável, RPO/RTO, contenção/rotação/restauração e ensaio com replay idempotente em ../security/recovery.md. Restore revoga credenciais e revalida grafo; fechamento depende do gate completo |
 | #47 | Concluída no PR #48, com Firestore Enterprise em São Paulo, runtime/autenticação, regras, backup/reversão e CI incluindo Android nativo |
 
-As issues só são encerradas após a CI completa do PR correspondente. O site ainda não está publicado: o workflow de deploy falha de propósito até o GCP ser provisionado conforme `docs/deploy/cloud-run.md`.
+As issues só são encerradas após a CI completa do PR correspondente. O site ainda não está publicado: o workflow de deploy falha de propósito até o GCP ser provisionado. O provisionamento cabe em um comando no Cloud Shell (`scripts/deploy/provision-gcp.sh`, ver `docs/deploy/cloud-run.md#caminho-rápido-cloud-shell`).
 
 O PR #84 é um complemento aberto de métricas com CI aprovada; a #12 já foi concluída pelos PRs #52/#80. O PR #83 continua sendo uma entrega parcial da #11: aprovação da CI deste incremento não comprova avaliação de modelo real nem autoriza encerrar a issue completa.
