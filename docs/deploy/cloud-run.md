@@ -11,6 +11,28 @@ identidade nativa sem chave de service account e a cota gratuita do Cloud Run.
 > Nunca crie nem baixe chave JSON de service account. Nunca rode `db:firebase`,
 > `db:migrate`, `db:push` nem testes contra o projeto real.
 
+## Caminho rápido (Cloud Shell)
+
+Os passos 0–10 abaixo estão empacotados em
+[provision-gcp.sh](../../scripts/deploy/provision-gcp.sh), com os mesmos comandos,
+nomes e permissões. No [Cloud Shell](https://shell.cloud.google.com/?project=ecofinance-912de):
+
+```bash
+git clone https://github.com/Ooliveiradev/EcoFinance.git && cd EcoFinance
+bash scripts/deploy/provision-gcp.sh --check   # só leitura: lista o que falta
+bash scripts/deploy/provision-gcp.sh           # pede "PROVISIONAR" e aplica
+```
+
+`BUDGET_AMOUNT=50BRL` antes do comando também cria o [orçamento](#orçamento-e-alerta-de-billing).
+Se o `gh` não estiver autenticado no Cloud Shell, o script imprime os três
+`gh variable set` para rodar na sua máquina. Depois:
+
+1. **Actions → Deploy → Run workflow** (`main`) e aprove em **Review deployments**.
+2. Crie seu acesso, ainda no Cloud Shell: `bash scripts/deploy/first-user.sh`
+   (Node 22+: `nvm install 22` se necessário). A senha é lida sem eco e segue só por
+   stdin até `pnpm auth:user`. Para trocar a senha: `--reset`.
+3. Abra o `AUTH_URL` impresso no fim do provisionamento.
+
 ## Arquitetura
 
 ```text
