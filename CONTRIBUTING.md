@@ -47,26 +47,26 @@ Este projeto adere ao nosso [Código de Conduta](./CODE_OF_CONDUCT.md). Ao parti
 Veja o [README.md](./README.md) para o guia completo de instalação. Resumo:
 
 ```bash
-# Pré-requisitos: Node.js >= 20, pnpm >= 9, Docker
+# Pré-requisitos: Node.js >= 22.13, pnpm 9.15, Java 21+ (emulador do Firestore)
 
 git clone https://github.com/Ooliveiradev/EcoFinance.git
 cd EcoFinance
 
-# 1. Copiar e preencher variáveis de ambiente
-cp .env.example .env
+# 1. Instalar dependências
+pnpm install --frozen-lockfile
 
-# 2. Subir banco de dados local
-docker compose up -d
+# 2. Subir o emulador do Firestore (deixe rodando)
+npx firebase-tools@15.32.1 emulators:start --only firestore --project demo-ecofinance
 
-# 3. Instalar dependências
-pnpm install
-
-# 4. Aplicar schema do banco
-pnpm db:push
-
-# 5. Rodar em modo desenvolvimento
+# 3. Copiar .env.example para .env, apontar para o emulador e rodar a web
+#    FIREBASE_PROJECT_ID=demo-ecofinance FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 pnpm dev
+
+# 4. Opcional: mês de demonstração sintético (demo@example.test)
+DEMO_BASE_URL=http://localhost:3000 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-ecofinance FIRESTORE_DATABASE_ID=ecofinance pnpm exec tsx scripts/demo/seed-demo.ts
 ```
+
+Nunca aponte seed, migrações ou testes para o projeto real `ecofinance-912de`.
 
 ---
 
@@ -135,12 +135,16 @@ chore(deps): atualizar turbo para 2.6.0
 ```
 EcoFinance/
 ├── apps/
-│   ├── next/          # Dashboard web (Next.js 15)
-│   └── expo/          # App mobile Android (Expo)
+│   ├── next/          # Web e API (Next.js 16, Better Auth, Firestore)
+│   └── expo/          # App Android/iOS (Expo SDK 57)
 ├── packages/
-│   ├── db/            # Schema Drizzle + migrations
-│   └── shared/        # Tipos TypeScript compartilhados
-├── docker-compose.yml # Banco local
+│   ├── db/            # Persistência Firestore, validações, backup/restauração
+│   └── shared/        # Contratos, dinheiro/calendário e regras puras
+├── scripts/
+│   ├── deploy/        # Provisionamento do Cloud Run e primeiro acesso
+│   ├── demo/          # Mês sintético e capturas do README
+│   └── security/      # Gates de segurança da CI
+├── tests/e2e/         # Jornadas Playwright (Chromium, WebKit, mobile-web)
 └── turbo.json         # Configuração Turborepo
 ```
 
@@ -150,7 +154,7 @@ EcoFinance/
 - **Nova rota de API** → `apps/next/src/app/api/[nome]/route.ts`
 - **Novo componente UI** → `apps/next/src/components/ui/`
 - **Nova tela mobile** → `apps/expo/src/screens/`
-- **Alteração no schema** → `packages/db/src/schema.ts` + `pnpm db:generate`
+- **Novo campo/coleção** → `packages/db/src/models.ts` + `packages/db/src/firestore-validation.ts`
 - **Novos tipos compartilhados** → `packages/shared/src/`
 
 ---

@@ -7,5 +7,5 @@
     "types": ["node"],
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["playwright.config.ts", "vitest*.config.ts", "tests/**/*.ts"]
+  "include": ["playwright.config.ts", "vitest*.config.ts", "tests/**/*.ts", "scripts/demo/**/*.ts"]
 }
