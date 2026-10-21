@@ -1,8 +1,9 @@
 import { getApps, initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore, Timestamp, type DocumentReference, type Firestore, type Transaction } from 'firebase-admin/firestore';
+import { getFirestore, Firestore as FirestoreClient, Timestamp, type DocumentReference, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { field, and, or, type BooleanExpression, type Expression } from '@google-cloud/firestore/pipelines';
 import { uniqueKeys, validateDocument, references } from './firestore-validation';
 import type { Collection, Models, OwnedCollection } from './models';
+import { vercelFederatedAuth } from './vercel-credentials';
 
 export interface Predicate { field: string; op?: 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'in' | 'not_in' | 'contains' | 'starts_with' | 'ends_with'; value: unknown; connector?: 'AND' | 'OR'; mode?: 'sensitive' | 'insensitive' }
 export interface QueryOptions { where?: Predicate[]; order?: { field: string; direction: 'asc' | 'desc' }[]; limit?: number; offset?: number }
@@ -50,6 +51,8 @@ export class DocumentStore {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const databaseId = process.env.FIRESTORE_DATABASE_ID;
     if (!projectId || !databaseId) throw new Error('FIREBASE_PROJECT_ID and FIRESTORE_DATABASE_ID are required.');
+    const authClient = process.env.FIRESTORE_EMULATOR_HOST ? undefined : vercelFederatedAuth();
+    if (authClient) return this.instance = new FirestoreClient({ projectId, databaseId, authClient });
     const app = getApps().find(app => app.name === 'ecofinance') ?? initializeApp({ projectId, ...(process.env.FIRESTORE_EMULATOR_HOST ? {} : { credential: applicationDefault() }) }, 'ecofinance');
     return this.instance = getFirestore(app, databaseId);
   }
