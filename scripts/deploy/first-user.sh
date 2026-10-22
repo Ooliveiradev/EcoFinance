@@ -19,6 +19,20 @@ esac
 cd "$(dirname "$0")/../.."
 [ -f apps/next/scripts/user.ts ] || { echo "Rode a partir de um clone do EcoFinance." >&2; exit 1; }
 
+# O home do Cloud Shell tem só 5 GB persistentes, pouco para as dependências da web.
+# Trabalha numa cópia em /tmp (disco temporário maior), com o store do pnpm também lá.
+WORKDIR=/tmp/ecofinance-operator
+if [ "${CLOUD_SHELL:-}" = true ]; then
+  if [ "$PWD" != "$WORKDIR" ]; then
+    echo "Liberando espaço no home (node_modules e cache do pnpm, recriáveis) e usando $WORKDIR..."
+    rm -rf "$HOME/.local/share/pnpm/store" "$HOME/.cache/pnpm" node_modules apps/*/node_modules packages/*/node_modules
+    [ -d "$WORKDIR/.git" ] || git clone --quiet --depth 1 "file://$PWD" "$WORKDIR"
+    git -C "$WORKDIR" fetch --quiet --depth 1 "file://$PWD" HEAD && git -C "$WORKDIR" reset --quiet --hard FETCH_HEAD
+    exec bash "$WORKDIR/scripts/deploy/first-user.sh" "$@"
+  fi
+  export npm_config_store_dir=/tmp/ecofinance-pnpm-store
+fi
+
 major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
 if [ "$major" -lt 22 ]; then
   echo "Node 22+ necessário (atual: $(node -v 2>/dev/null || echo nenhum)). No Cloud Shell: nvm install 22 && nvm use 22" >&2
