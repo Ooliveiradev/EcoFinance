@@ -5,7 +5,7 @@
 #   bash scripts/deploy/first-user.sh           # novo acesso
 #   bash scripts/deploy/first-user.sh --reset   # nova senha para email existente
 #
-# A senha é lida sem eco e segue só por stdin até `pnpm auth:user`: nunca vai para
+# A senha é lida sem eco e segue só por stdin até apps/next/scripts/user.ts: nunca vai para
 # argumento, variável de ambiente, arquivo ou histórico (docs/refatoracao/autenticacao.md).
 set -euo pipefail
 
@@ -45,7 +45,7 @@ if ! printf '%s\0%s\0%s\0%s' "$email" "$name" "$password" "$RESET" |
   node -e '
     const [email, name, password, reset] = require("fs").readFileSync(0, "utf8").split("\0");
     process.stdout.write(JSON.stringify(reset === "true" ? { email, password, reset: true } : { email, password, ...(name ? { name } : {}) }));
-  ' | corepack pnpm --silent auth:user; then
+  ' | corepack pnpm --silent --filter @ecofinance/next auth:user; then
   cat >&2 <<'EOF'
 Se o erro for de credencial, autorize o acesso ao Firestore e repita:
   gcloud auth application-default login
