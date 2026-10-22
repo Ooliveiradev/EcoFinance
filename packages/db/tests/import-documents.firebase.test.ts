@@ -63,14 +63,35 @@ it('asks for a PDF password per analysis and never stores it', async () => {
   const stored = JSON.stringify([await db.get('importBatches', staged.id), await db.owned('importItems', owner), await db.owned('operations', owner)]);
   expect(stored).not.toContain(pdfKey);
 }, 60_000);
-it('records page progress without changing the revision and stops OCR when cancelled', async () => {
+// Progress is persisted asynchronously, so a snapshot can arrive when OCR is already on its
+// last page. Each property is therefore checked without racing the worker to the finish.
+// Polling uses plain reads: loadImport runs a transaction, and frequent transactions would
+// contend with the processing writes and distort their timing.
+const batchDocument = async (id: string) => (await db.get('importBatches', id))!;
+it('records page progress without changing the revision while OCR runs', async () => {
+  const staged = await stage('escaneada.pdf', 'application/pdf', await scannedPdf([scannedInvoicePage, scannedInvoicePage, scannedInvoicePage]), { accountId: null, cardId: card });
+  let done = false;
+  const work = processImport(db, owner, staged.id, staged.revision).finally(() => { done = true; });
+  const seen: { revision: string; progress: unknown }[] = [];
+  while (!done) {
+    const current = await batchDocument(staged.id);
+    if (current.state === 'processing') seen.push({ revision: current.revision!, progress: current.progress });
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  const finished = await work;
+  expect(finished.state).toBe('review'); expect(finished.progress).toBeNull();
+  expect(seen.some(snapshot => (snapshot.progress as { pages?: number } | null)?.pages === 3)).toBe(true);
+  expect(new Set(seen.map(snapshot => snapshot.revision)).size).toBe(1);
+}, 60_000);
+it('stops OCR when the batch is cancelled during processing', async () => {
   const staged = await stage('escaneada.pdf', 'application/pdf', await scannedPdf([scannedInvoicePage, scannedInvoicePage, scannedInvoicePage]), { accountId: null, cardId: card });
   const work = processImport(db, owner, staged.id, staged.revision);
-  let current = await loadImport(db, owner, staged.id);
-  for (let i = 0; i < 200 && !current.progress; i++) { await new Promise(resolve => setTimeout(resolve, 50)); current = await loadImport(db, owner, staged.id); }
-  expect(current.state).toBe('processing'); expect(current.progress).toMatchObject({ pages: 3 }); expect(current.revision).toBe((await loadImport(db, owner, staged.id)).revision);
+  let current = await batchDocument(staged.id);
+  for (let i = 0; i < 500 && current.state !== 'processing'; i++) { await new Promise(resolve => setTimeout(resolve, 10)); current = await batchDocument(staged.id); }
+  // Cancelling right after the batch enters processing leaves no room for three OCR pages to finish first.
+  expect(current.state).toBe('processing');
   const started = Date.now();
-  await cancelImport(db, owner, randomUUID(), staged.id, current.revision);
+  await cancelImport(db, owner, randomUUID(), staged.id, current.revision!);
   const finished = await work;
   expect(finished.state).toBe('cancelled'); expect(finished.rows).toHaveLength(0); expect(finished.progress).toBeNull();
   // The worker is terminated at the next check instead of reading the remaining pages.
