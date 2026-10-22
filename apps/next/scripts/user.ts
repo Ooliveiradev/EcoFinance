@@ -25,7 +25,18 @@ async function main() {
   });
   console.log('Acesso provisionado; sessões anteriores revogadas quando aplicável. Proprietário:', id);
 }
-main().then(() => process.exit(0)).catch(() => {
-  console.error('Operação recusada. Verifique formato, usuário, titularidade e banco. Nenhum segredo foi registrado.');
+// Only fixed, secret-free reasons are printed: never the input, stack or driver message.
+const REASONS: Record<string, string> = {
+  'Email inválido.': 'email inválido', 'Senha deve ter de 12 a 128 caracteres.': 'a senha deve ter de 12 a 128 caracteres',
+  'Nome deve ter de 1 a 120 caracteres.': 'o nome deve ter de 1 a 120 caracteres', 'Usuário não encontrado.': 'nenhum usuário com esse email (use sem --reset)',
+  'Conta de senha não encontrada.': 'o usuário não tem login por senha', 'Proprietário inexistente ou já associado.': 'proprietário inexistente ou já associado',
+  'Duplicate unique value.': 'já existe um usuário com esse email (use --reset para trocar a senha)', 'JSON inválido.': 'entrada inválida',
+  'FIREBASE_PROJECT_ID and FIRESTORE_DATABASE_ID are required.': 'FIREBASE_PROJECT_ID e FIRESTORE_DATABASE_ID não definidos',
+};
+const GRPC: Record<number, string> = { 7: 'sem permissão no Firestore para esta conta', 16: 'credencial do Google ausente ou expirada (gcloud auth application-default login)', 5: 'banco Firestore não encontrado', 14: 'Firestore indisponível; tente de novo' };
+main().then(() => process.exit(0)).catch((error: unknown) => {
+  const code = (error as { code?: unknown } | null)?.code;
+  const reason = error instanceof Error && REASONS[error.message] ? REASONS[error.message] : typeof code === 'number' && GRPC[code] ? GRPC[code] : 'erro inesperado';
+  console.error(`Operação recusada: ${reason}. Nenhum segredo foi registrado.`);
   process.exit(1);
 });
