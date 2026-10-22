@@ -22,13 +22,17 @@ describe('credential precedence and cookie CSRF', () => {
 });
 describe('canonical origin for pages', () => {
   const origin = 'https://ecofinance.example.test';
+  // Next rebuilds request.url from the bind address; only the Host header names the site.
+  const page = (host: string, path: string, init: RequestInit = {}) => new Request('http://localhost:3000' + path, { ...init, headers: { host, ...(init.headers as Record<string, string> | undefined) } });
   it('moves pages opened on platform aliases to AUTH_URL, keeping path and query', () => {
-    expect(canonicalRedirect(new Request('https://ecofinance-psi.vercel.app/planning?mes=2026-10'), origin)?.href).toBe(origin + '/planning?mes=2026-10');
-    expect(canonicalRedirect(new Request('https://ecofinance-abc123-team.vercel.app/login'), origin)?.href).toBe(origin + '/login');
+    expect(canonicalRedirect(page('ecofinance-psi.vercel.app', '/planning?mes=2026-10'), origin)?.href).toBe(origin + '/planning?mes=2026-10');
+    expect(canonicalRedirect(page('internal:8080', '/login', { headers: { 'x-forwarded-host': 'ecofinance-abc123-team.vercel.app' } }), origin)?.href).toBe(origin + '/login');
   });
-  it('leaves the canonical host, APIs and non-navigation methods alone', () => {
-    expect(canonicalRedirect(new Request(origin + '/login'), origin)).toBeNull();
-    expect(canonicalRedirect(new Request('https://ecofinance-psi.vercel.app/api/health'), origin)).toBeNull();
-    expect(canonicalRedirect(new Request('https://ecofinance-psi.vercel.app/login', { method: 'POST' }), origin)).toBeNull();
+  it('leaves the canonical host, APIs, unknown hosts and non-navigation methods alone', () => {
+    expect(canonicalRedirect(page('ecofinance.example.test', '/login'), origin)).toBeNull();
+    expect(canonicalRedirect(page('ECOFINANCE.example.test', '/'), origin)).toBeNull();
+    expect(canonicalRedirect(new Request('http://localhost:3000/login'), 'http://localhost:3000')).toBeNull();
+    expect(canonicalRedirect(page('ecofinance-psi.vercel.app', '/api/health'), origin)).toBeNull();
+    expect(canonicalRedirect(page('ecofinance-psi.vercel.app', '/login', { method: 'POST' }), origin)).toBeNull();
   });
 });
