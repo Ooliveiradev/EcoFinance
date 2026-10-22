@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requestSession } from './lib/session';
-import { trustedMutation, PRIVATE_CACHE } from './lib/access-policy';
+import { trustedMutation, canonicalRedirect, PRIVATE_CACHE } from './lib/access-policy';
 import { appOrigin } from './lib/auth';
 import { corsPolicy, evaluateCors } from './lib/cors';
 
 export async function proxy(request: NextRequest) {
   const api = request.nextUrl.pathname.startsWith('/api/');
+  let canonical;
+  try { canonical = canonicalRedirect(request, appOrigin()); }
+  catch { return unavailable(); }
+  if (canonical) return NextResponse.redirect(canonical, 308);
   let cors;
   try { cors = evaluateCors(request, corsPolicy([appOrigin()]), api); }
   catch { return unavailable(); }

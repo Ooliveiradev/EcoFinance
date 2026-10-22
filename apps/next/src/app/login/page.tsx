@@ -21,7 +21,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email: String(fields.get('email')).trim().toLowerCase(), password: String(fields.get('password')) }),
       });
       if (!response.ok) {
-        setError(response.status === 429 ? 'Muitas tentativas. Aguarde um minuto.' : response.status >= 500 ? 'Servidor indisponível. Tente novamente.' : 'Email ou senha inválidos.');
+        setError(response.status === 429 ? 'Muitas tentativas. Aguarde um minuto.' : response.status === 403 ? 'Este endereço não aceita login. Abra o EcoFinance pelo endereço oficial.' : response.status >= 500 ? 'Servidor indisponível. Tente novamente.' : 'Email ou senha inválidos.');
         return;
       }
       form.reset();
