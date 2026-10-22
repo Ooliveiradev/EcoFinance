@@ -22,3 +22,12 @@ export function backendOrigin(value: string): string {
       (url.protocol !== 'https:' && !(local && url.protocol === 'http:'))) throw new Error('Use HTTPS ou HTTP apenas em localhost/emulador.');
   return url.origin;
 }
+// Login and cookie writes only work on AUTH_URL (CORS, CSRF and host-only cookie). Platform
+// aliases such as extra vercel.app domains would show a login that always fails, so pages
+// opened there move to the canonical origin. APIs keep failing closed instead of redirecting.
+export function canonicalRedirect(request: Request, origin: string): URL | null {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  const url = new URL(request.url), canonical = new URL(origin);
+  if (url.pathname.startsWith('/api/') || url.host === canonical.host) return null;
+  return new URL(url.pathname + url.search, canonical);
+}

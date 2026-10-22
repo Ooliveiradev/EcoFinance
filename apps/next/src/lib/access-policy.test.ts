@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { authHeaders, trustedMutation, backendOrigin } from './access-policy';
+import { authHeaders, trustedMutation, backendOrigin, canonicalRedirect } from './access-policy';
 describe('credential precedence and cookie CSRF', () => {
   const origin = 'https://finance.example.test';
   function request(method: string, headers: Record<string, string> = {}) { return new Request(origin, { method, headers }); }
@@ -18,5 +18,17 @@ describe('credential precedence and cookie CSRF', () => {
   it('rejects remote cleartext and origins with credentials, paths or URL metadata', () => {
     expect(backendOrigin(origin)).toBe(origin); expect(backendOrigin('http://localhost:3000')).toBe('http://localhost:3000');
     for (const url of ['http://finance.example.test', 'https://u:p@finance.example.test', origin + '/x', origin + '?x=1', origin + '#x', 'ftp://localhost']) expect(() => backendOrigin(url)).toThrow();
+  });
+});
+describe('canonical origin for pages', () => {
+  const origin = 'https://ecofinance.example.test';
+  it('moves pages opened on platform aliases to AUTH_URL, keeping path and query', () => {
+    expect(canonicalRedirect(new Request('https://ecofinance-psi.vercel.app/planning?mes=2026-10'), origin)?.href).toBe(origin + '/planning?mes=2026-10');
+    expect(canonicalRedirect(new Request('https://ecofinance-abc123-team.vercel.app/login'), origin)?.href).toBe(origin + '/login');
+  });
+  it('leaves the canonical host, APIs and non-navigation methods alone', () => {
+    expect(canonicalRedirect(new Request(origin + '/login'), origin)).toBeNull();
+    expect(canonicalRedirect(new Request('https://ecofinance-psi.vercel.app/api/health'), origin)).toBeNull();
+    expect(canonicalRedirect(new Request('https://ecofinance-psi.vercel.app/login', { method: 'POST' }), origin)).toBeNull();
   });
 });
