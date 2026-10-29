@@ -18,6 +18,14 @@
       "reviewedAt": "2026-10-13",
       "expiresAt": "2026-11-12",
       "reason": "No upstream fix; exact installed parser/walker hashes and nesting regressions are required."
+    },
+    {
+      "id": "GHSA-gcqx-w48m-w2h4",
+      "package": "deepmerge",
+      "version": "4.3.1",
+      "reviewedAt": "2026-10-29",
+      "expiresAt": "2026-11-28",
+      "reason": "No upstream fix; build-time dependency of @expo/config. Exact patched entry-point hash and own __proto__ regression are required."
     }
   ]
 }

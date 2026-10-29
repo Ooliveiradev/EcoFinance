@@ -40,6 +40,13 @@ if (require('node-forge/package.json').version !== '1.4.0' ||
     digest !== 'c65caaa8c6e6a4ddb46721b518c4df8ddf6358eec3446587c2e9e54f66921412') {
   throw new Error('Unexpected node-forge artifact: audit must be reviewed before changing the pinned patch.');
 }
+// GHSA-gcqx-w48m-w2h4 has no published fixed version: only this exact patched entry point.
+const patchedDeepmerge = require.resolve('deepmerge');
+const deepmergeDigest = createHash('sha256').update(readFileSync(patchedDeepmerge)).digest('hex');
+if (require('deepmerge/package.json').version !== '4.3.1' ||
+    deepmergeDigest !== 'd89c5c8e2b9baf9e004c825ae7a86bf4cebe17c3a14966c7e2dbb114b0a1c4dd') {
+  throw new Error('Unexpected deepmerge artifact: audit must be reviewed before changing the pinned patch.');
+}
 const visited = new Set();
 function verifyCopies(moduleRoot) {
   if (!existsSync(moduleRoot)) return;
@@ -55,12 +62,14 @@ function verifyCopies(moduleRoot) {
       if (createHash('sha256').update(bytes).digest('hex') !== digest) throw new Error('Unpatched nested node-forge copy');
     }
     if (entry.name === 'braces') verifyBraces(path);
+    if (entry.name === 'deepmerge' && createHash('sha256').update(readFileSync(join(path, 'dist/cjs.js'))).digest('hex') !== deepmergeDigest) throw new Error('Unpatched nested deepmerge copy');
     verifyCopies(join(path, 'node_modules'));
   }
 }
 for (const root of ['.', 'apps/expo', 'apps/next', 'packages/db', 'packages/shared']) verifyCopies(join(root, 'node_modules'));
 execFileSync(process.execPath, ['--test', 'scripts/security/forge.test.mjs'], { stdio: 'inherit' });
 execFileSync(process.execPath, ['--test', 'scripts/security/braces.test.mjs'], { stdio: 'inherit' });
+execFileSync(process.execPath, ['--test', 'scripts/security/deepmerge.test.mjs'], { stdio: 'inherit' });
 let raw;
 try {
   raw = execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['audit', '--json'], {
@@ -82,6 +91,11 @@ for (const advisory of Object.values(report.advisories)) {
   if (reviewed(advisory, 'node-forge', '1.4.0') && advisory.github_advisory_id === 'GHSA-86w9-cpqp-85rv' && advisory.module_name === 'node-forge' &&
       advisory.findings.length && advisory.findings.every(finding => finding.version === '1.4.0')) {
     console.log('CVE-2026-85393: installed pnpm patch verified by SHA-256 and malformed-signature regression.');
+    continue;
+  }
+  if (reviewed(advisory, 'deepmerge', '4.3.1') && advisory.github_advisory_id === 'GHSA-gcqx-w48m-w2h4' && advisory.module_name === 'deepmerge' &&
+      advisory.findings.length && advisory.findings.every(finding => finding.version === '4.3.1')) {
+    console.log('GHSA-gcqx-w48m-w2h4: installed pnpm patch verified by SHA-256 and prototype regression.');
     continue;
   }
   console.error(`${advisory.severity}: ${advisory.module_name} (${advisory.github_advisory_id})`);
