@@ -9,6 +9,13 @@ import type { CategoryRule } from '@ecofinance/shared';
 interface Category { id: string; name: string; archivedAt?: string | null }
 interface Assistant { model: string; label: string; external: boolean; consent: { acceptedAt: string } | null }
 interface RulesState { rules: CategoryRule[]; assistant: Assistant | null }
+function assistantStatus(state: RulesState | null) {
+  const assistant = state?.assistant;
+  if (!state) return 'Carregando regras de categoria…';
+  if (!assistant) return 'Assistente por modelo desligado nesta instalação: só suas regras sugerem categorias.';
+  if (!assistant.external) return `Linhas sem regra recebem sugestão do modelo local ${assistant.model}, executado no servidor desta instalação. Nenhum dado é enviado a serviço externo.`;
+  return assistant.consent ? `Linhas sem regra recebem sugestão do ${assistant.label}, um serviço externo que você ligou.` : 'Só suas regras sugerem categorias. Nenhum dado é enviado a serviço externo enquanto o assistente externo estiver desligado.';
+}
 /** External assistant (#11): off until the user reads what is sent and turns it on. */
 function ExternalAssist({ assistant, busy, toggle }: { assistant: Assistant; busy: boolean; toggle: (enabled: boolean) => void }) {
   const on = Boolean(assistant.consent);
@@ -56,7 +63,7 @@ export function CategoryRules() {
   return <section aria-labelledby="rules-title" className="space-y-4 rounded-xl border border-slate-700 p-4">
     <h2 id="rules-title" className="text-lg font-semibold">Regras de categoria</h2>
     <p className="text-sm text-slate-400">Na revisão de importações, a categoria é pré-selecionada pelas suas regras e só vale ao salvar a linha. As regras aprendidas vêm das categorias que você escolhe na revisão.</p>
-    <p className="text-sm text-slate-400">{!state ? 'Carregando regras de categoria…' : !state.assistant ? 'Assistente por modelo desligado nesta instalação: só suas regras sugerem categorias.' : state.assistant.external ? (state.assistant.consent ? `Linhas sem regra recebem sugestão do ${state.assistant.label}, um serviço externo que você ligou.` : 'Só suas regras sugerem categorias. Nenhum dado é enviado a serviço externo enquanto o assistente externo estiver desligado.') : `Linhas sem regra recebem sugestão do modelo local ${state.assistant.model}, executado no servidor desta instalação. Nenhum dado é enviado a serviço externo.`}</p>
+    <p className="text-sm text-slate-400">{assistantStatus(state)}</p>
     {state?.assistant?.external && <ExternalAssist assistant={state.assistant} busy={busy} toggle={enabled => void perform(() => send('/api/category-rules/assist', 'PUT', { enabled }), enabled ? 'Assistente externo ligado.' : 'Assistente externo desligado.')} />}
     {error && <p role="alert" className="text-red-400">{error}</p>}
     {status && <p role="status" className="text-emerald-400">{status}</p>}
