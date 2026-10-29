@@ -12,6 +12,7 @@ export function MoreScreen() {
     <View style={{ gap: 8 }}>
       <ListItem title="Contas e categorias" subtitle="Saldos, cadastro e arquivamento" onPress={() => navigation.navigate('References')} />
       <ListItem title="Importar arquivos" subtitle="Extratos e faturas com revisão antes de lançar" onPress={() => navigation.navigate('Imports')} />
+      <ListItem title="Captura de gastos" subtitle="Opcional: avisos de apps bancários viram sugestões" onPress={() => navigation.navigate('Capture')} />
       <ListItem title="Pendências de sincronização" subtitle={outbox.length ? `${outbox.length} alteração(ões) neste aparelho` : 'Tudo sincronizado'} onPress={() => navigation.navigate('Pending')} />
       <ListItem title="Sessão e privacidade" subtitle="Sair e apagar dados locais" onPress={() => navigation.navigate('Settings')} />
     </View>

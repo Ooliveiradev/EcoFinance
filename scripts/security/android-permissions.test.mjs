@@ -11,6 +11,11 @@ test('release allows network and rejects broad data access or exported native co
   assert.deepEqual(permissionFindings(receiver(' android:permission="android.permission.DUMP"')),[]);
   assert.ok(permissionFindings(receiver('')).some(message=>message.includes('ProfileInstallReceiver')));
   assert.ok(permissionFindings(receiver(' android:permission="com.example.OPEN"')).length);
+  const listener=(name,permission)=>manifest('android.permission.INTERNET').replace('</application>',`<service android:name="${name}" android:exported="true"${permission}/></application>`);
+  assert.deepEqual(permissionFindings(listener('com.ecofinance.capture.CaptureListenerService',' android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"')),[]);
+  assert.ok(permissionFindings(listener('com.ecofinance.capture.CaptureListenerService','')).length);
+  assert.ok(permissionFindings(listener('com.example.Other',' android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"')).length);
+  assert.ok(permissionFindings(manifest('android.permission.BIND_NOTIFICATION_LISTENER_SERVICE')).length);
   assert.ok(permissionFindings(manifest('android.permission.INTERNET').replace('android:allowBackup="false"','android:allowBackup="true"')).length);
   assert.ok(permissionFindings(manifest('android.permission.INTERNET').replace('android:allowBackup="false"','android:allowBackup="false" android:debuggable="true"')).length);
 });

@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import type { Database, Models } from '@ecofinance/db';
-import { IMPORT_LIMITS, IMPORT_MAPPING_LIMITS, importMapRequestSchema, importProcessSchema, importReviewSchema, importPreview, importTargetSchema, type ImportBatchView, type ImportLayout, type ImportMapping, type ImportProgress, type ImportRowView } from '@ecofinance/shared';
+import { IMPORT_LIMITS, IMPORT_MAPPING_LIMITS, importMapRequestSchema, importProcessSchema, importReviewSchema, importPreview, importTargetSchema, type CategorySuggestion, type ImportBatchView, type ImportLayout, type ImportMapping, type ImportProgress, type ImportRowView, type ParsedImportRow } from '@ecofinance/shared';
 import { operation, owned, checkRevision, revision, fail, FinanceError } from './finance-operation';
 import { stableId } from './planning-lock';
 import { activeCard, cardReference } from './card-store';
@@ -98,6 +98,29 @@ function watchAnalysis(db: Database, owner: string, id: string, token: string) {
   const timer = setInterval(() => step(null), 2000);
   return { signal: controller.signal, onProgress: (progress: ImportProgress) => step(progress), stop: async () => { clearInterval(timer); await pending; } };
 }
+/**
+ * Review rows for a batch (file analysis or captured notifications): pending until
+ * the user saves them, with duplicate candidates and category suggestions only.
+ */
+export async function stageItems(tx: Database, owner: string, batch: Models['importBatches'], parsed: ParsedImportRow[], batchWarnings: string[], suggestions: Map<number, CategorySuggestion>) {
+  const id = batch.id;
+  const accountEntries = await tx.owned('transactions', owner, { where: [{ field: 'accountId', value: batch.accountId }] });
+  const invoiceCards = batch.cardId ? new Set((await tx.owned('invoices', owner, { where: [{ field: 'cardId', value: batch.cardId }] })).map(i => i.id)) : null;
+  return parsed.map((row, i) => {
+    const valid = !!row.amount && !!row.purchaseDate && !!row.description, now = new Date();
+    const item: Models['importItems'] = { ...row, id: stableId(['import-item', id, i + 1]), ownerId: owner, batchId: id, position: i + 1,
+      accountId: batch.accountId, categoryId: null, invoiceId: null, transactionId: null, currency: 'BRL',
+      kind: row.amount?.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income',
+      competenceMonth: row.purchaseDate ? row.purchaseDate.slice(0, 7) + '-01' : null,
+      warnings: [...batchWarnings, ...row.warnings], state: valid ? 'pending' : 'invalid', selected: false,
+      resolution: 'new', duplicateId: null, suggestion: suggestions.get(i + 1) ?? null, revision: randomUUID(), createdAt: now, updatedAt: now };
+    const identity = importIdentity(batch, item);
+    item.candidates = accountEntries.filter(e => !e.archivedAt && (invoiceCards ? !!e.invoiceId && invoiceCards.has(e.invoiceId) : !e.invoiceId) && (e.id === identity || e.amount === item.amount && e.purchaseDate === item.purchaseDate && e.description.trim().toLowerCase() === item.description?.trim().toLowerCase())).slice(0, 20).map(e => ({ id: e.id, description: e.description, amount: e.amount, purchaseDate: e.purchaseDate, categoryId:e.categoryId,competenceMonth:e.competenceMonth,status:e.status,exact: e.id === identity }));
+    if (item.candidates.length) item.warnings.push('Possível duplicata: revise e escolha criar, vincular ou excluir.');
+    if (valid) item.warnings.push('Escolha a categoria e confirme os dados da linha.');
+    return item;
+  });
+}
 export async function processImport(db: Database, owner: string, id: string, expected: string, input: unknown = {}) {
   // The password reaches only the extraction worker: it is not persisted, logged or returned.
   const { password } = importProcessSchema.parse(input ?? {});
@@ -122,23 +145,7 @@ export async function processImport(db: Database, owner: string, id: string, exp
     await db.transaction(async tx => {
       const current = await owned(tx, 'importBatches', id, owner);
       if (current.state !== 'processing' || current.processId !== token) fail('BATCH_STATE', 409, 'A análise foi cancelada ou substituída. Recarregue o lote.');
-      const accountEntries = await tx.owned('transactions', owner, { where: [{ field: 'accountId', value: batch.accountId }] });
-      const invoiceCards = batch.cardId ? new Set((await tx.owned('invoices', owner, { where: [{ field: 'cardId', value: batch.cardId }] })).map(i => i.id)) : null;
-      const rows: Models['importItems'][] = parsed.rows.map((row, i) => {
-        const valid = !!row.amount && !!row.purchaseDate && !!row.description, now = new Date();
-        const item: Models['importItems'] = { ...row, id: stableId(['import-item', id, i + 1]), ownerId: owner, batchId: id, position: i + 1,
-          accountId: batch.accountId, categoryId: null, invoiceId: null, transactionId: null, currency: 'BRL',
-          kind: row.amount?.startsWith('-') ? 'expense' : batch.cardId ? 'refund' : 'income',
-          competenceMonth: row.purchaseDate ? row.purchaseDate.slice(0, 7) + '-01' : null,
-          warnings: [...parsed.warnings, ...row.warnings], state: valid ? 'pending' : 'invalid', selected: false,
-          resolution: 'new', duplicateId: null, suggestion: assist.suggestions.get(i + 1) ?? null, revision: randomUUID(), createdAt: now, updatedAt: now };
-        const identity = importIdentity({...batch,source:parsed.source}, item);
-        item.candidates = accountEntries.filter(e => !e.archivedAt && (invoiceCards ? !!e.invoiceId && invoiceCards.has(e.invoiceId) : !e.invoiceId) && (e.id === identity || e.amount === item.amount && e.purchaseDate === item.purchaseDate && e.description.trim().toLowerCase() === item.description?.trim().toLowerCase())).slice(0, 20).map(e => ({ id: e.id, description: e.description, amount: e.amount, purchaseDate: e.purchaseDate, categoryId:e.categoryId,competenceMonth:e.competenceMonth,status:e.status,exact: e.id === identity }));
-        if (item.candidates.length) item.warnings.push('Possível duplicata: revise e escolha criar, vincular ou excluir.');
-        if (valid) item.warnings.push('Escolha a categoria e confirme os dados da linha.');
-        return item;
-      });
-      await tx.putMany('importItems', rows);
+      await tx.putMany('importItems', await stageItems(tx, owner, { ...batch, source: parsed.source }, parsed.rows, parsed.warnings, assist.suggestions));
       await tx.put('importBatches', { ...current, source: parsed.source, format: parsed.format, accountHint: parsed.accountHint, layout: parsed.layout ?? null, state: 'review', processId: null, progress: null, revision: randomUUID(), updatedAt: new Date() });
     });
   } catch (error) {

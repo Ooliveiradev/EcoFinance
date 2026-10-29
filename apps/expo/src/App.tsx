@@ -19,6 +19,7 @@ import { ReferencesScreen, ReferenceFormScreen } from './screens/references';
 import { ImportsScreen, ImportReviewScreen } from './screens/imports';
 import { PendingScreen } from './screens/pending';
 import { MoreScreen, SettingsScreen } from './screens/settings';
+import { CaptureScreen } from './screens/capture';
 import { backendFetch, clearSession, loadBackendConfig, onSessionExpired, SessionExpired } from './services/backend-config';
 import { toApiError } from './data/api';
 import { activeUserId, prepareUser, unsyncedCount } from './data/session';
@@ -67,6 +68,7 @@ function Main({ userId }: { userId: string }) {
         <Stack.Screen name="ImportReview" component={ImportReviewScreen} options={{ title: 'Revisão' }} />
         <Stack.Screen name="Pending" component={PendingScreen} options={{ title: 'Pendências' }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Sessão e privacidade' }} />
+        <Stack.Screen name="Capture" component={CaptureScreen} options={{ title: 'Captura de gastos' }} />
       </Stack.Navigator>
     </NavigationContainer>
   </DataProvider>;

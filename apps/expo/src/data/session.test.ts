@@ -11,6 +11,12 @@ vi.mock('expo-secure-store', () => ({
   getItemAsync: async () => secure.value, setItemAsync: async (_key: string, value: string) => { secure.value = value; },
   deleteItemAsync: async (key: string) => { if (key === 'ecofinance.session.v2') secure.value = null; }, WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'device-only',
 }));
+// Native capture queue (#19), simulated: owner and erase calls are what the session controls.
+const capture = vi.hoisted(() => ({ owner: null as string | null, cleared: 0 }));
+vi.mock('../../modules/ecofinance-capture', () => ({ captureNative: {
+  status: () => ({ owner: capture.owner, packages: [], queued: 0, dropped: 0, lastEventAt: null, connected: false }),
+  clear: () => { capture.owner = null; capture.cleared++; },
+} }));
 import { readLocal, writeLocal } from './local-store';
 import { enqueue } from './outbox';
 import { activeUserId, forgetDevice, logout, prepareUser, unsyncedCount } from './session';
@@ -19,7 +25,7 @@ import { onSessionExpired } from '../services/backend-config';
 const A = '10000000-0000-4000-8000-00000000000a', B = '10000000-0000-4000-8000-00000000000b';
 const login = (userId: string) => { secure.value = JSON.stringify({ url: 'https://api.example.test', credential: 'synthetic.signed', userId }); };
 beforeEach(() => { storage.clear(); storage.set('@ecofinance_onboarded', 'done'); });
-afterEach(() => { vi.unstubAllGlobals(); secure.value = null; });
+afterEach(() => { vi.unstubAllGlobals(); secure.value = null; capture.owner = null; capture.cleared = 0; });
 
 describe('mobile session data lifecycle', () => {
   it('logout revokes on the server and then erases the cache and drafts of that user', async () => {
@@ -29,7 +35,9 @@ describe('mobile session data lifecycle', () => {
     expect(await unsyncedCount(A)).toBe(1);
     const fetch = vi.fn().mockResolvedValue(new Response('{}'));
     vi.stubGlobal('fetch', fetch);
+    capture.owner = A;
     await logout(false);
+    expect(capture).toEqual({ owner: null, cleared: 1 });
     expect(fetch.mock.calls[0]![0]).toBe('https://api.example.test/api/auth/sign-out');
     expect(secure.value).toBeNull();
     expect([...storage.keys()]).toEqual(['@ecofinance_onboarded']);
@@ -60,8 +68,14 @@ describe('mobile session data lifecycle', () => {
   it('a different account signing in never inherits the previous account\'s data', async () => {
     await writeLocal(A, 'cache.report', { data: 'A' });
     await writeLocal(B, 'cache.report', { data: 'B' });
+    capture.owner = A;
     await prepareUser(B);
     expect(await readLocal(A, 'cache.report')).toBeNull();
     expect(await readLocal(B, 'cache.report')).toEqual({ data: 'B' });
+    // A's queued notices are erased instead of being sent with B's session.
+    expect(capture).toEqual({ owner: null, cleared: 1 });
+    capture.owner = B;
+    await prepareUser(B);
+    expect(capture.cleared).toBe(1);
   });
 });

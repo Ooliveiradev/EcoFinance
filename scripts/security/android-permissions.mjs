@@ -16,7 +16,9 @@ export function permissionFindings(xml) {
   }
   for(const [tag]of xml.matchAll(/<(?:activity|activity-alias|service|receiver|provider)\b[^>]*>/g)) {
     // DUMP is signature|privileged|development: only adb/Play can reach AndroidX's profile installer.
-    const systemOnly=attribute(tag,'android:permission')==='android.permission.DUMP';
+    const systemOnly=attribute(tag,'android:permission')==='android.permission.DUMP' ||
+      // Optional capture (#19): only the system binds a notification listener, after the user grants access.
+      (attribute(tag,'android:name')==='com.ecofinance.capture.CaptureListenerService' && attribute(tag,'android:permission')==='android.permission.BIND_NOTIFICATION_LISTENER_SERVICE');
     if(attribute(tag,'android:exported')==='true' && !systemOnly && !['.MainActivity','com.ecofinance.app.MainActivity'].includes(attribute(tag,'android:name')))findings.push('unexpected exported component: '+attribute(tag,'android:name'));
   }
   return findings;

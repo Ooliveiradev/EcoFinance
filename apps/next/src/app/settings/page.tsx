@@ -3,6 +3,7 @@ import { SettingsClient } from './settings-client';
 import { SessionControls } from '@/components/session-controls';
 import { DataControls } from './data-controls';
 import { CategoryRules } from './category-rules';
+import { CaptureSources } from './capture-sources';
 
 export const metadata: Metadata = {
   title: 'EcoFinance | Configurações',
@@ -10,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function SettingsPage() {
-  return <><SessionControls /><DataControls /><CategoryRules /><SettingsClient /></>;
+  return <><SessionControls /><DataControls /><CategoryRules /><CaptureSources /><SettingsClient /></>;
 }

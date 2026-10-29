@@ -25,7 +25,8 @@ Status: **disponível** = funciona na web e é coberto por testes automatizados 
 | Sugestão por modelo local (Ollama) | Experimental | Implementado e desligado por padrão; sem avaliação em hardware real (#11) |
 | App Expo Android | Experimental | Telas nativas, cache e rascunhos por usuário; compila na CI, jornadas em aparelho pendentes ([mobile](docs/refatoracao/mobile.md), #13) |
 | App Expo iOS | Experimental | Bundle gerado na CI; não executado em simulador ou aparelho, pois não há Mac disponível (#13) |
-| Captura de gastos por notificações Android e e-mail | Planejado | Proposta em #19; a captura antiga foi removida |
+| Captura de gastos por notificações Android | Experimental | Opcional e desligada por padrão: avisos dos apps escolhidos viram sugestões em revisão; compila na CI, sem validação em aparelho ([captura](docs/refatoracao/captura.md), #19) |
+| Captura de gastos por e-mail | Planejado | Viabilidade documentada; conector não implementado (#19) |
 | Assistência à extração de documentos por IA | Planejado | Parsers e OCR determinísticos já funcionam sem IA (#11) |
 
 **Removido** na transição (#15): Pluggy/Open Finance, captura antiga de notificações com GPS, mapa, recibos Uber, chat Gemini e o segredo global da API. Os lançamentos antigos continuam consultáveis e exportáveis ([transição](docs/refatoracao/transicao.md)).

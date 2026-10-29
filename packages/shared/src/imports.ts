@@ -5,7 +5,7 @@ import type { CategorySuggestion } from './assist';
 
 /** Small bounded files keep staging and confirmation within one atomic commit. */
 export const IMPORT_LIMITS = { files: 10, bytes: 256 * 1024, rows: 60 } as const;
-export const importSourceSchema = z.enum(['ofx','csv','spreadsheet','document']);
+export const importSourceSchema = z.enum(['ofx','csv','spreadsheet','document','notification']);
 export type ImportSource = z.infer<typeof importSourceSchema>;
 export const importIdSchema=z.string().uuid();
 export const importTargetSchema=z.object({accountId:importIdSchema.nullable(),cardId:importIdSchema.nullable()}).strict().refine(target=>!!target.accountId!==!!target.cardId,'Escolha uma conta ou cartão de destino.');
