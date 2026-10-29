@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@ecofinance/db';
-import { CATEGORY_RULE_LIMITS, categoryRuleInputSchema, matchRule, ruleKey, type CategoryRule, type CategorySuggestion } from '@ecofinance/shared';
+import { CATEGORY_RULE_LIMITS, categoryRuleInputSchema, externalAssistInputSchema, matchRule, ruleKey, type CategoryRule, type CategorySuggestion } from '@ecofinance/shared';
 import { operation, fail } from './finance-operation';
 import { stableId } from './planning-lock';
 import { cardReference } from './card-store';
-import { assistConfig, suggestCategories, type AssistConfig } from './assist-ollama';
+import { assistConfig, isExternal, providerLabel, suggestCategories, type AssistConfig } from './assist-ollama';
 
 /**
  * Category rules (#11) live in the owner's preferences document, next to the saved
@@ -68,6 +68,22 @@ export async function editRule(db: Database, owner: string, key: string, id: str
     return { id };
   });
 }
+export interface ExternalAssistConsent { provider: string; acceptedAt: string }
+/** The user's explicit choice to send descriptions to an external assistant (#11); absent means no. */
+export async function externalAssistConsent(db: Database, owner: string): Promise<ExternalAssistConsent | null> {
+  return ((await preferencesOf(db, owner))?.settings.externalAssist ?? null) as ExternalAssistConsent | null;
+}
+/** Turning it on records the provider seen by the user; turning it off stops new calls immediately. */
+export async function setExternalAssist(db: Database, owner: string, key: string, input: unknown, config: AssistConfig | null = assistConfig()) {
+  const { enabled } = externalAssistInputSchema.parse(input);
+  if (enabled && (!config || !isExternal(config))) fail('ASSIST_UNAVAILABLE', 409, 'Nenhum assistente externo está configurado nesta instalação.');
+  return operation(db, owner, key, 'external-assist', { enabled }, async tx => {
+    const now = new Date(), current = await preferencesOf(tx, owner);
+    const consent = enabled ? { provider: config!.provider, acceptedAt: now.toISOString() } : null;
+    await tx.put('preferences', { id: current?.id ?? stableId(['preferences', owner]), ownerId: owner, settings: { ...current?.settings, externalAssist: consent }, createdAt: current?.createdAt ?? now, updatedAt: now });
+    return { externalAssist: consent };
+  });
+}
 export interface SuggestionInput { position: number; description: string | null; amount: string | null }
 /**
  * Suggestions for analysed rows: the user's rules first, then the local model for
@@ -84,8 +100,10 @@ export async function suggestImportCategories(db: Database, owner: string, rows:
   }
   const rest = rows.filter(row => row.description && !suggestions.has(row.position));
   if (!config || !rest.length) return { suggestions, warnings: [] as string[] };
+  // An external provider is called only after this user opted into that same provider.
+  if (isExternal(config) && (await externalAssistConsent(db, owner))?.provider !== config.provider) return { suggestions, warnings: [] as string[] };
   const model = await suggestCategories(config, rest.map(row => ({ position: row.position, description: row.description!, amount: row.amount })), active.map(category => ({ id: category.id, name: category.name })), fetcher);
   for (const [position, suggestion] of model.suggestions) suggestions.set(position, { categoryId: suggestion.categoryId, source: 'model', model: config.model,
-    reason: `Sugestão do modelo local ${config.model}${suggestion.reason ? ': ' + suggestion.reason : ''}. Confira antes de salvar.` });
+    reason: `Sugestão do ${isExternal(config) ? providerLabel(config) + ' (' + config.model + ')' : 'modelo local ' + config.model}${suggestion.reason ? ': ' + suggestion.reason : ''}. Confira antes de salvar.` });
   return { suggestions, warnings: model.warning ? [model.warning] : [] };
 }

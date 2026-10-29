@@ -11,6 +11,8 @@ export const categoryRuleInputSchema = z.object({
   pattern: z.string().trim().min(CATEGORY_RULE_LIMITS.minimum).max(CATEGORY_RULE_LIMITS.pattern),
   categoryId: z.string().uuid(),
 }).strict();
+/** Opt in/out of sending descriptions to the installation's external assistant. */
+export const externalAssistInputSchema = z.object({ enabled: z.boolean() }).strict();
 export interface CategoryRule {
   id: string;
   /** Normalized text (see ruleKey). `equals` rules are learned; `contains` rules are written by the user. */

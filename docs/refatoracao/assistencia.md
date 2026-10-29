@@ -83,8 +83,46 @@ modelo. No Cloud Run atual o modelo fica desligado (não há Ollama). O uso prev
   de controle, até 160 caracteres), sempre com o nome do modelo e o pedido de
   conferência.
 
-Nenhum provedor externo foi implementado: por decisão do mantenedor, nenhum dado
-financeiro sai do servidor.
+## Provedor externo opcional (NVIDIA NIM)
+
+Decisão do mantenedor em 29/10/2026: além do modelo local, a instalação pode usar a
+API compatível com OpenAI do NVIDIA NIM. É o único provedor externo e fica
+**desligado em dois níveis**:
+
+1. O operador configura no servidor (nunca no cliente nem no bundle):
+
+   | Variável | Efeito |
+   | --- | --- |
+   | `IMPORT_ASSIST_PROVIDER=nim` | Escolhe o NIM em vez do Ollama |
+   | `NVIDIA_API_KEY` | Chave `nvapi-…` da conta NVIDIA do operador. Vai só no cabeçalho `Authorization` |
+   | `IMPORT_ASSIST_MODEL` | Modelo do catálogo, por exemplo `meta/llama-3.1-8b-instruct` |
+   | `NIM_URL` | Opcional; padrão `https://integrate.api.nvidia.com/v1`. Só `https` (útil para um NIM próprio) |
+
+2. Cada usuário liga em **Configurações › Regras de categoria**, depois de ver o que
+   é enviado. Sem esse consentimento, nenhuma chamada sai do servidor para aquele
+   usuário, mesmo com a chave configurada. Desligar interrompe as próximas análises
+   na hora. O consentimento (`settings.externalAssist`) fica no documento de
+   preferências, junto com as regras, e entra no backup/restauração.
+
+O que vai: as mesmas linhas e campos do modelo local (descrição até 200 caracteres,
+valor e nomes das categorias ativas), só das linhas sem regra. Contas, cartões,
+datas, ids, saldos e o arquivo não vão. As mesmas garantias valem: saída validada em
+código, categorias por código curto, nenhum poder de escrita.
+
+Limites do serviço gratuito: o endpoint hospedado `integrate.api.nvidia.com` é
+oferecido para prototipagem, com limite de requisições por minuto (cerca de 40 na
+data desta decisão, segundo relatos públicos) e sem aumento self-service. Uso em
+produção, segundo a NVIDIA, exige NIM implantado e licenciado. Por isso:
+
+- HTTP 429 vira o aviso “limite de uso atingido” no lote, sem nova tentativa e sem
+  outro provedor; 401/5xx, timeout e resposta inválida também só geram aviso.
+- O app não depende do NIM: regras, revisão manual, parsers e OCR continuam iguais.
+
+O NIM hospedado não restringe a saída por schema neste adaptador: o schema vai no
+prompt, a resposta é extraída do maior objeto JSON (aceita cerca de código) e
+validada como no Ollama. Ainda **não houve avaliação com a API real** (sem chave
+disponível nesta sessão); o mesmo `assist-ollama.eval.test.ts` pode ser rodado com
+as variáveis acima quando houver uma chave.
 
 ## Avaliação do modelo local
 
@@ -164,4 +202,11 @@ no gate remoto.
   OCR (#10) pelo modelo. As regras determinísticas e o mapeamento manual
   continuam.
 - Chat e explicação de métricas: `/api/chat` segue desativado.
-- Sugestões no app Expo: o campo já vem na API, mas o app ainda não o mostra.
+
+## Sugestões no app Expo (29/10/2026)
+
+A revisão de importação no Expo mostra a categoria sugerida e o motivo (regra ou
+modelo) nas linhas ainda sem categoria. O botão “Usar categoria sugerida na linha N”
+só preenche o rascunho; a categoria vale depois de “Salvar linha”, como na web.
+Sugestão de categoria arquivada não aparece. Verificado por tipos; a conferência
+visual em emulador/aparelho entra na validação Android de #13.

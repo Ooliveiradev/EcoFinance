@@ -18,7 +18,7 @@ test('a settings rule pre-selects the category of matching imported rows', async
   expect(account.status()).toBe(201); expect(category.status()).toBe(201);
   await page.goto('/settings');
   const rules = page.getByRole('region', { name: 'Regras de categoria' });
-  await expect(rules).toContainText('Assistente por modelo local desligado');
+  await expect(rules).toContainText('Assistente por modelo desligado');
   await rules.getByLabel('Descrição contém', { exact: true }).fill('Hortifruti ' + run.replace(/[^a-z]/gi, ''));
   await rules.getByLabel('Categoria da regra', { exact: true }).selectOption({ label: 'Feira ' + run });
   await rules.getByRole('button', { name: 'Adicionar regra', exact: true }).click();
@@ -49,4 +49,32 @@ test('a settings rule pre-selects the category of matching imported rows', async
   await expect(batch).toContainText('Ela só vale depois de salvar a linha.');
   // Still a pending row: nothing is categorized until the user saves it.
   await expect(batch.locator('summary').filter({ hasText: 'Linha 1 ·' })).toContainText('Categoria a revisar');
+});
+test('the external assistant stays off until the user reads what is sent and turns it on', async ({ page }) => {
+  await login(page.request);
+  // The installation's provider is simulated: no request leaves the test machine.
+  let consent: { provider: string; acceptedAt: string } | null = null; const sent: unknown[] = [];
+  await page.route('**/api/category-rules', async route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch(), body = await response.json();
+    await route.fulfill({ response, json: { ...body, assistant: { model: 'meta/llama-3.1-8b-instruct', provider: 'nim', label: 'NVIDIA NIM', external: true, consent } } });
+  });
+  await page.route('**/api/category-rules/assist', async route => {
+    const input = route.request().postDataJSON() as { enabled: boolean }; sent.push(input);
+    consent = input.enabled ? { provider: 'nim', acceptedAt: new Date().toISOString() } : null;
+    await route.fulfill({ json: { externalAssist: consent } });
+  });
+  await page.goto('/settings');
+  const rules = page.getByRole('region', { name: 'Regras de categoria' });
+  await expect(rules).toContainText('Assistente externo: NVIDIA NIM (meta/llama-3.1-8b-instruct) — desligado');
+  await expect(rules).toContainText('Nenhum dado é enviado a serviço externo enquanto o assistente externo estiver desligado.');
+  await expect(rules).toContainText('a descrição do lançamento (até 200 caracteres) e o valor');
+  await expect(rules).toContainText('Não são enviados: contas, cartões, datas');
+  expect(sent).toHaveLength(0);
+  await rules.getByRole('button', { name: 'Enviar descrições ao NVIDIA NIM', exact: true }).click();
+  await expect(rules.getByRole('status')).toContainText('Assistente externo ligado.');
+  await expect(rules).toContainText('— ligado por você');
+  await rules.getByRole('button', { name: 'Desligar assistente externo', exact: true }).click();
+  await expect(rules.getByRole('status')).toContainText('Assistente externo desligado.');
+  expect(sent).toEqual([{ enabled: true }, { enabled: false }]);
 });

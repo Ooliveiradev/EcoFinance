@@ -3,7 +3,8 @@ import { randomUUID, randomBytes } from 'node:crypto';
 import { testStore, clearTestCollections } from './firestore-fixture';
 import { saveAccount, saveCategory, archiveReference } from '../../../apps/next/src/lib/manual-finance-service';
 import { receiveImports, processImport, reviewImportItem } from '../../../apps/next/src/lib/import-store';
-import { categoryRules, deleteRule, editRule, learnRule, saveUserRule, suggestImportCategories } from '../../../apps/next/src/lib/category-rules';
+import { categoryRules, deleteRule, editRule, externalAssistConsent, learnRule, saveUserRule, setExternalAssist, suggestImportCategories } from '../../../apps/next/src/lib/category-rules';
+import type { AssistConfig } from '../../../apps/next/src/lib/assist-ollama';
 import type { ImportBatchView } from '../../shared/src';
 
 /** Category assistance (#11): rules learned in review, user rules and the local model, never auto-applied. */
@@ -66,7 +67,7 @@ it('asks the local model only for rows without a rule and keeps the manual flow 
     expect(category).toBeDefined();
     return new Response(JSON.stringify({ message: { content: JSON.stringify({ sugestoes: [{ n: 1, categoria: category.codigo, motivo: 'Corrida de aplicativo' }] }) } }));
   }) as unknown as typeof fetch;
-  const config = { url: 'http://ollama.test', model: 'qwen2.5:3b', timeoutMs: 1000 };
+  const config: AssistConfig = { url: 'http://ollama.test', model: 'qwen2.5:3b', timeoutMs: 1000, provider: 'ollama' };
   const result = await suggestImportCategories(db, owner, [{ position: 1, description: 'PADARIA CENTRAL', amount: '-5.00' }, { position: 2, description: 'UBER VIAGEM', amount: '-30.00' }], config, fetcher);
   expect(result.suggestions.get(1)).toMatchObject({ source: 'rule', categoryId: food });
   expect(result.suggestions.get(2)).toMatchObject({ source: 'model', categoryId: transport, model: 'qwen2.5:3b' });
@@ -74,6 +75,38 @@ it('asks the local model only for rows without a rule and keeps the manual flow 
   expect(asked).toHaveLength(1); expect(asked[0]).not.toContain('PADARIA');
   const down = await suggestImportCategories(db, owner, [{ position: 1, description: 'UBER', amount: '-1.00' }], config, (async () => { throw new TypeError('offline'); }) as unknown as typeof fetch);
   expect(down.suggestions.size).toBe(0); expect(down.warnings[0]).toContain('indisponível');
+});
+it('calls an external assistant only after this user opts in, and stops when they opt out', async () => {
+  const nim: AssistConfig = { url: 'https://nim.test/v1', model: 'meta/llama-3.1-8b-instruct', timeoutMs: 1000, provider: 'nim', apiKey: 'nvapi-test' };
+  const sent: string[] = [];
+  const fetcher = (async (url: string, init: RequestInit) => {
+    sent.push(url);
+    const data = JSON.parse(JSON.parse(String(init.body)).messages[1].content.split('\n').slice(1).join('\n'));
+    const code = data.categorias.find((item: { nome: string; codigo: string }) => item.nome === 'Transporte').codigo;
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ sugestoes: [{ n: 1, categoria: code, motivo: 'Corrida' }] }) } }] }));
+  }) as unknown as typeof fetch;
+  const rows = [{ position: 1, description: 'UBER VIAGEM', amount: '-30.00' }];
+  // Configured by the operator, but this user never agreed: nothing leaves the server.
+  expect((await suggestImportCategories(db, owner, rows, nim, fetcher)).suggestions.size).toBe(0);
+  expect(sent).toHaveLength(0);
+  await expect(setExternalAssist(db, owner, randomUUID(), { enabled: true }, null)).rejects.toMatchObject({ status: 409 });
+  await setExternalAssist(db, owner, randomUUID(), { enabled: true }, nim);
+  expect(await externalAssistConsent(db, owner)).toMatchObject({ provider: 'nim' });
+  const used = await suggestImportCategories(db, owner, rows, nim, fetcher);
+  expect(used.suggestions.get(1)).toMatchObject({ source: 'model', categoryId: transport });
+  expect(used.suggestions.get(1)!.reason).toContain('NVIDIA NIM');
+  expect(sent).toEqual(['https://nim.test/v1/chat/completions']);
+  // Another user's consent does not count, and opting out stops new calls at once.
+  const other = '10000000-0000-4000-8000-000000000002';
+  expect(await externalAssistConsent(db, other)).toBeNull();
+  await setExternalAssist(db, owner, randomUUID(), { enabled: false }, nim);
+  expect(await externalAssistConsent(db, owner)).toBeNull();
+  expect((await suggestImportCategories(db, owner, rows, nim, fetcher)).suggestions.size).toBe(0);
+  expect(sent).toHaveLength(1);
+  // Rules survive consent changes in the same preferences document.
+  await saveUserRule(db, owner, randomUUID(), { pattern: 'uber', categoryId: transport });
+  await setExternalAssist(db, owner, randomUUID(), { enabled: true }, nim);
+  expect(await categoryRules(db, owner)).toMatchObject([{ pattern: 'uber' }]);
 });
 it('edits learned rules with explicit precedence, replay protection and owner isolation', async () => {
   await db.transaction(tx => learnRule(tx, owner, 'PADARIA CENTRAL', food));
