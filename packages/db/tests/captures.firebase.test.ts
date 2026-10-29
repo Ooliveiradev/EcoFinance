@@ -26,7 +26,7 @@ const notice = (text: string, extra: Partial<CaptureEvent> = {}): CaptureEvent =
 const enable = (who = owner, target = account) => saveCaptureSources(db, who, randomUUID(), { sources: [{ package: bank, label: 'Banco Exemplo', accountId: target, cardId: null }] });
 const send = (events: CaptureEvent[], key = randomUUID(), who = owner) => receiveCaptures(db, who, key, { deviceId: device, events });
 const transactions = async (who = owner) => (await db.owned('transactions', who)).filter(row => !row.archivedAt);
-async function batchOf(result: { batches: unknown }): Promise<ImportBatchView> {
+async function batchOf(result: Record<string, unknown>): Promise<ImportBatchView> {
   const [first] = result.batches as { id: string }[];
   return loadImport(db, owner, first!.id);
 }
