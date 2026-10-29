@@ -46,8 +46,14 @@ minor/major do SDK e troca de Node LTS são decisões explícitas.
 ## Exceções limitadas a correções locais comprovadas
 
 Não há dispensa para advisory sem mitigação. A reconciliação de npm audit aceita
-somente os patches de `node-forge@1.4.0` e `braces@3.0.3` já verificados por bytes
-e regressões, conforme [ci-quality.md](../ci-quality.md). O registro
+somente os patches de `node-forge@1.4.0`, `braces@3.0.3` e `deepmerge@4.3.1` já
+verificados por bytes e regressões, conforme [ci-quality.md](../ci-quality.md).
+O de `deepmerge` (GHSA-gcqx-w48m-w2h4, sem versão corrigida, usado pelo
+`@expo/config` em build) ignora a chave própria `__proto__` do objeto de destino,
+que trocava o protótipo do resultado; revisão em 29/10/2026, expira em 28/11/2026.
+O `zod` 3 trazido pelo `@expo/cli` (GHSA-mrhx-c7xc-m3w5, sem correção na linha 3)
+é substituído por `zod@4.6.7` via override, verificado com `expo install --check`
+e `expo export`. O registro
 [dependency-policy.json](../../scripts/security/dependency-policy.json) exige
 justificativa, versão, responsável, data e expiração em até 30 dias. A aprovação
 inicial expira em 12/11/2026 às 00:00 UTC; a auditoria bloqueia nesse instante.

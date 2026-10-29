@@ -1,0 +1,45 @@
+diff --git a/dist/cjs.js b/dist/cjs.js
+index 7c36cbdd06cc22c92d590be3f87a08a91ca06b40..904a310bee19fe0548d387f35229a64573efe3d1 100644
+--- a/dist/cjs.js
++++ b/dist/cjs.js
+@@ -80,6 +80,10 @@ function mergeObject(target, source, options) {
+ 	var destination = {};
+ 	if (options.isMergeableObject(target)) {
+ 		getKeys(target).forEach(function(key) {
++			// GHSA-gcqx-w48m-w2h4: an own "__proto__" key would replace the prototype of the result.
++			if (key === "__proto__") {
++				return
++			}
+ 			destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+ 		});
+ 	}
+diff --git a/dist/umd.js b/dist/umd.js
+index 4071e7c56ec8e5273fe166f6e723ac460fab8b72..fad515fa258d9c29e1a7c6672e431941ca1bfb40 100644
+--- a/dist/umd.js
++++ b/dist/umd.js
+@@ -84,6 +84,10 @@
+ 		var destination = {};
+ 		if (options.isMergeableObject(target)) {
+ 			getKeys(target).forEach(function(key) {
++				// GHSA-gcqx-w48m-w2h4: an own "__proto__" key would replace the prototype of the result.
++				if (key === "__proto__") {
++					return
++				}
+ 				destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+ 			});
+ 		}
+diff --git a/index.js b/index.js
+index 77968aed5d456cccc294f60912ef381fa1e52a7b..fa4db47a350ae49d20e2e5cf3bd2eb3df873ade7 100644
+--- a/index.js
++++ b/index.js
+@@ -55,6 +55,10 @@ function mergeObject(target, source, options) {
+ 	var destination = {}
+ 	if (options.isMergeableObject(target)) {
+ 		getKeys(target).forEach(function(key) {
++			// GHSA-gcqx-w48m-w2h4: an own "__proto__" key would replace the prototype of the result.
++			if (key === "__proto__") {
++				return
++			}
+ 			destination[key] = cloneUnlessOtherwiseSpecified(target[key], options)
+ 		})
+ 	}
