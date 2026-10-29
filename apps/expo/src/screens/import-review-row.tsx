@@ -30,12 +30,25 @@ function ReviewActions({ row, draft, categories, disabled, busy, onSave, onDisca
   </>;
 }
 
+/** Rule or model suggestion (#11): shown with its reason, applied only by the user and saved only with the row. */
+function Suggestion({ row, form, categories, disabled, change }: Pick<RowProps, 'row' | 'categories'> & { form: ReviewForm; disabled: boolean; change: (patch: Partial<ReviewForm>) => void }) {
+  const suggestion = row.suggestion;
+  if (!suggestion || row.categoryId) return null;
+  const name = categories.find(([id]) => id === suggestion.categoryId)?.[1];
+  if (!name) return null;
+  return <>
+    <Muted>Categoria sugerida: {name} — {suggestion.reason} Ela só vale depois de salvar a linha.</Muted>
+    {form.categoryId !== suggestion.categoryId ? <Button label={`Usar categoria sugerida na linha ${row.position}`} variant="secondary" disabled={disabled} onPress={() => change({ categoryId: suggestion.categoryId })} /> : null}
+  </>;
+}
+
 function ReviewChoices({ row, form, categories, disabled, errors, change }: Pick<RowProps, 'row' | 'categories'> & {
   form: ReviewForm; disabled: boolean; errors: Record<string, string>; change: (patch: Partial<ReviewForm>) => void;
 }) {
   const duplicates = row.candidates.map(candidate => [candidate.id, `${candidate.description} · ${money(candidate.amount)} · ${candidate.purchaseDate}${candidate.exact ? ' (mesmo lançamento)' : ''}`] as const);
   return <>
     <Choice label="Categoria" options={categories} value={form.categoryId} disabled={disabled} error={errors.categoryId} onChange={categoryId => change({ categoryId })} />
+    <Suggestion row={row} form={form} categories={categories} disabled={disabled} change={change} />
     <Choice label="Ação" options={[['new', 'Criar'], ...(duplicates.length ? [['link', 'Vincular existente'] as const] : []), ['exclude', 'Excluir']] as const}
       value={form.resolution} disabled={disabled} error={errors.resolution} onChange={resolution => change({ resolution, selected: resolution !== 'exclude' && form.selected, duplicateId: resolution === 'link' ? form.duplicateId ?? duplicates[0]?.[0] ?? null : null })} />
     {form.resolution !== 'exclude' ? <Choice label="Incluir na confirmação" options={[['yes', 'Sim'], ['no', 'Não']] as const} value={form.selected ? 'yes' : 'no'} disabled={disabled} onChange={selected => change({ selected: selected === 'yes' })} /> : null}

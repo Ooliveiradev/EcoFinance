@@ -7,7 +7,22 @@ import type { CategoryRule } from '@ecofinance/shared';
  * pre-select a category during review; nothing is categorized without saving a row.
  */
 interface Category { id: string; name: string; archivedAt?: string | null }
-interface RulesState { rules: CategoryRule[]; assistant: { model: string } | null }
+interface Assistant { model: string; label: string; external: boolean; consent: { acceptedAt: string } | null }
+interface RulesState { rules: CategoryRule[]; assistant: Assistant | null }
+/** External assistant (#11): off until the user reads what is sent and turns it on. */
+function ExternalAssist({ assistant, busy, toggle }: { assistant: Assistant; busy: boolean; toggle: (enabled: boolean) => void }) {
+  const on = Boolean(assistant.consent);
+  return <div className="space-y-2 rounded border border-slate-700 p-3 text-sm">
+    <p className="font-semibold">Assistente externo: {assistant.label} ({assistant.model}) — {on ? 'ligado por você' : 'desligado'}</p>
+    <p className="text-slate-400">Ao ligar, cada análise de importação envia ao serviço {assistant.label}, fora desta instalação, apenas das linhas sem regra:</p>
+    <ul className="list-disc pl-5 text-slate-400">
+      <li>a descrição do lançamento (até 200 caracteres) e o valor;</li>
+      <li>os nomes das suas categorias ativas.</li>
+    </ul>
+    <p className="text-slate-400">Não são enviados: contas, cartões, datas, ids, saldos nem o arquivo. A sugestão só pré-seleciona a categoria; nada é salvo sem a sua revisão. O plano gratuito do provedor tem limite de uso; quando ele acaba, a revisão continua manual, sem outro provedor pago.</p>
+    <button type="button" className={button} disabled={busy} onClick={() => toggle(!on)}>{on ? 'Desligar assistente externo' : `Enviar descrições ao ${assistant.label}`}</button>
+  </div>;
+}
 async function send(url: string, method: string, body: unknown) {
   const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify(body) });
   if (!response.ok) {
@@ -41,7 +56,8 @@ export function CategoryRules() {
   return <section aria-labelledby="rules-title" className="space-y-4 rounded-xl border border-slate-700 p-4">
     <h2 id="rules-title" className="text-lg font-semibold">Regras de categoria</h2>
     <p className="text-sm text-slate-400">Na revisão de importações, a categoria é pré-selecionada pelas suas regras e só vale ao salvar a linha. As regras aprendidas vêm das categorias que você escolhe na revisão.</p>
-    <p className="text-sm text-slate-400">{!state ? 'Carregando regras de categoria…' : state.assistant ? `Linhas sem regra recebem sugestão do modelo local ${state.assistant.model}, executado no servidor desta instalação. Nenhum dado é enviado a serviço externo.` : 'Assistente por modelo local desligado nesta instalação: só suas regras sugerem categorias.'}</p>
+    <p className="text-sm text-slate-400">{!state ? 'Carregando regras de categoria…' : !state.assistant ? 'Assistente por modelo desligado nesta instalação: só suas regras sugerem categorias.' : state.assistant.external ? (state.assistant.consent ? `Linhas sem regra recebem sugestão do ${state.assistant.label}, um serviço externo que você ligou.` : 'Só suas regras sugerem categorias. Nenhum dado é enviado a serviço externo enquanto o assistente externo estiver desligado.') : `Linhas sem regra recebem sugestão do modelo local ${state.assistant.model}, executado no servidor desta instalação. Nenhum dado é enviado a serviço externo.`}</p>
+    {state?.assistant?.external && <ExternalAssist assistant={state.assistant} busy={busy} toggle={enabled => void perform(() => send('/api/category-rules/assist', 'PUT', { enabled }), enabled ? 'Assistente externo ligado.' : 'Assistente externo desligado.')} />}
     {error && <p role="alert" className="text-red-400">{error}</p>}
     {status && <p role="status" className="text-emerald-400">{status}</p>}
     <form className="flex flex-wrap items-end gap-2" action={addRule}>
