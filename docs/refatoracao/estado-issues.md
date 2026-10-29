@@ -22,7 +22,7 @@ as lacunas que impedem novos fechamentos; não certifica a implantação em prod
 | #16 | Gates e jornadas básicas existem; release/jornadas completas/mobile ainda pendentes |
 | #17 | README atualizado; faltam capturas reais dos fluxos finais entregues |
 | #18 | #1–#10, #12, #14, #15 e #38 completas; #11/#13 parciais; demais critérios permanecem nas respectivas issues |
-| #19 | Captura automática desativada; faltam opt-in, staging, provas nativas e conector de email |
+| #19 | 1ª entrega em código: opt-in por app, parser versionado, staging em revisão idempotente, listener Android e sincronização com fila privada (captura.md). Faltam prova em aparelho Android, matriz de bancos com avisos reais e o conector de e-mail (só viabilidade) |
 | #28 | URLs/cookies seguros e exceções locais definidas; falta comprovar transporte/redirects da implantação |
 | #30 | MFA não implementado |
 | #31 | Login tem rate limit; falta cobertura operacional de todas as superfícies/rajadas/recuperação |

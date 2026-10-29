@@ -5,6 +5,8 @@ import { ApiError, toApiError } from '../data/api';
 import { loadWithCache, type Loaded } from '../data/cache';
 import { NO_NOTICE, outcomeMessage, type NoticeState } from '../data/outcome';
 import { flush, listOutbox, onOutboxChange, OutboxBusy, submit, type Mutation, type OutboxItem, type SubmitOutcome } from '../data/outbox';
+import { syncCaptures } from '../data/capture';
+import { captureNative } from '../../modules/ecofinance-capture';
 
 interface DataContextValue {
   userId: string;
@@ -39,7 +41,9 @@ export function DataProvider({ userId, children }: { userId: string; children: R
     setSyncing(true);
     try {
       const result = await flush(userId);
-      if (result.sent.size) setVersion(value => value + 1);
+      // Optional capture (#19): queued notices are staged for review; failures stay queued with backoff.
+      const captured = await syncCaptures(captureNative, userId).catch(() => null);
+      if (result.sent.size || captured?.accepted) setVersion(value => value + 1);
     } finally { setSyncing(false); }
   }, [userId]);
 

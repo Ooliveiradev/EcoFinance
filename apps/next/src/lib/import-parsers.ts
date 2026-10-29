@@ -10,20 +10,22 @@ export { delimitedRows } from './import-delimited';
 export interface ImportFile { name: string; mime: string; bytes: Uint8Array }
 export interface ParseOptions { mapping?: ImportMapping | null; profiles?: Record<string, ImportMapping>; parsers?: readonly ImportParser[] }
 export interface ParseContext { encoding: string; mapping: ImportMapping | null; profiles: Record<string, ImportMapping> }
-export interface ParsedContent { source: ImportSource; accountHint: string | null; rows: ParsedImportRow[]; format?: string; warnings?: string[]; layout?: ImportLayout; mapping?: ImportMapping; documentKind?: 'invoice' | 'statement' | 'receipt' }
+// Captured notifications have no file: parsers only produce file sources.
+export type FileSource = Exclude<ImportSource, 'notification'>;
+export interface ParsedContent { source: FileSource; accountHint: string | null; rows: ParsedImportRow[]; format?: string; warnings?: string[]; layout?: ImportLayout; mapping?: ImportMapping; documentKind?: 'invoice' | 'statement' | 'receipt' }
 export interface ParsedImport extends ParsedContent { format: string; warnings: string[] }
 /** Parsers see decoded text (empty for binary containers) and always the original bytes. */
 export interface ImportParser { format: string; detect: (text: string, file: ImportFile) => boolean; parse: (text: string, file: ImportFile, context: ParseContext) => ParsedContent }
 
-const mimes: Record<ImportSource, string[]> = {
+const mimes: Record<FileSource, string[]> = {
   ofx: ['application/x-ofx', 'application/ofx', 'application/vnd.intu.qfx', 'application/x-qfx', 'text/plain', 'text/xml', 'application/xml', 'application/octet-stream', ''],
   csv: ['text/csv', 'text/tab-separated-values', 'application/csv', 'text/plain', 'application/vnd.ms-excel', 'application/octet-stream', ''],
   spreadsheet: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'application/vnd.ms-excel.sheet.macroenabled.12', 'application/zip', 'application/x-zip-compressed', 'application/octet-stream', ''],
   document: ['application/pdf', 'application/x-pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/webp', 'application/octet-stream', ''],
 };
-const extensions: Record<ImportSource, RegExp> = { ofx: /\.(ofx|qfx|txt|xml)$/i, csv: /\.(csv|tsv|txt)$/i, spreadsheet: /\.(xlsx|xlsm|xls)$/i, document: /\.(pdf|png|jpe?g|webp)$/i };
+const extensions: Record<FileSource, RegExp> = { ofx: /\.(ofx|qfx|txt|xml)$/i, csv: /\.(csv|tsv|txt)$/i, spreadsheet: /\.(xlsx|xlsm|xls)$/i, document: /\.(pdf|png|jpe?g|webp)$/i };
 /** MIME and extension are hints only; a mismatch with the detected content is reported, never trusted. */
-export function mimeWarnings(file: ImportFile, source: ImportSource) {
+export function mimeWarnings(file: ImportFile, source: FileSource) {
   const warnings: string[] = [];
   if (!mimes[source].includes(file.mime.toLowerCase().split(';')[0]!.trim())) warnings.push('MIME diverge do conteúdo; formato identificado pela assinatura e pelas colunas.');
   if (!extensions[source].test(file.name)) warnings.push('Extensão não corresponde ao conteúdo; formato identificado pelo conteúdo.');

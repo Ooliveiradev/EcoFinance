@@ -15,6 +15,7 @@ export type RootStack = {
   ImportReview: { batchId: string };
   Pending: undefined;
   Settings: undefined;
+  Capture: undefined;
 };
 export type StackProps<K extends keyof RootStack> = NativeStackScreenProps<RootStack, K>;
 export function useStack() { return useNavigation<NativeStackNavigationProp<RootStack>>(); }

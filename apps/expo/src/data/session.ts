@@ -1,6 +1,8 @@
 import { clearSession, loadBackendConfig, signOut } from '../services/backend-config';
 import { clearOtherUsers, clearUserData } from './local-store';
 import { listOutbox } from './outbox';
+import { stopCapture } from './capture';
+import { captureNative } from '../../modules/ecofinance-capture';
 
 export async function activeUserId(): Promise<string | null> {
   return (await loadBackendConfig())?.userId ?? null;
@@ -8,6 +10,8 @@ export async function activeUserId(): Promise<string | null> {
 /** After login: data of any previous account on this device is removed before the new one is shown. */
 export async function prepareUser(userId: string) {
   await clearOtherUsers(userId);
+  // The capture queue and filters belong to one account (#19).
+  if (captureNative && captureNative.status().owner !== userId) stopCapture(captureNative);
 }
 export async function unsyncedCount(userId: string) {
   return (await listOutbox(userId)).length;
@@ -20,6 +24,7 @@ export async function logout(all: boolean) {
   const config = await loadBackendConfig();
   await signOut(all);
   if (config) await clearUserData(config.userId);
+  stopCapture(captureNative);
 }
 /**
  * Offline exit: erases this device's credential, cache and drafts without
@@ -29,5 +34,6 @@ export async function logout(all: boolean) {
 export async function forgetDevice() {
   const config = await loadBackendConfig();
   if (config) await clearUserData(config.userId);
+  stopCapture(captureNative);
   await clearSession();
 }

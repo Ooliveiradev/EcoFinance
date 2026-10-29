@@ -3,7 +3,7 @@ import { importReviewSchema, importPreview,importSourceSchema,importTargetSchema
 const row = (patch: Partial<ImportRowView> = {}): ImportRowView => ({ id: '10000000-0000-4000-8000-000000000001', position: 1, state: 'valid', revision: 'v1', description: 'Mercado', amount: '-10.25', purchaseDate: '2026-10-01', competenceMonth: '2026-10-01', categoryId: '10000000-0000-4000-8000-000000000002', selected: true, resolution: 'new', duplicateId: null, warnings: [], provenance: {}, candidates: [], undoReason: null, suggestion: null, ...patch });
 describe('import review boundary', () => {
   it('requires complete exact money/date/category and an explicit existing id for a link', () => {
-    expect(importSourceSchema.safeParse('document').success).toBe(true);expect(importSourceSchema.safeParse('notification').success).toBe(false);
+    expect(importSourceSchema.safeParse('document').success).toBe(true);expect(importSourceSchema.safeParse('notification').success).toBe(true);expect(importSourceSchema.safeParse('pluggy').success).toBe(false);
     expect(importTargetSchema.safeParse({accountId:row().id,cardId:null}).success).toBe(true);expect(importTargetSchema.safeParse({accountId:null,cardId:row().id}).success).toBe(true);expect(importTargetSchema.safeParse({accountId:row().id,cardId:row().id}).success).toBe(false);expect(importTargetSchema.safeParse({accountId:null,cardId:null}).success).toBe(false);expect(importIdSchema.safeParse('../other').success).toBe(false);
     const input = { description: 'Mercado', amount: '-10.25', purchaseDate: '2026-10-01', competenceMonth: '2026-10-01', categoryId: row().categoryId, selected: true, resolution: 'new', duplicateId: null };
     expect(importReviewSchema.parse(input)).toEqual(input);
